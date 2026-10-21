@@ -33,3 +33,27 @@ test('phone layout keeps the dials behind a toggle', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
 });
+
+test('every proof passes in the browser, including the GPU shader checks', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = watchErrors(page);
+  await page.goto('./?proofs&e2e');
+  await expect(page.locator('.proof')).not.toHaveCount(0);
+  await expect(page.locator('.proofs-summary')).toHaveText(/^(\d+) of \1 passed$/, { timeout: 150_000 });
+  await expect(page.locator('.proof[data-state="fail"]')).toHaveCount(0);
+  for (const id of ['gpu-aberration', 'gpu-doppler', 'gpu-schrodinger', 'gpu-geodesics']) await expect(page.locator(`.proof[data-proof="${id}"]`)).toHaveAttribute('data-state', 'pass');
+  expect(errors).toEqual([]);
+});
+
+test('a tour prediction can be answered and then explains itself', async ({ page }) => {
+  await page.goto('./?world=slow-light&quality=low&e2e');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
+  await page.locator('[data-tour-next]').click();
+  await expect(page.locator('.predict-q')).toContainText('Compared with your watch');
+  await expect(page.locator('.tour-text')).toBeHidden();
+  await page.locator('.choice[data-choice="2"]').click();
+  await expect(page.locator('.choice[data-choice="1"]')).toHaveAttribute('data-state', 'right');
+  await expect(page.locator('.choice[data-choice="2"]')).toHaveAttribute('data-state', 'wrong');
+  await expect(page.locator('.predict-reveal')).toContainText('5.4 s');
+  await expect(page.locator('.tour-text')).toBeVisible();
+});

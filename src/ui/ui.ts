@@ -1,5 +1,6 @@
 // DOM for the title screen and the in-world instruments. Plain elements, no framework.
 
+import { setSound, soundOn } from '../audio';
 import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, ratioLabel, toSlider } from '../constants';
 import type { Quality, Readout, World } from '../worlds/types';
 
@@ -54,7 +55,7 @@ export const WORLD_CARDS: WorldCard[] = [
   },
 ];
 
-export function titleScreen(onEnter: (id: string) => void, quality: Quality, onQuality: (q: Quality) => void, error: string | null) {
+export function titleScreen(onEnter: (id: string) => void, onProofs: () => void, quality: Quality, onQuality: (q: Quality) => void, error: string | null) {
   const plates = WORLD_CARDS.map((c) =>
     h(
       'button',
@@ -83,6 +84,7 @@ export function titleScreen(onEnter: (id: string) => void, quality: Quality, onQ
       'footer',
       { class: 'title-foot' },
       h('span', {}, 'Click to look · WASD to move · Shift to run · on phones: left thumb moves, right thumb looks'),
+      h('button', { class: 'btn ghost proofs-link', 'data-proofs': true, onclick: onProofs }, 'Check the physics →'),
       h('label', { class: 'quality' }, 'Quality ', select),
     ),
   );
@@ -155,9 +157,10 @@ export function worldChrome(
   const tourNo = h('span', { class: 'tour-no' });
   const tourTitle = h('h3', { class: 'tour-title' });
   const tourText = h('p', { class: 'tour-text' });
+  const predictBox = h('div', { class: 'predict', hidden: true });
   const prev = h('button', { class: 'btn ghost', 'aria-label': 'Previous tour stop', onclick: () => opts.onTour(current - 1) }, '←');
   const next = h('button', { class: 'btn', 'data-tour-next': true, 'aria-label': 'Next tour stop', onclick: () => opts.onTour(current + 1) }, 'Next →');
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), tourText, h('div', { class: 'row' }, prev, next));
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, prev, next));
   let current = 0;
 
   const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials');
@@ -166,6 +169,11 @@ export function worldChrome(
     panelToggle.setAttribute('aria-expanded', String(open));
   });
   const helpBtn = h('button', { class: 'btn ghost', 'aria-label': 'Controls help', 'aria-expanded': 'false' }, '?');
+  const soundBtn = h('button', { class: 'btn ghost', 'data-sound': true, 'aria-pressed': String(soundOn()), title: 'Hear the physics: Doppler-shifted bells, detector clicks, distant clocks' }, 'Sound');
+  soundBtn.addEventListener('click', () => {
+    setSound(!soundOn());
+    soundBtn.setAttribute('aria-pressed', String(soundOn()));
+  });
   const help = h(
     'div',
     { class: 'help', hidden: true, role: 'dialog', 'aria-label': 'Controls' },
@@ -187,7 +195,7 @@ export function worldChrome(
     { class: 'topbar' },
     h('button', { class: 'btn ghost', 'data-back': true, onclick: opts.onBack }, '← Worlds'),
     h('div', { class: 'world-name' }, h('span', { class: 'plate-no' }, card.plate), h('span', {}, world.title)),
-    h('div', { class: 'top-right' }, panelToggle, qualitySelect(opts.quality, opts.onQuality), helpBtn),
+    h('div', { class: 'top-right' }, panelToggle, soundBtn, qualitySelect(opts.quality, opts.onQuality), helpBtn),
   );
   const root = h('div', { class: 'chrome', 'data-world': world.id }, top, help, panel, hud, tour, toast);
 
@@ -220,6 +228,26 @@ export function worldChrome(
       tourNo.textContent = `${i + 1} / ${world.tour.length}`;
       tourTitle.textContent = stop.title;
       tourText.textContent = stop.text;
+      const p = stop.predict;
+      predictBox.hidden = !p;
+      tourText.hidden = !!p;
+      if (p) {
+        const reveal = h('p', { class: 'predict-reveal', hidden: true });
+        const choose = (k: number | null) => {
+          for (const [j, b] of buttons.entries()) {
+            b.disabled = true;
+            if (j === p.answer) b.dataset.state = 'right';
+            else if (j === k) b.dataset.state = 'wrong';
+          }
+          reveal.textContent = (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal;
+          reveal.hidden = false;
+          tourText.hidden = false;
+          skip.hidden = true;
+        };
+        const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
+        const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
+        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, reveal);
+      }
       prev.disabled = i === 0;
       next.disabled = i === world.tour.length - 1;
     },

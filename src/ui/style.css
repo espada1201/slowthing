@@ -82,6 +82,7 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 .world-name { display: flex; flex-direction: column; line-height: 1; font: italic 28px var(--serif); text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6); }
 .world-name .plate-no { font: 10px var(--mono); font-style: normal; color: rgba(239, 231, 214, 0.75); margin-bottom: 4px; }
 .top-right { margin-left: auto; display: flex; gap: 8px; }
+.topbar .btn[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .panel-toggle { display: none !important; }
 
 .panel, .hud, .tour, .help {
@@ -125,6 +126,17 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .tour-title { font: italic 26px/1.05 var(--serif); margin: 0; }
 .tour-text { font: 19px/1.3 var(--serif); margin: 6px 0 4px; }
 .tour .row { justify-content: flex-end; margin-bottom: 0; }
+.predict { margin: 6px 0 2px; }
+.predict-q { font: 19px/1.3 var(--serif); margin: 0 0 8px; }
+.predict-tag { font: 500 10px var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--paper); background: var(--accent); padding: 2px 6px; border-radius: 2px; margin-right: 8px; vertical-align: 3px; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice { background: transparent; border: 1px solid var(--ink); border-radius: var(--radius); padding: 6px 10px; cursor: pointer; font-size: 13px; color: var(--ink); min-height: 34px; }
+.choice:hover:not(:disabled) { background: rgba(16, 18, 22, 0.08); }
+.choice:disabled { cursor: default; opacity: 0.55; }
+.choice[data-state='right'] { background: var(--ink); color: var(--paper); opacity: 1; }
+.choice[data-state='wrong'] { border-color: var(--accent); color: var(--accent-ink); opacity: 1; text-decoration: line-through; }
+.linkish { background: none; border: 0; padding: 4px 0; margin-top: 4px; font-size: 12px; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.predict-reveal { font: italic 18px/1.3 var(--serif); margin: 8px 0 0; color: var(--accent-ink); }
 .tour .btn.ghost { color: var(--ink); }
 
 .help { position: absolute; top: 64px; right: 312px; width: 280px; padding: 10px 16px; font-size: 13px; }
@@ -167,3 +179,21 @@ body[data-mode='world'] #touch { display: block; }
   .help { right: 12px; left: 12px; width: auto; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Proofs */
+.proofs-link { color: var(--paper); border-color: rgba(239, 231, 214, 0.4); }
+.proofs-page .back { color: var(--paper); border-color: rgba(239, 231, 214, 0.4); margin-bottom: 18px; }
+.proofs-h { font-size: clamp(48px, 9vw, 112px) !important; }
+.proofs-summary { margin: 0; align-self: center; font-size: 13px; color: rgba(239, 231, 214, 0.8); }
+.proofs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; position: relative; }
+.proof { background: var(--paper); color: var(--ink); border-radius: var(--radius); padding: 14px 16px; box-shadow: inset 0 0 0 1px var(--rule); }
+.proof h2 { font: 400 26px/1.05 var(--serif); margin: 8px 0 4px; }
+.proof-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.proof-world { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.proof-state { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: 0.12em; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--muted); color: var(--muted); }
+.proof[data-state='running'] .proof-state { border-color: var(--brass); color: var(--brass); }
+.proof[data-state='pass'] .proof-state { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.proof[data-state='fail'] .proof-state { background: var(--accent); border-color: var(--accent); color: #fff; }
+.proof-claim { font: 17px/1.3 var(--serif); margin: 0 0 8px; color: #3a372f; }
+.proof-result { font-size: 12px; font-variant-numeric: tabular-nums; }
+.proofs-page .btn { border-color: rgba(239, 231, 214, 0.4); }

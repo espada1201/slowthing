@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { formatSI } from '../constants';
-import { observerToWorldDirection } from '../physics/relativity';
+import { chime } from '../audio';
+import { observerToWorldDirection, retardedTime } from '../physics/relativity';
 import { whiteLuminance } from '../physics/spectrum';
 import type { Vec3 } from '../physics/vec';
 import type { InputState } from '../input';
@@ -36,7 +37,12 @@ interface Mover {
   properSpeed: number;
   direction: 1 | -1;
   tram: boolean;
+  /** Index of the last flash the observer has seen (lamps only). */
+  seenFlash?: number;
 }
+
+/** Bell notes for the carousel lamps (C major pentatonic). */
+const LAMP_NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 
 const motion = (properSpeed: number, c: number) => {
   const v = properSpeed / Math.sqrt(1 + (properSpeed / c) ** 2);
@@ -63,13 +69,13 @@ export class SlowLightWorld implements World {
   ];
   readonly tour: TourStop[] = [
     { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
-    { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop' },
-    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: { position: [4, EYE, 135], yaw: 0, pitch: 0 }, action: 'cruise' },
+    { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop', predict: { question: 'The clock face is 65 m away and light moves at 12 m/s. Compared with your watch, it reads…', options: ['the same time', 'about 5 s behind', 'about 5 s ahead'], answer: 1, reveal: 'Its light needed 65 m ÷ 12 m/s ≈ 5.4 s to reach you, so you see the clock as it was 5.4 s ago.' } },
+    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: { position: [4, EYE, 135], yaw: 0, pitch: 0 }, action: 'cruise', predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
     { title: 'Colours you cannot normally see', text: 'Ahead, light is blueshifted: visible colours slide into ultraviolet while infrared, even the 300 K warmth of stone, slides into view. Behind you everything reddens and fades.', action: 'cruise' },
     { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', action: 'cruise' },
-    { title: 'Terrell rotation', text: 'Stand by the track. The tram is Lorentz-contracted, yet you see it turned, not squashed: light from its far side left earlier than light from its near side. It comes round every half minute.', pose: { position: [6, EYE, 41], yaw: -1.35, pitch: 0.02 }, action: 'tram' },
+    { title: 'Terrell rotation', text: 'Stand by the track. The tram is Lorentz-contracted, yet you see it turned, not squashed: light from its far side left earlier than light from its near side. It comes round every half minute.', pose: { position: [6, EYE, 41], yaw: -1.35, pitch: 0.02 }, action: 'tram', predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
     { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.74 c its clock runs at two-thirds speed, and the light delay bunches or spreads what you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop' },
-    { title: 'You are younger', text: 'Compare the town clock with your watch in the panel. Every journey at speed left you a little younger than the town. This is the twin paradox, measured.' },
+    { title: 'You are younger', text: 'Compare the town clock with your watch in the panel. Every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];
 
@@ -402,6 +408,7 @@ export class SlowLightWorld implements World {
       u.uRetard.value = this.toggle('delay') ? 1 : 0;
       u.uContract.value = this.toggle('contraction') ? 1 : 0;
     }
+    this.ringLamps(c, gamma);
     const delay = this.toggle('delay') ? this.pos.distanceTo(new THREE.Vector3(CLOCK_TOWER.x, 14.5, CLOCK_TOWER.z)) / c : 0;
     this.clockMaterial.uniforms.uClockTime.value = CLOCK_START + this.t - delay;
     this.sky.position.copy(this.pos);
@@ -423,6 +430,41 @@ export class SlowLightWorld implements World {
     u.uExposure.value = Math.exp(this.logExposure);
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
+  }
+
+  /**
+   * Each lamp rings when its flash *reaches you*: the flash happens on the lamp's own (dilated) clock at the
+   * retarded time, and the bell is pitched by the same Doppler factor that shifts the lamp's colour.
+   */
+  private ringLamps(c: number, gammaObs: number) {
+    const betaObs: Vec3 = [this.properVel.x / (c * gammaObs), this.properVel.y / (c * gammaObs), this.properVel.z / (c * gammaObs)];
+    const obs: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    let lamp = 0;
+    for (const m of this.movers) {
+      if (m.tram) continue;
+      const { v, gamma } = motion(m.properSpeed, c);
+      const omega = (m.direction * v) / m.radius;
+      const path = (t: number): Vec3 => [m.radius * Math.cos(m.phase0 + omega * t), 3, m.radius * Math.sin(m.phase0 + omega * t)];
+      const vel = (t: number): Vec3 => [-m.radius * omega * Math.sin(m.phase0 + omega * t), 0, m.radius * omega * Math.cos(m.phase0 + omega * t)];
+      const tr = this.toggle('delay') ? retardedTime(path, vel, obs, this.t, c, 8) : this.t;
+      const flash = Math.floor(tr / gamma / BLINK_PERIOD);
+      const note = LAMP_NOTES[lamp++ % LAMP_NOTES.length];
+      if (m.seenFlash !== undefined && flash > m.seenFlash) {
+        const p = path(tr);
+        const d: Vec3 = [obs[0] - p[0], obs[1] - p[1], obs[2] - p[2]];
+        const dist = Math.hypot(...d);
+        const k: Vec3 = [d[0] / dist, d[1] / dist, d[2] / dist];
+        const u = vel(tr);
+        const dSrc = 1 / (gamma * (1 - (u[0] * k[0] + u[2] * k[2]) / c));
+        const nW: Vec3 = [-k[0], -k[1], -k[2]];
+        const dObs = gammaObs * (1 + betaObs[0] * nW[0] + betaObs[1] * nW[1] + betaObs[2] * nW[2]);
+        const D = this.toggle('doppler') ? dSrc * dObs : 1;
+        const seen = this.toggle('aberration') ? observerToWorldDirection(nW, [-betaObs[0], -betaObs[1], -betaObs[2]]) : nW;
+        const right = rightFlat(this.yaw);
+        chime(note * D, (0.8 / (1 + dist / 12)) * Math.min(3, this.toggle('beaming') ? D * D : 1), seen[0] * right.x + seen[2] * right.z);
+      }
+      m.seenFlash = flash;
+    }
   }
 
   /**

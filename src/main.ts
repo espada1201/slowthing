@@ -6,6 +6,7 @@ import './ui/style.css';
 import * as THREE from 'three';
 import { type ConstantKey, type Constants, DIALS, REAL } from './constants';
 import { Input } from './input';
+import { proofsView } from './ui/proofsView';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
 import type { Quality, World, WorldContext } from './worlds/types';
 
@@ -81,9 +82,18 @@ function showTitle() {
   chrome = null;
   document.body.dataset.mode = 'title';
   if (document.pointerLockElement) document.exitPointerLock();
-  ui.replaceChildren(titleScreen(enter, quality, setQuality, startupError));
+  ui.replaceChildren(titleScreen(enter, showProofs, quality, setQuality, startupError));
   history.replaceState(null, '', location.pathname + (params.has('quality') ? `?quality=${quality}` : ''));
   document.querySelector<HTMLButtonElement>('.plate')?.focus({ preventScroll: true });
+}
+
+function showProofs() {
+  world?.dispose();
+  world = null;
+  chrome = null;
+  document.body.dataset.mode = 'title';
+  ui.replaceChildren(proofsView(startupError ? null : renderer, showTitle));
+  history.replaceState(null, '', '?proofs');
 }
 
 async function enter(id: string) {
@@ -211,6 +221,7 @@ resize();
 requestAnimationFrame(loop);
 const initial = params.get('world');
 if (initial && initial in loaders && !startupError) void enter(initial);
+else if (params.has('proofs')) showProofs();
 else showTitle();
 
 // Read-only probe for the end-to-end tests.

@@ -32,6 +32,15 @@ export interface TourStop {
   toggles?: Record<string, boolean>;
   /** World-specific action run when the stop is shown (e.g. start cruising, throw a ball). */
   action?: string;
+  /** Predict-observe-explain: ask before showing, then reveal. */
+  predict?: Prediction;
+}
+
+export interface Prediction {
+  question: string;
+  options: string[];
+  answer: number;
+  reveal: string;
 }
 
 export interface WorldAction {
