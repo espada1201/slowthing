@@ -1,7 +1,7 @@
 // Spectral colour model used for Doppler shifting.
-// An sRGB surface colour is lifted to a full emitted spectrum (three visible bands with ultraviolet and
-// infrared shoulders, plus 300 K thermal glow), Doppler-shifted, then re-integrated against the CIE 1931
-// observer. At D = 1 the round trip returns the original colour exactly.
+// An sRGB surface colour is lifted to a full spectrum (a smooth reflectance lit by 5778 K sunlight, which
+// reaches into the ultraviolet and infrared, plus the surface's own 300 K thermal glow), Doppler-shifted,
+// then re-integrated against the CIE 1931 observer. At D = 1 the round trip returns the original colour.
 
 import type { Vec3 } from './vec';
 
@@ -43,16 +43,25 @@ export function planck(lambdaNm: number, T: number): number {
 }
 
 const THERMAL_PEAK_NM = 2.897771955e6 / 300;
-const thermal = (lambda: number) => (0.5 * planck(lambda, 300)) / planck(THERMAL_PEAK_NM, 300);
-const nearIR = (lambda: number) => 0.35 * Math.min(1, Math.max(0, (lambda - 690) / 60)) * Math.exp(-Math.max(0, lambda - 1300) / 400);
+const SUN_T = 5778;
+const SUN_550 = planck(550, SUN_T);
+/** Sunlight, normalised to 1 at 550 nm. Surfaces are sunlit reflectors. */
+const sun = (lambda: number) => planck(lambda, SUN_T) / SUN_550;
+/**
+ * Thermal emission of a 300 K surface relative to sunlit reflection: for an albedo-1 surface the
+ * reflected solar radiance at 550 nm is ≈0.57 W·m⁻²·sr⁻¹·nm⁻¹, a 300 K black body peaks at ≈0.0099.
+ */
+const thermal = (lambda: number) => (0.0099 / 0.57) * (planck(lambda, 300) / planck(THERMAL_PEAK_NM, 300));
+const logistic = (lambda: number, mid: number, width: number) => 1 / (1 + Math.exp(-(lambda - mid) / width));
 
-/** Emitted (reflected) spectral basis for the red, green and blue channels of a surface colour. */
+/**
+ * Reflectance basis for the red, green and blue channels: smooth windows that sum to 1 at every
+ * wavelength, so a white surface reflects a flat spectrum that extends into the ultraviolet and infrared.
+ */
 export function basisSpectra(lambda: number): Vec3 {
-  return [
-    lobe(lambda, 610, 40, 50) + nearIR(lambda) + 0.1 * lobe(lambda, 360, 25, 25),
-    lobe(lambda, 545, 32, 32) + nearIR(lambda) + 0.1 * lobe(lambda, 360, 25, 25),
-    lobe(lambda, 455, 25, 30) + nearIR(lambda) + 0.4 * lobe(lambda, 360, 25, 25),
-  ];
+  const r = logistic(lambda, 585, 12);
+  const b = 1 - logistic(lambda, 495, 12);
+  return [r, Math.max(0, 1 - r - b), b];
 }
 
 const STEP = 5;
@@ -65,7 +74,8 @@ function integrate(D: number): { a: number[]; t: Vec3 } {
   const t: Vec3 = [0, 0, 0];
   SAMPLES.forEach((lo, i) => {
     const le = lo * D;
-    const b = basisSpectra(le);
+    const sl = sun(le);
+    const b = basisSpectra(le).map((v) => v * sl);
     const th = thermal(le);
     const rgb = SAMPLE_RGB[i];
     for (let j = 0; j < 3; j++) {
@@ -127,4 +137,22 @@ export function buildDopplerLUT(size: number): Float32Array {
     }
   }
   return data;
+}
+
+const LUM_TABLE = (() => {
+  const n = 256;
+  const t = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const c = applyDoppler([1, 1, 1], Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (n - 1)));
+    t[i] = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  return t;
+})();
+
+/** Luminance of a white surface seen with Doppler factor D (colour shift only, no beaming). */
+export function whiteLuminance(D: number): number {
+  const x = ((Math.log(D) + LUT_LOG_D_RANGE) / (2 * LUT_LOG_D_RANGE)) * (LUM_TABLE.length - 1);
+  if (x < 0 || x > LUM_TABLE.length - 1) return 0;
+  const i = Math.min(LUM_TABLE.length - 2, Math.floor(x));
+  return LUM_TABLE[i] + (LUM_TABLE[i + 1] - LUM_TABLE[i]) * (x - i);
 }

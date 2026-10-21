@@ -1,0 +1,503 @@
+// World I — a town where light crawls. The scenery is rendered in its own rest frame into a cube map
+// from the observer's position (moving things drawn at their retarded positions), then a full-screen
+// pass aberrates, Doppler-shifts and beams it into what a moving observer sees.
+
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { formatSI } from '../constants';
+import { observerToWorldDirection } from '../physics/relativity';
+import { whiteLuminance } from '../physics/spectrum';
+import type { Vec3 } from '../physics/vec';
+import type { InputState } from '../input';
+import compositeFrag from '../shaders/slow-composite.frag?raw';
+import groundFrag from '../shaders/slow-ground.frag?raw';
+import movingVert from '../shaders/slow-moving.vert?raw';
+import skyFrag from '../shaders/slow-sky.frag?raw';
+import staticVert from '../shaders/slow-static.vert?raw';
+import surfaceFrag from '../shaders/slow-surface.frag?raw';
+import { SUN, cameraRotation, clockString, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
+import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
+
+const TRACK_R = 45;
+const TRAM_PROPER_SPEED = 24;
+const CAROUSEL_R = 7;
+const CAROUSEL_PROPER_SPEED = 20;
+const BLINK_PERIOD = 0.6;
+const EYE = 1.7;
+const BOUND = 140;
+const CLOCK_TOWER = new THREE.Vector3(0, 0, -26);
+const CLOCK_START = 10 * 3600 + 8 * 60;
+const CUBE_SIZE: Record<Quality, number> = { low: 256, medium: 512, high: 1024 };
+
+interface Mover {
+  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  phase0: number;
+  radius: number;
+  properSpeed: number;
+  direction: 1 | -1;
+  tram: boolean;
+}
+
+const motion = (properSpeed: number, c: number) => {
+  const v = properSpeed / Math.sqrt(1 + (properSpeed / c) ** 2);
+  return { v, beta: v / c, gamma: Math.sqrt(1 + (properSpeed / c) ** 2) };
+};
+
+export class SlowLightWorld implements World {
+  readonly id = 'slow-light';
+  readonly title = 'Slow Light';
+  readonly dials = ['c' as const];
+  readonly preset = { c: 12 };
+  readonly start: Pose = { position: [0, EYE, 30], yaw: 0, pitch: 0.04 };
+  readonly actions = [
+    { id: 'stop', label: 'Stop', key: 'KeyX' },
+    { id: 'tram', label: 'Tram', key: 'KeyT' },
+  ];
+  readonly toggles: Toggle[] = [
+    { id: 'aberration', label: 'Aberration', hint: 'Light from the side arrives from ahead when you move', value: true },
+    { id: 'doppler', label: 'Doppler colour', hint: 'Spectral shift, including infrared and ultraviolet', value: true },
+    { id: 'beaming', label: 'Searchlight', hint: 'Brightness piles up ahead (D⁵ beaming)', value: true },
+    { id: 'delay', label: 'Light delay', hint: 'See moving things where they were when light left', value: true },
+    { id: 'contraction', label: 'Contraction', hint: 'Moving things are shorter along their motion', value: true },
+    { id: 'adapt', label: 'Eye adaptation', hint: 'Your eyes adjust to the glare, as real ones would', value: true },
+  ];
+  readonly tour: TourStop[] = [
+    { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
+    { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop' },
+    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: { position: [4, EYE, 135], yaw: 0, pitch: 0 }, action: 'cruise' },
+    { title: 'Colours you cannot normally see', text: 'Ahead, light is blueshifted: visible colours slide into ultraviolet while infrared, even the 300 K warmth of stone, slides into view. Behind you everything reddens and fades.', action: 'cruise' },
+    { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', action: 'cruise' },
+    { title: 'Terrell rotation', text: 'Stand by the track. The tram is Lorentz-contracted, yet you see it turned, not squashed: light from its far side left earlier than light from its near side. It comes round every half minute.', pose: { position: [6, EYE, 41], yaw: -1.35, pitch: 0.02 }, action: 'tram' },
+    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.86 c its clock runs at about half speed, and the light delay bunches or spreads what you see.', pose: { position: [0, EYE, 14], yaw: 0, pitch: 0.12 }, action: 'stop' },
+    { title: 'You are younger', text: 'Compare the town clock with your watch in the panel. Every journey at speed left you a little younger than the town. This is the twin paradox, measured.' },
+    { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
+  ];
+
+  private scene = new THREE.Scene();
+  private cubeTarget!: THREE.WebGLCubeRenderTarget;
+  private cubeCamera!: THREE.CubeCamera;
+  private composite = fullscreenPass(compositeFrag, {
+    uCube: { value: null },
+    uBeta: { value: new THREE.Vector3() },
+    uCamRot: { value: new THREE.Matrix3() },
+    uTan: { value: new THREE.Vector2(1, 1) },
+    uAberration: { value: 1 },
+    uDoppler: { value: 1 },
+    uBeaming: { value: 1 },
+    uExposure: { value: 1 },
+  });
+  private logExposure = 0;
+  private tramOffset = 0;
+  private sky: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
+  private clockMaterial: THREE.ShaderMaterial;
+  private movers: Mover[] = [];
+  private obstacles: THREE.Box2[] = [];
+  private materials: THREE.ShaderMaterial[] = [];
+
+  private pos = new THREE.Vector3(...this.start.position);
+  private properVel = new THREE.Vector3();
+  private cruise: THREE.Vector3 | null = null;
+  private yaw = this.start.yaw;
+  private pitch = this.start.pitch;
+  /** World (town) coordinate time and the player's proper time, seconds. */
+  private t = 0;
+  private tau = 0;
+  private fov = 75;
+
+  constructor(ctx: WorldContext) {
+    this.buildCube(ctx.quality);
+    this.sky = new THREE.Mesh(
+      new THREE.SphereGeometry(900, 48, 24),
+      this.material(staticVert, skyFrag, { uObs: { value: this.pos } }, THREE.BackSide),
+    );
+    this.scene.add(this.sky);
+    this.clockMaterial = this.buildClockMaterial();
+    this.buildTown();
+  }
+
+  private material(vert: string, frag: string, uniforms: Record<string, THREE.IUniform> = {}, side: THREE.Side = THREE.FrontSide, defines: Record<string, string> = {}) {
+    const m = new THREE.ShaderMaterial({
+      vertexShader: vert,
+      fragmentShader: frag,
+      uniforms: { uSun: { value: SUN }, uBlinkPeriod: { value: BLINK_PERIOD }, ...uniforms },
+      side,
+      defines,
+    });
+    this.materials.push(m);
+    return m;
+  }
+
+  private buildCube(q: Quality) {
+    this.cubeTarget?.dispose();
+    const mip = q !== 'low';
+    this.cubeTarget = new THREE.WebGLCubeRenderTarget(CUBE_SIZE[q], {
+      type: THREE.HalfFloatType,
+      generateMipmaps: mip,
+      minFilter: mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+    if (this.cubeCamera) this.scene.remove(this.cubeCamera);
+    this.cubeCamera = new THREE.CubeCamera(0.1, 2000, this.cubeTarget);
+    this.scene.add(this.cubeCamera);
+    this.composite.material.uniforms.uCube.value = this.cubeTarget.texture;
+  }
+
+  private buildClockMaterial() {
+    return this.material(
+      staticVert,
+      `uniform float uClockTime;
+      varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vPattern;
+      float seg(vec2 p, vec2 dir, float len, float w) {
+        float t = clamp(dot(p, dir), 0.0, len);
+        return smoothstep(w, w * 0.6, length(p - dir * t));
+      }
+      void main() {
+        vec2 p = vColor.xy;
+        float r = length(p);
+        vec3 col = vec3(0.95, 0.92, 0.84);
+        float ticks = step(0.82, r) * step(r, 0.95) * step(0.985, cos(atan(p.y, p.x) * 12.0));
+        col = mix(col, vec3(0.1), ticks);
+        float s = mod(uClockTime, 60.0) / 60.0 * 6.2831853;
+        float m = mod(uClockTime, 3600.0) / 3600.0 * 6.2831853;
+        float h = mod(uClockTime, 43200.0) / 43200.0 * 6.2831853;
+        col = mix(col, vec3(0.08), seg(p, vec2(sin(h), cos(h)), 0.5, 0.06));
+        col = mix(col, vec3(0.08), seg(p, vec2(sin(m), cos(m)), 0.78, 0.045));
+        col = mix(col, vec3(0.86, 0.22, 0.12), seg(p, vec2(sin(s), cos(s)), 0.86, 0.025));
+        col = mix(col, vec3(0.4, 0.3, 0.15), smoothstep(0.96, 0.98, r));
+        gl_FragColor = vec4(col * 1.05, 1.0);
+      }`,
+      { uClockTime: { value: CLOCK_START } },
+    );
+  }
+
+  private buildTown() {
+    const rand = seeded(7);
+    const statics: THREE.BufferGeometry[] = [];
+    const box = (w: number, h: number, d: number, x: number, y: number, z: number, color: THREE.ColorRepresentation, pattern = 0, rotY = 0) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      g.rotateY(rotY);
+      g.translate(x, y + h / 2, z);
+      statics.push(paint(g, color, pattern));
+    };
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), this.material(staticVert, groundFrag, { uTrackRadius: { value: TRACK_R } }));
+    this.scene.add(ground);
+
+    // Houses in a ring outside the tram loop, with gaps for four streets.
+    const palette = [0xc8553d, 0xe0a458, 0x2f7f79, 0xe9dcc3, 0x5b6c8f, 0x9c6644, 0xd9c89e, 0x7a9e7e];
+    for (let ring = 0; ring < 2; ring++) {
+      const R = 62 + ring * 16;
+      const count = 22 + ring * 6;
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + ring * 0.07;
+        const w = 7 + rand() * 6, d = 7 + rand() * 4, h = 6 + rand() * (ring ? 16 : 10);
+        const x = Math.cos(a) * R, z = Math.sin(a) * R;
+        const half = Math.max(w, d) / 2 + 0.5;
+        if (Math.abs(x) < half + 7 || Math.abs(z) < half + 7) continue; // keep the four streets open
+        const color = palette[Math.floor(rand() * palette.length)];
+        box(w, h, d, x, 0, z, color, 1, -a);
+        const roof = new THREE.ConeGeometry(Math.max(w, d) * 0.72, 3 + rand() * 2, 4);
+        roof.rotateY(Math.PI / 4 - a);
+        roof.translate(x, h + 1.5, z);
+        statics.push(paint(roof, rand() > 0.5 ? 0x7d3c2b : 0x3f4a52));
+        const bb = new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(x, z), new THREE.Vector2(Math.max(w, d) + 1, Math.max(w, d) + 1));
+        this.obstacles.push(bb);
+      }
+    }
+    // Trees between the houses and the track.
+    for (let i = 0; i < 46; i++) {
+      const a = rand() * Math.PI * 2;
+      const R = 52 + rand() * 6;
+      const x = Math.cos(a) * R, z = Math.sin(a) * R;
+      if (Math.abs(x) < 9 || Math.abs(z) < 9) continue;
+      const trunk = new THREE.CylinderGeometry(0.25, 0.35, 2.4, 6);
+      trunk.translate(x, 1.2, z);
+      statics.push(paint(trunk, 0x5a4030));
+      const crown = new THREE.IcosahedronGeometry(1.8 + rand(), 0);
+      crown.translate(x, 3.6 + rand(), z);
+      statics.push(paint(crown, rand() > 0.5 ? 0x3d6b35 : 0x56803f));
+    }
+    // A colonnade lining the avenue from the start toward the plaza.
+    for (let i = 0; i < 9; i++) {
+      for (const side of [-1, 1]) {
+        const x = side * 9, z = 34 - i * 4;
+        box(1.2, 0.5, 1.2, x, 0, z, 0xd8d2c4);
+        const col = new THREE.CylinderGeometry(0.42, 0.48, 6, 16);
+        col.translate(x, 3.5, z);
+        statics.push(paint(col, 0xefe9dc));
+        box(1.3, 0.5, 1.3, x, 6.5, z, 0xd8d2c4);
+        this.obstacles.push(new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(x, z), new THREE.Vector2(1.6, 1.6)));
+      }
+    }
+    for (const side of [-1, 1]) box(1.3, 0.8, 34, side * 9, 7, 18, 0xd8d2c4);
+
+    // Clock tower with four faces.
+    const T = CLOCK_TOWER;
+    box(5, 19, 5, T.x, 0, T.z, 0xb8a27e, 0);
+    box(5.8, 1, 5.8, T.x, 19, T.z, 0x8a6f4a);
+    const spire = new THREE.ConeGeometry(4, 6, 4);
+    spire.rotateY(Math.PI / 4);
+    spire.translate(T.x, 23, T.z);
+    statics.push(paint(spire, 0x2f5d62));
+    this.obstacles.push(new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(T.x, T.z), new THREE.Vector2(6, 6)));
+    for (let k = 0; k < 4; k++) {
+      const face = new THREE.CircleGeometry(2.1, 48);
+      const n = face.getAttribute('position').count;
+      const local = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        local[i * 3] = face.getAttribute('position').getX(i) / 2.1;
+        local[i * 3 + 1] = face.getAttribute('position').getY(i) / 2.1;
+      }
+      face.setAttribute('aColor', new THREE.BufferAttribute(local, 3));
+      face.setAttribute('aPattern', new THREE.BufferAttribute(new Float32Array(n), 1));
+      face.translate(0, 0, 2.52);
+      face.rotateY((k * Math.PI) / 2);
+      face.translate(T.x, 14.5, T.z);
+      this.scene.add(new THREE.Mesh(face, this.clockMaterial));
+    }
+
+    // Carousel hub.
+    const hub = new THREE.CylinderGeometry(1.4, 1.8, 5, 24);
+    hub.translate(0, 2.5, 0);
+    statics.push(paint(hub, 0xc8553d));
+    const canopy = new THREE.ConeGeometry(CAROUSEL_R + 1.5, 2.5, 32);
+    canopy.translate(0, 6.6, 0);
+    statics.push(paint(canopy, 0xe9dcc3));
+    this.obstacles.push(new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(0, 0), new THREE.Vector2(3.6, 3.6)));
+
+    // Distant mountains.
+    const hills: number[] = [];
+    const N = 120;
+    for (let i = 0; i < N; i++) {
+      const a0 = (i / N) * Math.PI * 2, a1 = ((i + 1) / N) * Math.PI * 2;
+      const h0 = 40 + 60 * Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.11)) + 20 * rand();
+      const R = 650;
+      hills.push(Math.cos(a0) * R, 0, Math.sin(a0) * R, Math.cos(a1) * R, 0, Math.sin(a1) * R, Math.cos((a0 + a1) / 2) * R, h0, Math.sin((a0 + a1) / 2) * R);
+    }
+    const hillGeo = new THREE.BufferGeometry();
+    hillGeo.setAttribute('position', new THREE.Float32BufferAttribute(hills, 3));
+    hillGeo.computeVertexNormals();
+    statics.push(paint(hillGeo, 0x6f8196));
+
+    const merged = mergeGeometries(statics);
+    this.scene.add(new THREE.Mesh(merged, this.material(staticVert, surfaceFrag, {}, THREE.DoubleSide)));
+    statics.forEach((g) => g.dispose());
+
+    // Tram: four cars on the loop.
+    const car = () => {
+      const parts: THREE.BufferGeometry[] = [];
+      const add = (g: THREE.BufferGeometry, color: number, pattern = 0) => parts.push(paint(g, color, pattern));
+      add(new THREE.BoxGeometry(7.2, 1.4, 2.5).translate(0, 1.2, 0), 0xc8553d);
+      add(new THREE.BoxGeometry(7.2, 1.3, 2.5).translate(0, 2.55, 0), 0xf0e6cf);
+      for (let i = -2; i <= 2; i++) add(new THREE.BoxGeometry(1.0, 0.9, 2.56).translate(i * 1.4, 2.55, 0), 0x22313a);
+      add(new THREE.BoxGeometry(7.4, 0.3, 2.7).translate(0, 3.35, 0), 0x3f4a52);
+      add(new THREE.BoxGeometry(6.4, 0.5, 2.0).translate(0, 0.3, 0), 0x222222);
+      add(new THREE.BoxGeometry(0.1, 0.35, 0.5).translate(3.62, 1.3, 0.75), 0xfff2c0, 2);
+      add(new THREE.BoxGeometry(0.1, 0.35, 0.5).translate(3.62, 1.3, -0.75), 0xfff2c0, 2);
+      add(new THREE.BoxGeometry(0.1, 0.35, 0.5).translate(-3.62, 1.3, 0.75), 0xff3b1f, 2);
+      add(new THREE.BoxGeometry(0.1, 0.35, 0.5).translate(-3.62, 1.3, -0.75), 0xff3b1f, 2);
+      const g = mergeGeometries(parts);
+      parts.forEach((p) => p.dispose());
+      return g;
+    };
+    const tramGeo = car();
+    for (let i = 0; i < 4; i++) this.addMover(tramGeo, (-i * 8) / TRACK_R, TRACK_R, TRAM_PROPER_SPEED, 1, true);
+
+    // Carousel lamps.
+    const lampGeo = mergeGeometries([
+      paint(new THREE.SphereGeometry(0.5, 20, 12).translate(0, 3.0, 0), 0xffd27a, 3),
+    ]);
+    for (let i = 0; i < 8; i++) this.addMover(lampGeo, (i / 8) * Math.PI * 2, CAROUSEL_R, CAROUSEL_PROPER_SPEED, -1, false);
+  }
+
+  private addMover(geometry: THREE.BufferGeometry, phase0: number, radius: number, properSpeed: number, direction: 1 | -1, tram: boolean) {
+    const mat = this.material(
+      movingVert,
+      surfaceFrag,
+      {
+        uObs: { value: this.pos },
+        uC: { value: 12 },
+        uPhase: { value: 0 },
+        uOmega: { value: 0 },
+        uRadius: { value: radius },
+        uCenter: { value: new THREE.Vector3() },
+        uGamma: { value: 1 },
+        uBeta: { value: 0 },
+        uRetard: { value: 1 },
+        uContract: { value: 1 },
+        uTauNow: { value: 0 },
+      },
+      THREE.FrontSide,
+      { MOVING: '' },
+    );
+    const mesh = new THREE.Mesh(geometry, mat);
+    mesh.frustumCulled = false;
+    this.scene.add(mesh);
+    this.movers.push({ mesh, phase0, radius, properSpeed, direction, tram });
+  }
+
+  private toggle(id: string) {
+    return this.toggles.find((t) => t.id === id)!.value;
+  }
+
+  setPose(p: Pose) {
+    this.pos.set(...p.position);
+    this.yaw = p.yaw;
+    this.pitch = p.pitch;
+  }
+
+  runAction(id: string, ctx: WorldContext) {
+    if (id === 'stop') {
+      this.cruise = null;
+      this.properVel.set(0, 0, 0);
+    } else if (id === 'cruise') {
+      // Proper speed giving β = 0.9 at the current c.
+      const u = (0.9 / Math.sqrt(1 - 0.81)) * ctx.constants.c;
+      this.cruise = forwardFlat(this.yaw).multiplyScalar(u);
+    } else if (id === 'tram') {
+      // Bring the tram round so its head reaches the observer's bearing in about three seconds.
+      this.runAction('stop', ctx);
+      const omega = motion(TRAM_PROPER_SPEED, ctx.constants.c).v / TRACK_R;
+      this.tramOffset = Math.atan2(this.pos.z, this.pos.x) - omega * (this.t + 3);
+    }
+  }
+
+  frame(dt: number, input: InputState, ctx: WorldContext) {
+    const c = ctx.constants.c;
+    this.yaw = input.yaw;
+    this.pitch = input.pitch;
+
+    // Player: input is a proper acceleration; proper velocity u = γv is unbounded, v never reaches c.
+    const wish = forwardFlat(this.yaw).multiplyScalar(input.move.z).add(rightFlat(this.yaw).multiplyScalar(input.move.x));
+    const pushing = wish.lengthSq() > 0;
+    if (pushing) this.cruise = null;
+    const uMax = input.sprint ? 60 : 6;
+    if (this.cruise) {
+      this.properVel.lerp(this.cruise, 1 - Math.exp(-2.5 * dt));
+    } else if (pushing) {
+      wish.normalize();
+      this.properVel.addScaledVector(wish, (input.sprint ? 30 : 12) * dt);
+      if (this.properVel.length() > uMax) this.properVel.setLength(Math.max(uMax, this.properVel.length() * Math.exp(-2 * dt)));
+    } else {
+      this.properVel.multiplyScalar(Math.exp(-3 * dt));
+      if (this.properVel.length() < 0.02) this.properVel.set(0, 0, 0);
+    }
+    const gamma = Math.sqrt(1 + this.properVel.lengthSq() / (c * c));
+    this.pos.addScaledVector(this.properVel, dt);
+    this.collide();
+    this.tau += dt;
+    this.t += gamma * dt;
+
+    // Movers: analytic circular paths in town time.
+    for (const m of this.movers) {
+      const { v, beta, gamma: g } = motion(m.properSpeed, c);
+      const omega = (m.direction * v) / m.radius;
+      const u = m.mesh.material.uniforms;
+      u.uC.value = c;
+      u.uOmega.value = omega;
+      u.uPhase.value = (m.phase0 + omega * this.t + (m.tram ? this.tramOffset : 0)) % (Math.PI * 2);
+      u.uGamma.value = g;
+      u.uBeta.value = beta;
+      u.uTauNow.value = (this.t / g) % (BLINK_PERIOD * 1000);
+      u.uRetard.value = this.toggle('delay') ? 1 : 0;
+      u.uContract.value = this.toggle('contraction') ? 1 : 0;
+    }
+    const delay = this.toggle('delay') ? this.pos.distanceTo(new THREE.Vector3(CLOCK_TOWER.x, 14.5, CLOCK_TOWER.z)) / c : 0;
+    this.clockMaterial.uniforms.uClockTime.value = CLOCK_START + this.t - delay;
+    this.sky.position.copy(this.pos);
+
+    const r = ctx.renderer;
+    this.cubeCamera.position.copy(this.pos);
+    this.cubeCamera.update(r, this.scene);
+
+    const size = r.getDrawingBufferSize(new THREE.Vector2());
+    const tanY = Math.tan(THREE.MathUtils.degToRad(this.fov / 2));
+    const u = this.composite.material.uniforms;
+    u.uTan.value.set(tanY * (size.x / size.y), tanY);
+    u.uCamRot.value.copy(cameraRotation(this.yaw, this.pitch));
+    u.uBeta.value.copy(this.properVel).divideScalar(c * gamma);
+    u.uAberration.value = this.toggle('aberration') ? 1 : 0;
+    u.uDoppler.value = this.toggle('doppler') ? 1 : 0;
+    u.uBeaming.value = this.toggle('beaming') ? 1 : 0;
+    this.adaptEyes(dt, u.uCamRot.value, u.uBeta.value, u.uTan.value);
+    u.uExposure.value = Math.exp(this.logExposure);
+    r.setRenderTarget(null);
+    r.render(this.composite.scene, this.composite.camera);
+  }
+
+  /**
+   * Eye adaptation: estimate the scene's log-average brightness from the Doppler factor across the view
+   * (a white surface seen through the same aberration, colour shift and beaming) and ease exposure toward it.
+   */
+  private adaptEyes(dt: number, rot: THREE.Matrix3, beta: THREE.Vector3, tan: THREE.Vector2) {
+    let target = 0;
+    if (this.toggle('adapt')) {
+      const b: Vec3 = [beta.x, beta.y, beta.z];
+      const g = 1 / Math.sqrt(1 - beta.lengthSq());
+      const e = rot.elements;
+      let sum = 0, n = 0;
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 7; j++) {
+          const x = (i / 8 - 0.5) * 2 * tan.x, y = (j / 6 - 0.5) * 2 * tan.y;
+          const l = Math.hypot(x, y, 1);
+          const nObs: Vec3 = [(e[0] * x + e[3] * y - e[6]) / l, (e[1] * x + e[4] * y - e[7]) / l, (e[2] * x + e[5] * y - e[8]) / l];
+          const nW = this.toggle('aberration') ? observerToWorldDirection(nObs, b) : nObs;
+          const D = g * (1 + b[0] * nW[0] + b[1] * nW[1] + b[2] * nW[2]);
+          const L = (this.toggle('doppler') ? whiteLuminance(D) : 1) * (this.toggle('beaming') ? D ** 5 : 1);
+          sum += Math.log(Math.max(L, 1e-4));
+          n++;
+        }
+      }
+      target = Math.max(-9, Math.min(4, -sum / n));
+    }
+    this.logExposure += (target - this.logExposure) * (1 - Math.exp(-3 * dt));
+  }
+
+  private collide() {
+    const p2 = new THREE.Vector2(this.pos.x, this.pos.z);
+    for (const b of this.obstacles) {
+      if (!b.containsPoint(p2)) continue;
+      const dx = Math.min(p2.x - b.min.x, b.max.x - p2.x);
+      const dz = Math.min(p2.y - b.min.y, b.max.y - p2.y);
+      if (dx < dz) p2.x = p2.x - b.min.x < b.max.x - p2.x ? b.min.x : b.max.x;
+      else p2.y = p2.y - b.min.y < b.max.y - p2.y ? b.min.y : b.max.y;
+      this.properVel.multiplyScalar(0.5);
+      this.cruise = null;
+    }
+    if (p2.length() > BOUND) p2.setLength(BOUND);
+    this.pos.set(p2.x, EYE, p2.y);
+  }
+
+  readouts(ctx: WorldContext): Readout[] {
+    const c = ctx.constants.c;
+    const gamma = Math.sqrt(1 + this.properVel.lengthSq() / (c * c));
+    const v = this.properVel.length() / gamma;
+    const beta = v / c;
+    return [
+      { label: 'Speed', value: `${formatSI(v)} m/s` },
+      { label: 'β = v/c', value: beta.toFixed(3), gauge: beta },
+      { label: 'γ', value: gamma.toFixed(3), gauge: Math.min(1, (gamma - 1) / 4) },
+      { label: 'Your watch τ', value: clockString(CLOCK_START + this.tau) },
+      { label: 'Town clock t', value: clockString(CLOCK_START + this.t) },
+      { label: 'You are younger by', value: `${(this.t - this.tau).toFixed(2)} s` },
+    ];
+  }
+
+  status(ctx: WorldContext) {
+    const tram = motion(TRAM_PROPER_SPEED, ctx.constants.c);
+    return `Tram ${tram.beta.toFixed(2)} c · carousel ${motion(CAROUSEL_PROPER_SPEED, ctx.constants.c).beta.toFixed(2)} c`;
+  }
+
+  setQuality(q: Quality) {
+    this.buildCube(q);
+  }
+
+  dispose() {
+    this.cubeTarget.dispose();
+    this.composite.dispose();
+    this.materials.forEach((m) => m.dispose());
+    this.scene.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.geometry.dispose();
+    });
+  }
+}

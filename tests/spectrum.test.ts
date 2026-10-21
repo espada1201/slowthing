@@ -58,7 +58,11 @@ describe('Doppler colour shift', () => {
   it('strong blueshift reveals room-temperature thermal glow (infrared made visible)', () => {
     const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     expect(lum(applyDoppler([0, 0, 0], 1))).toBeLessThan(1e-9);
-    expect(lum(applyDoppler([0, 0, 0], 18))).toBeGreaterThan(0.05);
+    expect(lum(applyDoppler([0, 0, 0], 18))).toBeGreaterThan(0.002);
+  });
+  it('keeps white white (just dimmer) under a small shift', () => {
+    const c = applyDoppler([1, 1, 1], 1.05);
+    expect(Math.max(...c) - Math.min(...c)).toBeLessThan(0.15);
   });
   it('builds a lookup table without NaNs', () => {
     const lut = buildDopplerLUT(64);
