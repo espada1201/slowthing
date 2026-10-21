@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   CRITICAL_IMPACT,
+  asymptoticDirection,
   exactDeflection,
   gravitationalShift,
   schwarzschildRadius,
+  shadowAngularRadius,
   timeDilation,
   traceRay,
   tracedDeflection,
 } from '../src/physics/schwarzschild';
-import { len } from '../src/physics/vec';
+import { type Vec3, dot, len } from '../src/physics/vec';
 
 const rs = 1;
 
@@ -53,5 +55,40 @@ describe('gravitational time dilation and redshift', () => {
   });
   it('the Sun has rs ≈ 2.95 km', () => {
     expect(schwarzschildRadius(6.674e-11, 1.989e30, 299792458)).toBeCloseTo(2954, -1);
+  });
+});
+
+describe('black hole shadow seen by a hovering observer', () => {
+  it('is a hemisphere at the photon sphere and b_c / r far away', () => {
+    expect(shadowAngularRadius(1.5, 1)).toBeCloseTo(Math.PI / 2, 9);
+    expect(shadowAngularRadius(1e4, 1)).toBeCloseTo(CRITICAL_IMPACT / 1e4, 6);
+  });
+  it('separates captured from escaping rays exactly where the ray tracer does', () => {
+    for (const r of [1.2, 2, 3, 10]) {
+      const alpha = shadowAngularRadius(r, 1);
+      // Viewing direction at angle θ from the direction of the hole (which lies along −x).
+      const look = (theta: number): Vec3 => [-Math.cos(theta), Math.sin(theta), 0];
+      const opts = { stepScale: 0.004, maxSteps: 200000 };
+      expect(traceRay([r, 0, 0], look(alpha * 0.99), 1, opts).captured).toBe(true);
+      expect(traceRay([r, 0, 0], look(alpha * 1.01), 1, opts).captured).toBe(false);
+    }
+  });
+});
+
+describe('asymptotic tail used by the shader', () => {
+  it('finishes the bending of a ray stopped at 30 rs', () => {
+    const angle = (a: Vec3, b: Vec3) => Math.acos(Math.min(1, dot(a, b)));
+    for (const [y, dir] of [[6, [1, 0, 0]], [20, [1, 0, 0]], [26, [1, 0.1, 0]], [12, [1, -0.1, 0.05]]] as [number, Vec3][]) {
+      const n = dir.map((v) => v / len(dir)) as Vec3;
+      const start: Vec3 = [-25, y, 0];
+      const near = traceRay(start, n, 1, { stepScale: 0.005, rFar: 30 });
+      const far = traceRay(start, n, 1, { stepScale: 0.005, rFar: 30000, maxSteps: 400000 });
+      const tail = asymptoticDirection(near.position, near.direction, 1);
+      const before = angle(near.direction, far.direction);
+      const after = angle(tail, far.direction);
+      // Leftover bending is second order in rs/b: the tail removes 97–99.9% of the error.
+      expect(after).toBeLessThan(5e-4);
+      expect(after).toBeLessThan(before / 30);
+    }
   });
 });

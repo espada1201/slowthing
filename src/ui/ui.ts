@@ -231,6 +231,8 @@ export function worldChrome(
       const p = stop.predict;
       predictBox.hidden = !p;
       tourText.hidden = !!p;
+      // The instruments would give the answer away, so they wait until the visitor has committed.
+      root.classList.toggle('predicting', !!p);
       if (p) {
         const reveal = h('p', { class: 'predict-reveal', hidden: true });
         const choose = (k: number | null) => {
@@ -242,6 +244,7 @@ export function worldChrome(
           reveal.textContent = (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal;
           reveal.hidden = false;
           tourText.hidden = false;
+          root.classList.remove('predicting');
           skip.hidden = true;
         };
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));

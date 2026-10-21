@@ -37,6 +37,8 @@ export function coordinateDirection(pos: Vec3, nLocal: Vec3, rs: number): Vec3 {
 export interface RayResult {
   captured: boolean;
   direction: Vec3;
+  /** Where the march stopped. */
+  position: Vec3;
   minR: number;
   steps: number;
   path?: Vec3[];
@@ -57,8 +59,8 @@ export function traceRay(pos: Vec3, nLocal: Vec3, rs: number, opts: { stepScale?
   const path = keepPath ? [x] : undefined;
   for (let i = 0; i < maxSteps; i++) {
     const r = len(x);
-    if (r < rs * 1.0001) return { captured: true, direction: normalize(v), minR, steps: i, path };
-    if (r > rFar && dot(x, v) > 0) return { captured: false, direction: normalize(v), minR, steps: i, path };
+    if (r < rs * 1.0001) return { captured: true, direction: normalize(v), position: x, minR, steps: i, path };
+    if (r > rFar && dot(x, v) > 0) return { captured: false, direction: normalize(v), position: x, minR, steps: i, path };
     const h = (stepScale * r) / len(v);
     x = add(x, add(scale(v, h), scale(a, 0.5 * h * h)));
     const an = accel(x);
@@ -67,7 +69,7 @@ export function traceRay(pos: Vec3, nLocal: Vec3, rs: number, opts: { stepScale?
     minR = Math.min(minR, len(x));
     path?.push(x);
   }
-  return { captured: false, direction: normalize(v), minR, steps: maxSteps, path };
+  return { captured: false, direction: normalize(v), position: x, minR, steps: maxSteps, path };
 }
 
 /** Bending angle of a ray with impact parameter b coming in from far away along +x. */
@@ -106,4 +108,29 @@ export function exactDeflection(b: number, rs: number): number {
     sum += f * (i === 0 || i === N ? 1 : i % 2 ? 4 : 2);
   }
   return 2 * (sum / (3 * N)) - Math.PI;
+}
+
+/**
+ * Angular radius of the black hole's shadow for a static observer at r, measured from the direction
+ * of the hole: sin α = (b_c / r)·√(1 − rs/r). Inside the photon sphere the shadow covers more than half the sky.
+ */
+export function shadowAngularRadius(r: number, rs: number): number {
+  if (r <= rs) return Math.PI;
+  const a = Math.asin(Math.min(1, ((CRITICAL_IMPACT * rs) / r) * Math.sqrt(1 - rs / r)));
+  return r < PHOTON_SPHERE * rs ? Math.PI - a : a;
+}
+
+/**
+ * Direction in which an outgoing ray at pos (moving along vel) finally leaves for infinity: the
+ * weak-field bending still to come, Δ = (3/2)(rs/b)(2/3 − sin φ + sin³φ/3) with sin φ = r̂·v̂ and b the
+ * distance of the ray's line from the hole, turned toward the hole. Lets the shader stop marching early.
+ */
+export function asymptoticDirection(pos: Vec3, vel: Vec3, rs: number): Vec3 {
+  const vh = normalize(vel);
+  const perp = sub(pos, scale(vh, dot(pos, vh)));
+  const b = len(perp);
+  if (b < 1e-12 || rs <= 0) return vh;
+  const s = dot(pos, vh) / len(pos);
+  const delta = 1.5 * (rs / b) * (2 / 3 - s + (s * s * s) / 3);
+  return normalize(sub(vh, scale(perp, delta / b)));
 }

@@ -10,6 +10,14 @@ try {
 } catch {
   /* storage blocked: start muted */
 }
+// Browsers only let audio start inside a user gesture; if sound was left on last visit, start on the first one.
+const unlock = () => {
+  if (enabled) ensure();
+  window.removeEventListener('pointerdown', unlock);
+  window.removeEventListener('keydown', unlock);
+};
+window.addEventListener('pointerdown', unlock);
+window.addEventListener('keydown', unlock);
 
 export function soundOn() {
   return enabled;
@@ -42,8 +50,8 @@ function ensure() {
 }
 
 function voice(pan: number) {
-  const c = ensure();
-  if (!c || !master || !enabled) return null;
+  if (!enabled || !ctx || !master) return null;
+  const c = ctx;
   const p = c.createStereoPanner();
   p.pan.value = Math.max(-1, Math.min(1, pan));
   p.connect(master);
