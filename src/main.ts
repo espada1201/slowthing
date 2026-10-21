@@ -4,7 +4,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import './ui/style.css';
 import * as THREE from 'three';
-import { type Constants, REAL } from './constants';
+import { type ConstantKey, type Constants, DIALS, REAL } from './constants';
 import { Input } from './input';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
 import type { Quality, World, WorldContext } from './worlds/types';
@@ -115,6 +115,14 @@ async function enter(id: string) {
       Object.assign(constants, REAL, w.preset);
       chrome?.syncDials(constants);
     },
+    onShare: () => {
+      const url = shareUrl(id);
+      history.replaceState(null, '', url);
+      navigator.clipboard?.writeText(url).then(
+        () => chrome?.flash('Link to this universe copied'),
+        () => chrome?.flash('Copy the address bar to share this universe'),
+      ) ?? chrome?.flash('Copy the address bar to share this universe');
+    },
     onToggle: () => {},
     onAction: (a) => w.runAction(a, ctx()),
     onTour: goTour,
@@ -132,6 +140,29 @@ async function enter(id: string) {
   });
   history.replaceState(null, '', `?world=${id}${params.has('quality') ? `&quality=${quality}` : ''}`);
   goTour(0, true);
+  if (pendingShare && params.get('world') === id) {
+    Object.assign(constants, pendingShare);
+    chrome.syncDials(constants);
+  }
+  pendingShare = null;
+}
+
+/** Dial values carried in the URL (?c=…&hbar=…&G=…), clamped to each dial's range. */
+function sharedConstants(): Partial<Constants> {
+  const out: Partial<Constants> = {};
+  for (const k of Object.keys(DIALS) as ConstantKey[]) {
+    const v = Number(params.get(k));
+    if (params.has(k) && Number.isFinite(v) && v > 0) out[k] = Math.min(DIALS[k].max, Math.max(DIALS[k].min, v));
+  }
+  return out;
+}
+
+let pendingShare: Partial<Constants> | null = sharedConstants();
+
+function shareUrl(id: string) {
+  const q = new URLSearchParams({ world: id });
+  for (const k of Object.keys(DIALS) as ConstantKey[]) q.set(k, constants[k].toPrecision(4));
+  return `${location.origin}${location.pathname}?${q}`;
 }
 
 function goTour(i: number, initial = false) {

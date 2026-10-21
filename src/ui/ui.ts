@@ -113,6 +113,7 @@ export function worldChrome(
     onDial: (k: ConstantKey, v: number) => void;
     onReal: () => void;
     onPreset: () => void;
+    onShare: () => void;
     onToggle: () => void;
     onAction: (id: string) => void;
     onTour: (i: number) => void;
@@ -142,7 +143,7 @@ export function worldChrome(
     { class: 'panel', id: 'panel', 'aria-label': 'Constants and effects' },
     h('h2', { class: 'panel-h' }, 'Dials'),
     ...dialRows.map((d) => d.el),
-    h('div', { class: 'row' }, h('button', { class: 'btn', 'data-reset': 'real', onclick: opts.onReal }, 'Real universe'), h('button', { class: 'btn ghost', 'data-reset': 'preset', onclick: opts.onPreset }, 'World preset')),
+    h('div', { class: 'row' }, h('button', { class: 'btn', 'data-reset': 'real', onclick: opts.onReal }, 'Real universe'), h('button', { class: 'btn ghost', 'data-reset': 'preset', onclick: opts.onPreset }, 'World preset'), h('button', { class: 'btn ghost', 'data-share': true, title: 'Copy a link to this universe', onclick: opts.onShare }, 'Share')),
     toggles.length ? h('h2', { class: 'panel-h' }, 'Effects') : null,
     toggles.length ? h('div', { class: 'switches' }, ...toggles.map((t) => t.el)) : null,
     actions.length ? h('div', { class: 'row actions' }, ...actions) : null,
