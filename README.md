@@ -1,9 +1,9 @@
 # Slowlight
 
-Walk through three universes where one constant of nature has been turned up so far that you can see what it does.
+Walk through three universes where one constant of nature has been turned so far that you can see what it does.
 
 - **I. Slow Light.** In this town, light travels at 12 m/s. Run and the world folds into a bright tunnel ahead of you. Colours shift into ultraviolet and infrared, and even the 300 K warmth of stone becomes visible. The passing tram looks rotated rather than squashed (Terrell rotation), and your watch falls behind the town clock.
-- **II. Big ħ.** In this courtyard, a thrown ball is a quantum wave. It spreads through a doorway, makes interference fringes through a colonnade, and tunnels through a glass wall. Pressing *Measure* collapses the wave to a single spot.
+- **II. Big ħ.** In this courtyard, a rolled ball is a quantum wave. It spreads through a doorway, makes interference fringes through two openings, and tunnels through a glass wall. Pressing *Measure* collapses the wave to a single spot.
 - **III. Big G.** Turn gravity up until a 90-tonne boulder collapses into a black hole. Then fly around it while starlight bends into arcs, an Einstein ring and a photon ring.
 
 Each world has a guided tour, effect switches, live instruments and a **Real universe** button. That button puts every constant back to its measured value, and the strange effects vanish.

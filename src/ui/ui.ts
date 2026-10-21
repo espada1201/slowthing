@@ -90,7 +90,7 @@ export function titleScreen(onEnter: (id: string) => void, onProofs: () => void,
   );
 }
 
-export function qualitySelect(q: Quality, onChange: (q: Quality) => void) {
+function qualitySelect(q: Quality, onChange: (q: Quality) => void) {
   const s = h('select', { 'aria-label': 'Rendering quality', onchange: (e: Event) => onChange((e.target as HTMLSelectElement).value as Quality) });
   for (const v of ['low', 'medium', 'high'] as Quality[]) s.append(h('option', { value: v, ...(v === q ? { selected: true } : {}) }, v[0].toUpperCase() + v.slice(1)));
   return s;
@@ -116,7 +116,6 @@ export function worldChrome(
     onReal: () => void;
     onPreset: () => void;
     onShare: () => void;
-    onToggle: () => void;
     onAction: (id: string) => void;
     onTour: (i: number) => void;
     onQuality: (q: Quality) => void;
@@ -134,7 +133,6 @@ export function worldChrome(
     const box = h('input', { type: 'checkbox', role: 'switch', 'data-toggle': t.id, ...(t.value ? { checked: true } : {}) });
     box.addEventListener('change', () => {
       t.value = box.checked;
-      opts.onToggle();
     });
     return { t, box, el: h('label', { class: 'switch', title: t.hint }, box, h('span', { class: 'track' }), h('span', { class: 'switch-label' }, t.label)) };
   });

@@ -6,8 +6,6 @@ export interface InputState {
   sprint: boolean;
   yaw: number;
   pitch: number;
-  /** True for one frame after any user-driven movement or look (used to cancel tour cruise). */
-  touched: boolean;
 }
 
 type KeyHandler = (key: string) => void;
@@ -22,13 +20,12 @@ const MOVE_KEYS: Record<string, [number, number, number]> = {
 };
 
 export class Input {
-  readonly state: InputState = { move: { x: 0, y: 0, z: 0 }, sprint: false, yaw: 0, pitch: 0, touched: false };
+  readonly state: InputState = { move: { x: 0, y: 0, z: 0 }, sprint: false, yaw: 0, pitch: 0 };
   private held = new Set<string>();
   private joy = { x: 0, y: 0 };
   private onKey: KeyHandler = () => {};
-  private disposers: (() => void)[] = [];
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
     const isField = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement;
     this.listen(window, 'keydown', (e: KeyboardEvent) => {
       if (isField(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -53,14 +50,9 @@ export class Input {
     this.onKey = fn;
   }
 
-  get locked() {
-    return document.pointerLockElement === this.canvas;
-  }
-
   look(dx: number, dy: number) {
     this.state.yaw -= dx;
     this.state.pitch = Math.max(-1.5, Math.min(1.5, this.state.pitch - dy));
-    this.state.touched = true;
   }
 
   /** Refresh `move` from held keys and the joystick. Call once per frame. */
@@ -77,13 +69,6 @@ export class Input {
     const clamp = (v: number) => Math.max(-1, Math.min(1, v));
     this.state.move = { x: clamp(x), y: clamp(y), z: clamp(z) };
     this.state.sprint = this.held.has('ShiftLeft') || this.held.has('ShiftRight') || Math.hypot(this.joy.x, this.joy.y) > 0.92;
-    if (x || y || z) this.state.touched = true;
-  }
-
-  consumeTouched() {
-    const t = this.state.touched;
-    this.state.touched = false;
-    return t;
   }
 
   private setupTouch() {
@@ -139,6 +124,5 @@ export class Input {
 
   private listen<K extends EventTarget>(target: K, type: string, fn: (e: any) => void) {
     target.addEventListener(type, fn);
-    this.disposers.push(() => target.removeEventListener(type, fn));
   }
 }

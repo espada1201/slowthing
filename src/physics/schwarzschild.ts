@@ -27,7 +27,7 @@ export function schwarzschildRadius(G: number, M: number, c: number): number {
  * velocity of the flat-space ODE. The radial component shrinks by √(1 − rs/r); this is exact and
  * reproduces the impact parameter b = r sin α / √(1 − rs/r).
  */
-export function coordinateDirection(pos: Vec3, nLocal: Vec3, rs: number): Vec3 {
+function coordinateDirection(pos: Vec3, nLocal: Vec3, rs: number): Vec3 {
   const rhat = normalize(pos);
   const radial = dot(nLocal, rhat);
   const perp = sub(nLocal, scale(rhat, radial));

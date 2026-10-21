@@ -18,7 +18,7 @@ export function cieXYZ(lambda: number): Vec3 {
   return [x, y, z];
 }
 
-export function xyzToLinearSRGB([x, y, z]: Vec3): Vec3 {
+function xyzToLinearSRGB([x, y, z]: Vec3): Vec3 {
   return [
     3.2406 * x - 1.5372 * y - 0.4986 * z,
     -0.9689 * x + 1.8758 * y + 0.0415 * z,
@@ -46,7 +46,7 @@ const THERMAL_PEAK_NM = 2.897771955e6 / 300;
 const SUN_T = 5778;
 const SUN_550 = planck(550, SUN_T);
 /** Sunlight, normalised to 1 at 550 nm. Surfaces are sunlit reflectors. */
-const sun = (lambda: number) => planck(lambda, SUN_T) / SUN_550;
+export const sun = (lambda: number) => planck(lambda, SUN_T) / SUN_550;
 /**
  * Thermal emission of a 300 K surface relative to sunlit reflection: for an albedo-1 surface the
  * reflected solar radiance at 550 nm is ≈0.57 W·m⁻²·sr⁻¹·nm⁻¹, a 300 K black body peaks at ≈0.0099.
@@ -64,10 +64,11 @@ export function basisSpectra(lambda: number): Vec3 {
   return [r, Math.max(0, 1 - r - b), b];
 }
 
-const STEP = 5;
-const SAMPLES: number[] = [];
+// The visible band sampled every STEP nm, and the linear-sRGB colour matching functions at each sample.
+export const STEP = 5;
+export const SAMPLES: number[] = [];
 for (let l = 380; l <= 780; l += STEP) SAMPLES.push(l);
-const SAMPLE_RGB = SAMPLES.map((l) => xyzToLinearSRGB(cieXYZ(l)));
+export const SAMPLE_RGB = SAMPLES.map((l) => xyzToLinearSRGB(cieXYZ(l)));
 
 function integrate(D: number): { a: number[]; t: Vec3 } {
   const a = new Array(9).fill(0);
@@ -86,14 +87,14 @@ function integrate(D: number): { a: number[]; t: Vec3 } {
   return { a, t };
 }
 
-function invert3(m: number[]): number[] {
+export function invert3(m: number[]): number[] {
   const [a, b, c, d, e, f, g, h, i] = m;
   const A = e * i - f * h, B = -(d * i - f * g), Cc = d * h - e * g;
   const det = a * A + b * B + c * Cc;
   return [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), Cc, -(a * h - b * g), a * e - b * d].map((v) => v / det);
 }
 
-function mul3(m: number[], n: number[]): number[] {
+export function mul3(m: number[], n: number[]): number[] {
   const r = new Array(9).fill(0);
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) r[i * 3 + j] += m[i * 3 + k] * n[k * 3 + j];
   return r;

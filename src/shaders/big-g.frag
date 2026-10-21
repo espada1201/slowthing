@@ -27,10 +27,10 @@ uniform vec3 uPlanetDir;
 uniform vec3 uPlanetAxis;
 uniform float uPlanetSize;
 uniform vec3 uGalaxy;
-uniform float uDebug;
+uniform float uDebug;       // 1: output the escape direction as 0.4 + 0.3·dir (alpha 0 captured, 0.5 unfinished)
 uniform sampler2D uRefl;    // two-factor colour shift for reflected starlight (physics/reflection.ts)
 uniform float uReflSize;
-uniform float uReflRange;       // 1: output the escape direction as 0.4 + 0.3·dir (alpha 0 captured, 0.5 unfinished)
+uniform float uReflRange;
 varying vec2 vUv;
 
 const float TAU = 6.2831853;

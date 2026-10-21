@@ -138,7 +138,6 @@ async function enter(id: string) {
         () => chrome?.flash('Copy the address bar to share this universe'),
       ) ?? chrome?.flash('Copy the address bar to share this universe');
     },
-    onToggle: () => {},
     onAction: (a) => w.runAction(a, ctx()),
     onTour: goTour,
     onQuality: setQuality,
@@ -193,7 +192,6 @@ function goTour(i: number, initial = false) {
     input.state.pitch = pose.pitch;
   }
   if (stop.action) world.runAction(stop.action, ctx());
-  input.consumeTouched();
   chrome.setTour(tourIndex);
   chrome.syncDials(constants);
   chrome.syncToggles();
@@ -208,7 +206,6 @@ function loop(now: number) {
   if (!world || !renderer) return;
   input.poll();
   world.frame(dt, input.state, ctx());
-  input.consumeTouched();
   frames++;
   hudTimer -= dt;
   if (hudTimer <= 0 && chrome) {

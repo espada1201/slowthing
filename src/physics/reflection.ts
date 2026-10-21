@@ -4,13 +4,7 @@
 // (spectrum.ts) cannot say that, so this is the two-factor version of the same spectral model. A white
 // surface stays white for any D_R; a red one deep in the well turns dark, its red reflected into the infrared.
 
-import { basisSpectra, cieXYZ, planck, xyzToLinearSRGB } from './spectrum';
-
-const SUN_T = 5778; // the sunlight of spectrum.ts
-const STEP = 5;
-const SAMPLES = Array.from({ length: 81 }, (_, i) => 380 + i * STEP);
-const SAMPLE_RGB = SAMPLES.map((l) => xyzToLinearSRGB(cieXYZ(l)));
-const sun = (l: number) => planck(l, SUN_T) / planck(550, SUN_T);
+import { SAMPLES, SAMPLE_RGB, STEP, basisSpectra, invert3, mul3, sun } from './spectrum';
 
 function integrate(dR: number, dS: number): number[] {
   const a = new Array(9).fill(0);
@@ -23,20 +17,11 @@ function integrate(dR: number, dS: number): number[] {
   return a;
 }
 
-function invert3([a, b, c, d, e, f, g, h, i]: number[]): number[] {
-  const A = e * i - f * h, B = f * g - d * i, C = d * h - e * g;
-  const det = a * A + b * B + c * C;
-  return [A, c * h - b * i, b * f - c * e, B, a * i - c * g, c * d - a * f, C, b * g - a * h, a * e - b * d].map((v) => v / det);
-}
-
 const NORMALISE = invert3(integrate(1, 1));
 
 /** Row-major 3×3: observed linear RGB = M · surface RGB, before the D_S⁵ intensity factor. */
 export function reflectionTransform(dR: number, dS: number): number[] {
-  const a = integrate(dR, dS);
-  const m = new Array(9).fill(0);
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) m[i * 3 + j] += NORMALISE[i * 3 + k] * a[k * 3 + j];
-  return m;
+  return mul3(NORMALISE, integrate(dR, dS));
 }
 
 export const REFLECTION_LOG_RANGE = Math.log(8);
