@@ -1,0 +1,173 @@
+// Time-dependent Schrödinger equation on a 2D grid, Visscher's staggered leapfrog scheme
+// (Computers in Physics 5, 596, 1991). Re ψ lives on integer steps, Im ψ on half steps, and the
+// discrete probability R(t)² + I(t−½)·I(t+½) is conserved exactly. The GPU solver runs the same
+// update in fragment shaders; this CPU version is the reference the tests check against physics.
+
+export interface GridSpec {
+  nx: number;
+  ny: number;
+  dx: number;
+  /** Periodic wrap in y (for effectively one-dimensional tests); otherwise ψ = 0 outside the grid. */
+  periodicY?: boolean;
+}
+
+export interface Particle {
+  mass: number;
+  hbar: number;
+}
+
+/** Largest stable step: the spectrum of H must fit inside 2ħ/Δt (Visscher); we keep a 2× margin. */
+export function stableTimeStep(grid: GridSpec, p: Particle, vMax: number): number {
+  const kinetic = (4 * p.hbar * p.hbar) / (p.mass * grid.dx * grid.dx);
+  return p.hbar / (kinetic + Math.max(0, vMax));
+}
+
+export function deBroglieWavelength(p: Particle, speed: number): number {
+  return (2 * Math.PI * p.hbar) / (p.mass * speed);
+}
+
+export class Schrodinger2D {
+  readonly re: Float64Array;
+  readonly im: Float64Array;
+  private readonly imPrev: Float64Array;
+  private readonly tmp: Float64Array;
+  readonly potential: Float64Array;
+  /** 1 where the particle may be, 0 inside hard walls. */
+  readonly open: Float64Array;
+  time = 0;
+
+  constructor(readonly grid: GridSpec, readonly particle: Particle, readonly dt: number) {
+    const n = grid.nx * grid.ny;
+    this.re = new Float64Array(n);
+    this.im = new Float64Array(n);
+    this.imPrev = new Float64Array(n);
+    this.tmp = new Float64Array(n);
+    this.potential = new Float64Array(n);
+    this.open = new Float64Array(n).fill(1);
+  }
+
+  /** Place a Gaussian packet whose probability density has standard deviation σ, moving with wavevector k. */
+  setGaussian(x0: number, y0: number, sigma: number, kx: number, ky: number) {
+    const { nx, ny, dx } = this.grid;
+    let norm = 0;
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = i * dx, y = j * dx;
+        const r2 = (x - x0) ** 2 + (this.grid.periodicY ? 0 : (y - y0) ** 2);
+        const a = Math.exp(-r2 / (4 * sigma * sigma)) * this.open[j * nx + i];
+        const ph = kx * x + ky * y;
+        this.re[j * nx + i] = a * Math.cos(ph);
+        this.im[j * nx + i] = a * Math.sin(ph);
+        norm += a * a;
+      }
+    }
+    const s = 1 / Math.sqrt(norm * dx * dx);
+    for (let k = 0; k < nx * ny; k++) {
+      this.re[k] *= s;
+      this.im[k] *= s;
+    }
+    // Stagger Im ψ to t = ±Δt/2 so the leapfrog (and its conserved norm) starts consistently.
+    this.applyH(this.re, this.tmp);
+    const h = this.particle.hbar;
+    for (let k = 0; k < nx * ny; k++) {
+      const half = (0.5 * this.dt * this.tmp[k]) / h;
+      this.imPrev[k] = this.im[k] + half;
+      this.im[k] -= half;
+    }
+    this.time = 0;
+  }
+
+  /** out = H·f with H = −ħ²/2m ∇² + V and hard walls / outer boundary held at zero. */
+  private applyH(f: Float64Array, out: Float64Array) {
+    const { nx, ny, dx, periodicY } = this.grid;
+    const kin = (this.particle.hbar * this.particle.hbar) / (2 * this.particle.mass * dx * dx);
+    for (let j = 0; j < ny; j++) {
+      const jm = j > 0 ? j - 1 : periodicY ? ny - 1 : -1;
+      const jp = j < ny - 1 ? j + 1 : periodicY ? 0 : -1;
+      for (let i = 0; i < nx; i++) {
+        const k = j * nx + i;
+        const c = f[k];
+        const l = i > 0 ? f[k - 1] : 0;
+        const r = i < nx - 1 ? f[k + 1] : 0;
+        const d = jm >= 0 ? f[jm * nx + i] : 0;
+        const u = jp >= 0 ? f[jp * nx + i] : 0;
+        out[k] = (-kin * (l + r + d + u - 4 * c) + this.potential[k] * c) * this.open[k];
+      }
+    }
+  }
+
+  step(n = 1) {
+    const h = this.particle.hbar;
+    const N = this.re.length;
+    for (let s = 0; s < n; s++) {
+      this.applyH(this.im, this.tmp);
+      for (let k = 0; k < N; k++) this.re[k] += (this.dt * this.tmp[k]) / h;
+      this.imPrev.set(this.im);
+      this.applyH(this.re, this.tmp);
+      for (let k = 0; k < N; k++) this.im[k] -= (this.dt * this.tmp[k]) / h;
+      this.time += this.dt;
+    }
+  }
+
+  /** Probability density |ψ|² at the current integer step (Visscher's conserved definition). */
+  density(): Float64Array {
+    const d = new Float64Array(this.re.length);
+    for (let k = 0; k < d.length; k++) d[k] = this.re[k] * this.re[k] + this.im[k] * this.imPrev[k];
+    return d;
+  }
+
+  norm(): number {
+    const d = this.density();
+    let s = 0;
+    for (let k = 0; k < d.length; k++) s += d[k];
+    return s * this.grid.dx * this.grid.dx;
+  }
+
+  /** Mean and standard deviation of x and y. */
+  moments() {
+    const { nx, dx } = this.grid;
+    const d = this.density();
+    let m = 0, mx = 0, my = 0, mxx = 0, myy = 0;
+    for (let k = 0; k < d.length; k++) {
+      const x = (k % nx) * dx, y = Math.floor(k / nx) * dx;
+      m += d[k];
+      mx += d[k] * x;
+      my += d[k] * y;
+      mxx += d[k] * x * x;
+      myy += d[k] * y * y;
+    }
+    mx /= m;
+    my /= m;
+    return { x: mx, y: my, sx: Math.sqrt(mxx / m - mx * mx), sy: Math.sqrt(myy / m - my * my) };
+  }
+}
+
+/** Analytic transmission probability through a rectangular barrier of height V0 and width a. */
+export function barrierTransmission(E: number, V0: number, a: number, p: Particle): number {
+  const { mass: m, hbar: h } = p;
+  if (Math.abs(E - V0) < 1e-12 * V0) return 1 / (1 + (m * a * a * V0) / (2 * h * h));
+  if (E < V0) {
+    const kappa = Math.sqrt(2 * m * (V0 - E)) / h;
+    return 1 / (1 + (V0 * V0 * Math.sinh(kappa * a) ** 2) / (4 * E * (V0 - E)));
+  }
+  const k2 = Math.sqrt(2 * m * (E - V0)) / h;
+  return 1 / (1 + (V0 * V0 * Math.sin(k2 * a) ** 2) / (4 * E * (E - V0)));
+}
+
+/** Free-particle Gaussian width: σ(t) = σ₀ √(1 + (ħt / 2mσ₀²)²). */
+export function freeSpreadWidth(sigma0: number, t: number, p: Particle): number {
+  return sigma0 * Math.sqrt(1 + ((p.hbar * t) / (2 * p.mass * sigma0 * sigma0)) ** 2);
+}
+
+/** Draw a grid cell index from a probability density (inverse-CDF sampling). */
+export function sampleIndex(density: ArrayLike<number>, u: number): number {
+  let total = 0;
+  for (let k = 0; k < density.length; k++) total += Math.max(0, density[k]);
+  let acc = 0;
+  const target = u * total;
+  for (let k = 0; k < density.length; k++) {
+    acc += Math.max(0, density[k]);
+    if (acc >= target) return k;
+  }
+  return density.length - 1;
+}
