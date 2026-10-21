@@ -21,7 +21,7 @@ import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } fr
 const TRACK_R = 45;
 const TRAM_PROPER_SPEED = 24;
 const CAROUSEL_R = 7;
-const CAROUSEL_PROPER_SPEED = 20;
+const CAROUSEL_PROPER_SPEED = 13;
 const BLINK_PERIOD = 0.6;
 const EYE = 1.7;
 const BOUND = 140;
@@ -68,7 +68,7 @@ export class SlowLightWorld implements World {
     { title: 'Colours you cannot normally see', text: 'Ahead, light is blueshifted: visible colours slide into ultraviolet while infrared, even the 300 K warmth of stone, slides into view. Behind you everything reddens and fades.', action: 'cruise' },
     { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', action: 'cruise' },
     { title: 'Terrell rotation', text: 'Stand by the track. The tram is Lorentz-contracted, yet you see it turned, not squashed: light from its far side left earlier than light from its near side. It comes round every half minute.', pose: { position: [6, EYE, 41], yaw: -1.35, pitch: 0.02 }, action: 'tram' },
-    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.86 c its clock runs at about half speed, and the light delay bunches or spreads what you see.', pose: { position: [0, EYE, 14], yaw: 0, pitch: 0.12 }, action: 'stop' },
+    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.74 c its clock runs at two-thirds speed, and the light delay bunches or spreads what you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop' },
     { title: 'You are younger', text: 'Compare the town clock with your watch in the panel. Every journey at speed left you a little younger than the town. This is the twin paradox, measured.' },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];

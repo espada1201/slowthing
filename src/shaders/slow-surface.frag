@@ -35,7 +35,7 @@ void main() {
 #ifdef MOVING
     ph = fract(vTau / uBlinkPeriod);
 #endif
-    emissive = 0.15 + 3.5 * exp(-ph * 9.0);
+    emissive = 0.7 + 3.0 * exp(-ph * 9.0);
   }
   float diff = max(dot(n, uSun), 0.0);
   float hemi = 0.5 + 0.5 * n.y;
