@@ -4,7 +4,7 @@
 
 import { retardedTime } from '../physics/relativity';
 import { type Observer, inYourFrame, nowAt, simultaneousTime } from '../physics/simultaneity';
-import { type Vec3, dot, len, scale } from '../physics/vec';
+import { type Vec3, dot, len, scale, sub } from '../physics/vec';
 
 /** Metres in your frame, relative to you: [to your right, ahead]. The map is drawn heading-up. */
 export type MapPoint = [number, number];
@@ -110,20 +110,20 @@ export function measure(town: Town, o: Observer, yaw: number, c: number): Measur
   };
   const aside = (...events: [number, Vec3][]) => Math.max(...events.map(([t, x]) => Math.abs(dot(inYourFrame(o, t, x, c).x, across))));
 
-  const clocks = town.clocks.map(({ id, at }) => ({ id, at: still(at), reads: nowAt(o, at, c), seen: o.t - len([at[0] - o.x[0], at[1] - o.x[1], at[2] - o.x[2]]) / c }));
+  const clocks = town.clocks.map(({ id, at }) => ({ id, at: still(at), reads: nowAt(o, at, c), seen: o.t - len(sub(at, o.x)) / c }));
   const worldlines: Worldline[] = town.clocks.map(({ id, at }, i) => {
     // A town clock moves in a straight line through your frame; two events far apart draw it.
     const reach = 400 / c;
     const { reads, seen } = clocks[i];
     return { id, points: [diagram(o.t - reach, at), diagram(o.t + reach, at)], now: diagram(reads, at), seen: diagram(seen, at), aside: aside([reads, at], [seen, at]) };
   });
-  town.trams.slice(0, 1).forEach((r) => {
-    const { path, velocity } = ride(r, [0, 1.2, 0]);
+  if (town.trams.length) {
+    const { path, velocity } = ride(town.trams[0], [0, 1.2, 0]);
     const s = simultaneousTime(path, velocity, o, c), tr = retardedTime(path, velocity, o.x, o.t, c);
     const span = (2 * 400) / c;
     const points = Array.from({ length: 97 }, (_, k) => diagram(s + span * (k / 48 - 1), path(s + span * (k / 48 - 1))));
     worldlines.push({ id: 'tram', points, now: diagram(s, path(s)), seen: diagram(tr, path(tr)), aside: aside([s, path(s)], [tr, path(tr)]) });
-  });
+  }
 
   return {
     beta: b,
