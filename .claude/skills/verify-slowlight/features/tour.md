@@ -1,0 +1,38 @@
+# Guided tour
+
+Each world opens on a tour card: a numbered stop with a title and one or two sentences. A stop can move the visitor, set dials and switches, and start an action. Some stops first ask a prediction question; the text and the instruments stay hidden until the visitor answers or chooses `Just show me`.
+
+## Sub-features
+
+- `tour-next` `Next →`, `←` and the N and B keys move between stops; the ends disable their buttons.
+- `tour-apply` a stop applies its pose, dials, switches and action.
+- `tour-predict` a prediction hides the stop's text and the instruments until answered.
+- `tour-answer` answering marks the right choice and a wrong pick, then shows the reveal and the text.
+- `tour-skip` `Just show me` reveals without marking a pick.
+
+## How to get to it (user POV)
+
+- Enter any world; the card sits at the bottom of the view.
+- Press N or B anywhere outside a text field.
+
+## Driving it with ctl
+
+Preconditions:
+
+- A desktop instance is in World I (see slow-light.md, step Enter).
+
+- **First stop.** Run `ctl probe`. `tour.stop` is `1 / 9` and the `Previous tour stop` button is disabled (`ctl aria tour-first`).
+- **Next by button.** Run `ctl click --role button --name "Next tour stop"`. `tour.stop` is `2 / 9`, `tour.title` is `The late clock`, and `tour.predicting` is true.
+- **Hidden text.** Run `ctl text '.tour-text'` and `ctl text '.readouts'`. Both print `[]`: the stop's text and the instruments wait for an answer.
+- **Answer wrong.** Run `ctl click '.choice[data-choice="2"]'`, then `ctl text '.predict-reveal'`. The reveal starts `Not quite.` and mentions `5.4 s`. `ctl text '.choice[data-state="right"]'` prints `about 5 s behind` and `ctl text '.choice[data-state="wrong"]'` prints `about 5 s ahead`. Take `ctl shot tour-answered`.
+- **Next by key.** Run `ctl press KeyN`. `tour.title` is `Aberration` and the cruise starts.
+- **Skip.** Run `ctl click --role button --name "Just show me"`. The reveal shows without `Right.` or `Not quite.`.
+- **Back by key.** Run `ctl press KeyB`. `tour.stop` is `2 / 9`.
+- **Last stop.** Press N until `tour.stop` is `9 / 9`. `Next tour stop` is disabled and `constants.c` is 299792458.
+- **Proof.** Run `ctl shot tour-final` and `ctl errors`.
+
+## Gotchas
+
+- N and B are ignored while a text field or a select has focus, and Space or Enter on a focused button presses that button.
+- Arriving at a stop runs its action (a cruise, a roll, the tram), so readouts change on their own right after a step.
+- Stops are meant to be one or two sentences. A longer stop is an ISSUE.
