@@ -47,6 +47,18 @@ test('answering a prediction from the keyboard leaves focus on the answer, not a
   await expect(page.locator('.predict-reveal')).toBeFocused();
 });
 
+test('Next pressed from the keyboard onto a question puts focus on its first answer, and Dials opened from the keyboard puts it in the panel', async ({ page }) => {
+  // A keyboard-only tester needed six Tabs from the top bar to reach each question's answers, and four more to
+  // reach Real universe after opening Dials.
+  await openWorld(page, 'slow-light', '&on=measured');
+  await page.locator('[data-tour-next]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.choice[data-choice="0"]')).toBeFocused();
+  await page.locator('.panel-toggle').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#panel [data-dial="c"]')).toBeFocused();
+});
+
 test('Esc closes the controls help, and the help button no longer says it is open', async ({ page }) => {
   await openWorld(page, 'slow-light');
   const button = page.getByRole('button', { name: 'Controls help' });

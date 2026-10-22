@@ -184,6 +184,8 @@ export function worldChrome(
   panelToggle.addEventListener('click', () => {
     const open = panel.classList.toggle('open');
     panelToggle.setAttribute('aria-expanded', String(open));
+    // From the keyboard, carry focus into what just opened.
+    if (open && panelToggle.matches(':focus-visible')) panel.querySelector<HTMLElement>('input, button, select')?.focus();
   });
   const helpBtn = h('button', { class: 'btn ghost', 'aria-label': 'Controls help', 'aria-expanded': 'false' }, '?');
   const soundBtn = h('button', { class: 'btn ghost', 'data-sound': true, 'aria-pressed': String(soundOn()), title: 'Hear the physics: Doppler-shifted bells, detector clicks, distant clocks' }, 'Sound');
@@ -255,6 +257,8 @@ export function worldChrome(
       syncViews();
     },
     setTour(i, waiting = false) {
+      // A keyboard user who stepped here with Next or Back goes straight to a question's answers.
+      const fromKeys = [next, prev].some((b) => b.matches(':focus-visible'));
       current = i;
       start.hidden = !waiting;
       const stop = world.tour[i];
@@ -289,6 +293,7 @@ export function worldChrome(
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
         predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, reveal);
+        if (fromKeys) buttons[0].focus();
       }
       if (m) {
         const inputs = m.asks.map((a) => h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-label': `${a.symbol} in ${a.unit}`, 'data-ask': a.symbol, oninput: (e: Event) => (e.target as HTMLInputElement).setCustomValidity('') }));
