@@ -16,6 +16,8 @@ describe('dial labels', () => {
     expect(formatSI(4.1378e-34)).toBe('4.14×10⁻³⁴');
     expect(formatSI(REAL.c)).toBe('299 792 458');
     expect(formatSI(12)).toBe('12');
+    // A mantissa that rounds up to 10 carries into the exponent.
+    expect(formatSI(9.996e12)).toBe('1.00×10¹³');
   });
 
   it('map sliders logarithmically between the dial limits', () => {

@@ -18,7 +18,7 @@ Each world has a guided tour, effect switches, live instruments and a **Real uni
 
 Controls: click the view to look around, use WASD to move and ← → to turn, hold Shift to run, and press N or B for the next or previous tour stop. In World III, R turns the sky ruler on. The **?** button lists every key. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to the exact tour stop, switches and dials you are looking at.
 
-Quality starts on **Auto**, which moves between presets and trims the resolution to keep the view near 60 frames a second; choose Low, Medium or High in the top bar to keep one preset. If your system asks for reduced motion, a world opens standing still, and a tour stop that would set things moving waits for **Start**.
+Quality starts on **Auto**, which moves between presets and trims the resolution to keep the view near 60 frames a second; choose Low, Medium or High in the top bar (in the Dials panel on a phone) to keep one preset. If your system asks for reduced motion, a world opens standing still, and a tour stop that would set things moving waits for **Start**.
 
 For a class, **For teachers →** on the title screen opens a one-page student sheet and a teacher page for each world, with the answers, a 15-minute lesson and a QR code for every activity. Print them from the published website (see below): printed from `npm start`, the codes point at your own computer, which students' devices cannot open.
 

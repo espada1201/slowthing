@@ -129,7 +129,7 @@ export interface World<S = unknown> extends Lesson<S> {
   setPose(pose: Pose): void;
   runAction(id: string, ctx: WorldContext): void;
   setQuality(q: Quality, ctx: WorldContext): void;
-  /** Optional status line (e.g. "classical regime"), shown under the readouts. */
+  /** The status line (e.g. "classical regime"), shown under the readouts. */
   status(ctx: WorldContext): string;
   /** The camera of the last frame drawn, for the sky ruler; a world without it has no ruler. */
   view?(): View;

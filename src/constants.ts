@@ -46,9 +46,10 @@ export function formatSI(v: number, digits = 3): string {
   const a = Math.abs(v);
   if (a >= 0.01 && a < 1e5) return Number(v.toPrecision(digits)).toLocaleString('en-US', { maximumFractionDigits: 4 });
   if (a >= 1e5 && a < 1e9 && Number.isInteger(Math.round(v))) return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ');
-  const e = Math.floor(Math.log10(a));
-  const m = v / 10 ** e;
-  return `${m.toFixed(digits - 1)}×10${sup(e)}`;
+  let e = Math.floor(Math.log10(a));
+  // 9.996×10¹² rounds to 10.00: carry it, as ratioLabel does.
+  if (Math.abs(Number((v / 10 ** e).toFixed(digits - 1))) >= 10) e++;
+  return `${(v / 10 ** e).toFixed(digits - 1)}×10${sup(e)}`;
 }
 
 /**
