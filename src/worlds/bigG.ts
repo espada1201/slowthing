@@ -175,8 +175,7 @@ export class BigGLesson {
         steps: [
           'Turn on the Ruler and mark opposite edges of the shadow, the black disc with no stars in it. Half the angle between the marks is its radius α.',
           'Solve sin α = (3√3/2)(rs/r)√(1 − rs/r) for rs, with your distance r from the instruments. Leave the square root out at first, then put that rs into the square root and solve again.',
-          // shortcut: prints the G this stop sets, which is stale once the visitor turns the G dial here; build this step from the live G if it should follow the dial.
-          `Then M = rs c²/(2G), with c = 3.00×10⁸ m/s and G = ${formatSI(gFor(WEIGH_RS))} m³/kg·s².`,
+          `Then M = rs c²/(2G), with c = 3.00×10⁸ m/s and G as the G dial reads (${formatSI(gFor(WEIGH_RS))} m³/kg·s² at this stop).`,
         ],
         given: ['Your distance r'],
         asks: [
