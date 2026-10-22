@@ -80,6 +80,13 @@ export function tracedDeflection(b: number, rs: number, stepScale = 0.01): numbe
   return Math.acos(Math.max(-1, Math.min(1, res.direction[0])));
 }
 
+/** Simpson's rule for ∫ₐᵇ f with n (even) intervals. */
+function simpson(f: (x: number) => number, a: number, b: number, n: number): number {
+  let sum = 0;
+  for (let i = 0; i <= n; i++) sum += f(a + ((b - a) * i) / n) * (i === 0 || i === n ? 1 : i % 2 ? 4 : 2);
+  return (sum * (b - a)) / (3 * n);
+}
+
 /** Exact bending angle: Δφ = 2∫₀^{u₀} du / √(1/b² − u² + rs u³) − π, with u₀ the turning point. */
 export function exactDeflection(b: number, rs: number): number {
   if (b <= CRITICAL_IMPACT * rs) return Infinity;
@@ -93,21 +100,27 @@ export function exactDeflection(b: number, rs: number): number {
   }
   const u0 = lo;
   // u = u0 (1 − s²) removes the inverse-square-root singularity at the turning point.
-  const N = 20000;
-  let sum = 0;
-  for (let i = 0; i <= N; i++) {
-    const s = i / N;
-    const u = u0 * (1 - s * s);
-    let f: number;
-    if (s === 0) {
-      const dG = -2 * u0 + 3 * rs * u0 * u0; // G'(u0) < 0
-      f = (2 * u0) / Math.sqrt(-dG * u0);
-    } else {
-      f = (2 * u0 * s) / Math.sqrt(Math.max(1e-300, G(u)));
-    }
-    sum += f * (i === 0 || i === N ? 1 : i % 2 ? 4 : 2);
+  const dG = -2 * u0 + 3 * rs * u0 * u0; // G'(u0) < 0
+  const f = (s: number) => (s === 0 ? (2 * u0) / Math.sqrt(-dG * u0) : (2 * u0 * s) / Math.sqrt(Math.max(1e-300, G(u0 * (1 - s * s)))));
+  return 2 * simpson(f, 0, 1, 20000) - Math.PI;
+}
+
+/**
+ * Angular radius of the Einstein ring that a static observer at r (> 1.5 rs) sees when a far-away source sits
+ * exactly behind the hole: light leaving the observer at that angle sweeps exactly π on its way out to infinity.
+ * That sweep is 2∫₀^{u₀} − ∫₀^{1/r} of du / √(1/b² − u² + rs u³), i.e. exactDeflection(b) + π − ∫₀^{1/r}.
+ */
+export function einsteinRingRadius(r: number, rs: number): number {
+  // Below the turning point the integrand stays finite, so plain Simpson does.
+  const toObserver = (b: number) => simpson((u) => 1 / Math.sqrt(1 / (b * b) - u * u + rs * u * u * u), 0, 1 / r, 2000);
+  // Between the shadow's edge (endless bending) and a ray that grazes the observer's own radius.
+  let lo = CRITICAL_IMPACT * rs, hi = r / Math.sqrt(1 - rs / r);
+  for (let i = 0; i < 60; i++) {
+    const b = 0.5 * (lo + hi);
+    if (exactDeflection(b, rs) > toObserver(b)) lo = b;
+    else hi = b;
   }
-  return 2 * (sum / (3 * N)) - Math.PI;
+  return Math.asin(((0.5 * (lo + hi)) / r) * Math.sqrt(1 - rs / r));
 }
 
 /**

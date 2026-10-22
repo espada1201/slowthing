@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CRITICAL_IMPACT,
   asymptoticDirection,
+  einsteinRingRadius,
   exactDeflection,
   gravitationalShift,
   schwarzschildRadius,
@@ -13,6 +14,7 @@ import {
 import { type Vec3, dot, len } from '../src/physics/vec';
 
 const rs = 1;
+const deg = Math.PI / 180;
 
 describe('Schwarzschild light bending', () => {
   it('weak field: deflection → 4GM/(c²b) = 2 rs / b', () => {
@@ -72,6 +74,33 @@ describe('black hole shadow seen by a hovering observer', () => {
       expect(traceRay([r, 0, 0], look(alpha * 0.99), 1, opts).captured).toBe(true);
       expect(traceRay([r, 0, 0], look(alpha * 1.01), 1, opts).captured).toBe(false);
     }
+  });
+});
+
+describe('Einstein ring of a far-away source right behind the hole', () => {
+  // Direction (from the hole's) in which a ray leaving the observer at angle θ ends up, traced like the shader.
+  const escape = (r: number, theta: number) => {
+    const ray = traceRay([r, 0, 0], [-Math.cos(theta), Math.sin(theta), 0], 1, { stepScale: 0.002, rFar: 100 * r, maxSteps: 1e6 });
+    const d = asymptoticDirection(ray.position, ray.direction, 1);
+    return Math.atan2(d[1], -d[0]);
+  };
+
+  it('is where rays traced like the shader leave straight away from you', () => {
+    for (const r of [5, 20, 100]) {
+      // The ray that ends up heading straight away (escape angle 0) lies between the shadow's edge and 1 radian.
+      let lo = shadowAngularRadius(r, 1) * 1.001, hi = 1;
+      for (let i = 0; i < 40; i++) {
+        const mid = 0.5 * (lo + hi);
+        if (escape(r, mid) < 0) lo = mid;
+        else hi = mid;
+      }
+      expect(Math.abs(einsteinRingRadius(r, 1) - 0.5 * (lo + hi)) / deg).toBeLessThan(0.01);
+    }
+  });
+
+  it('is wider than the weak-field √(2rs/r) close in, and tends to it far away', () => {
+    expect(einsteinRingRadius(20, 1)).toBeGreaterThan(1.1 * Math.sqrt(2 / 20));
+    expect(Math.abs(einsteinRingRadius(1e5, 1) / Math.sqrt(2 / 1e5) - 1)).toBeLessThan(0.005);
   });
 });
 
