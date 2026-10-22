@@ -12,16 +12,23 @@ void lutCell(float D, out int i0, out int i1, out float f) {
   f = fract(x);
 }
 
-// The 300 K glow of a surface seen with Doppler factor D, in linear RGB: the alpha of the LUT's three rows. Not
-// clamped, as dopplerShift adds it to the reflected colour before clamping.
-vec3 thermalGlow(float D) {
+// The Doppler LUT's three rows at D. Row k's rgb is what one unit of colour channel k becomes; its alpha is channel k
+// of the 300 K glow.
+void lutRows(float D, out vec4 r, out vec4 g, out vec4 b) {
   int i0, i1;
   float f;
   lutCell(D, i0, i1, f);
-  return vec3(
-    mix(texelFetch(uLut, ivec2(i0, 0), 0).a, texelFetch(uLut, ivec2(i1, 0), 0).a, f),
-    mix(texelFetch(uLut, ivec2(i0, 1), 0).a, texelFetch(uLut, ivec2(i1, 1), 0).a, f),
-    mix(texelFetch(uLut, ivec2(i0, 2), 0).a, texelFetch(uLut, ivec2(i1, 2), 0).a, f));
+  r = mix(texelFetch(uLut, ivec2(i0, 0), 0), texelFetch(uLut, ivec2(i1, 0), 0), f);
+  g = mix(texelFetch(uLut, ivec2(i0, 1), 0), texelFetch(uLut, ivec2(i1, 1), 0), f);
+  b = mix(texelFetch(uLut, ivec2(i0, 2), 0), texelFetch(uLut, ivec2(i1, 2), 0), f);
+}
+
+// The 300 K glow of a surface seen with Doppler factor D, in linear RGB. Not clamped, as dopplerShift adds it to the
+// reflected colour before clamping.
+vec3 thermalGlow(float D) {
+  vec4 r, g, b;
+  lutRows(D, r, g, b);
+  return vec3(r.a, g.a, b.a);
 }
 
 // Observed linear RGB for a surface of colour rgb seen with Doppler factor D (no beaming).
@@ -29,13 +36,10 @@ vec3 thermalGlow(float D) {
 // Beyond the table (|ln D| > uLutRange) it holds the edge colour, so a source shifted further still shows
 // (and D⁵ beaming makes it blaze) instead of turning black.
 vec3 dopplerShift(vec3 rgb, float D, float thermal) {
-  int i0, i1;
-  float f;
-  lutCell(D, i0, i1, f);
-  vec3 r = mix(texelFetch(uLut, ivec2(i0, 0), 0).rgb, texelFetch(uLut, ivec2(i1, 0), 0).rgb, f);
-  vec3 g = mix(texelFetch(uLut, ivec2(i0, 1), 0).rgb, texelFetch(uLut, ivec2(i1, 1), 0).rgb, f);
-  vec3 b = mix(texelFetch(uLut, ivec2(i0, 2), 0).rgb, texelFetch(uLut, ivec2(i1, 2), 0).rgb, f);
-  return max(rgb.r * r + rgb.g * g + rgb.b * b + thermal * thermalGlow(D), 0.0);
+  vec4 r, g, b;
+  lutRows(D, r, g, b);
+  // The glow comes from these rows, not thermalGlow(D): SwiftShader would fetch every texel a second time.
+  return max(rgb.r * r.rgb + rgb.g * g.rgb + rgb.b * b.rgb + thermal * vec3(r.a, g.a, b.a), 0.0);
 }
 
 // Identity below 0.8, smooth roll-off above: keeps scene colours true while beaming saturates gracefully.
