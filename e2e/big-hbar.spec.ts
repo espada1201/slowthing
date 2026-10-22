@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { expectRendered, openWorld, readout, watchErrors } from './helpers';
+import { expectRendered, frames, openWorld, readout, watchErrors } from './helpers';
 
 // The wave is stepped in fragment shaders, which software rendering in CI runs far below real time.
 test.slow();
@@ -10,6 +10,20 @@ const status = (page: Page): Promise<string> => page.evaluate(() => (window as a
 async function untilAbove(page: Page, label: string, min: number) {
   await page.waitForFunction(([l, m]) => parseFloat((window as any).slowlight.readouts().find((r: any) => r.label === l)?.value) > m, [label, min] as const, { timeout: 150_000, polling: 500 });
 }
+
+/** Share of the view in the wave's vermilion: red well above blue, which the pale stone never is. */
+const waveShare = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 40;
+    const g = c.getContext('2d')!;
+    g.drawImage(document.querySelector<HTMLCanvasElement>('#view')!, 0, 0, 64, 40);
+    const d = g.getImageData(0, 0, 64, 40).data;
+    let warm = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] - d[i + 2] > 80) warm++;
+    return warm / (64 * 40);
+  });
 
 test('at the real ħ the ball is a point; turned up, it rolls out as a wave', async ({ page }) => {
   const errors = watchErrors(page);
@@ -29,6 +43,46 @@ test('at the real ħ the ball is a point; turned up, it rolls out as a wave', as
   // Part of the wave gets through the two openings while the rest comes back.
   await untilAbove(page, 'Past the obstacle', 15);
   expect(parseFloat(await readout(page, 'Spread Δx'))).toBeGreaterThan(1.5);
+  expect(errors).toEqual([]);
+});
+
+test('Show wave draws |ψ|² across the floor, and hiding it leaves bare stone', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openWorld(page, 'big-hbar');
+  for (let i = 0; i < 6; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('A ball as wide as a room');
+  // The crests sweep across the floor as the wave rolls, so a frame difference mostly measures that motion:
+  // count the wave's own colour instead.
+  await frames(page, 3);
+  expect(await waveShare(page)).toBeGreaterThan(0.006);
+  await page.locator('[data-toggle="wave"]').uncheck({ force: true });
+  await frames(page, 2);
+  expect(await waveShare(page)).toBeLessThan(0.002);
+  await page.locator('[data-toggle="wave"]').check({ force: true });
+  await frames(page, 2);
+  expect(await waveShare(page)).toBeGreaterThan(0.006);
+  expect(errors).toEqual([]);
+});
+
+test('rapid fire repeats a roll, and the detector walls decide which landings are recorded', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openWorld(page, 'big-hbar');
+  // Stand past the openings with rapid fire on, go back to the real ħ, and roll a classical ball at the back wall:
+  // every repeat of that roll lands where the first did.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Two openings');
+  await page.locator('[data-reset="real"]').click();
+  await page.keyboard.press('KeyF');
+  await untilAbove(page, 'Dots recorded', 30);
+  expect(await status(page)).toContain('Rapid fire');
+  // With the walls off the repeats keep landing but leave no dots; back on, recording resumes at once.
+  await page.locator('[data-toggle="detector"]').uncheck({ force: true });
+  const recorded = Number(await readout(page, 'Dots recorded'));
+  await frames(page, 10);
+  expect(Number(await readout(page, 'Dots recorded'))).toBe(recorded);
+  await page.locator('[data-toggle="detector"]').check({ force: true });
+  await frames(page, 10);
+  expect(Number(await readout(page, 'Dots recorded'))).toBeGreaterThan(recorded);
   expect(errors).toEqual([]);
 });
 
