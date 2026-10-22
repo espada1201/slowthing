@@ -209,6 +209,9 @@ test.describe('the kit pages, in a browser without WebGL', () => {
 
     test(`${id}: the teacher page times a 15-minute lesson, gives every answer a reason and copies every link`, async ({ baseURL }) => {
       const { page, errors } = await kitPage(baseURL, `guide=${id}`, { permissions: ['clipboard-read', 'clipboard-write'] });
+      // Print prints this page; the sheet the class needs is one click away, beside it.
+      await expect(page.locator('.bar > *')).toHaveText(['← All worlds', 'Print', 'Student sheet to print for the class']);
+      await expect(page.locator('.bar a').last()).toHaveAttribute('href', `?sheet=${id}`);
       const minutes = (await page.locator('.step .meta').allTextContents()).map((meta) => parseInt(meta));
       expect(minutes.reduce((sum, m) => sum + m, 0)).toBe(15);
       await expect(page.locator('.syllabus tbody tr').first()).toBeVisible();

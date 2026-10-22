@@ -151,7 +151,7 @@ function guidePage(guide: Guide, card: Card): HTMLElement {
   return h(
     'div',
     { class: 'guide' },
-    bar(h('a', { class: 'btn ghost', href: `?sheet=${sheet.world}` }, 'Student sheet'), h('button', { class: 'btn', onclick: () => window.print() }, 'Print')),
+    bar(h('button', { class: 'btn', onclick: () => window.print() }, 'Print'), h('a', { class: 'btn ghost', href: `?sheet=${sheet.world}` }, 'Student sheet to print for the class')),
     h('header', { class: 'head' }, h('p', { class: 'kicker' }, `${card.plate} · Teacher page`), h('h1', {}, sheet.title), h('p', { class: 'lede' }, card.blurb)),
     section(
       'Where it fits',
