@@ -70,6 +70,77 @@ test('at rest, the map’s tower clock reads the town clock t while you see it 5
   expect(errors).toEqual([]);
 });
 
+test('screen readers can read every clock reading the map and the diagram show, and where the trams and lamps are, rewritten at most once a second', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openWorld(page, 'slow-light');
+  await page.locator('.topbar [data-view="measured"]').click();
+  const region = page.getByRole('region', { name: 'Measured view' });
+  await expect(region).toBeVisible();
+  /**
+   * The Measured view's ARIA snapshot as a screen reader reaches it. The snapshot lists the text drawn inside an image,
+   * but an image's children are presentational, so screen readers skip them: leave out each image and what it holds.
+   */
+  const reached = async () => {
+    let image = -1;
+    return (await region.ariaSnapshot())
+      .split('\n')
+      .filter((line) => {
+        const indent = line.search(/\S/);
+        if (image >= 0 && indent > image) return false;
+        image = /^\s*- '?img\b/.test(line) ? indent : -1;
+        return image < 0;
+      })
+      .join('\n');
+  };
+  /** With time held, wait until what a screen reader reaches in the Measured view holds every clock reading drawn there. */
+  const heard = async () => {
+    await pause(page, true);
+    let words = '';
+    await expect(async () => {
+      words = await reached();
+      const drawn = await page.locator('.measured [data-clock]').evaluateAll((els) => els.filter((e) => e.getAttribute('display') === 'inline').map((e) => e.textContent ?? ''));
+      expect(drawn.length).toBeGreaterThan(1);
+      for (const reading of drawn) expect(words).toContain(reading);
+    }).toPass({ timeout: 20_000 });
+    return words;
+  };
+  const before = await heard();
+  expect(before).toMatch(/tram car.* \d+ m (ahead|behind|left|right)/i);
+  expect(before).toMatch(/lamp.* \d+ m (ahead|behind|left|right)/i);
+  const tower = await page.locator('.m-map [data-clock="tower"]').textContent();
+
+  // Read, not announced: nothing in the view is a live region, and the words change at most once a second.
+  const live = '[aria-live]:not([aria-live="off"]), [role="status"], [role="log"], [role="alert"], [role="timer"], [role="marquee"]';
+  expect(await page.locator('.measured').evaluate((el, live) => !!el.closest(live) || !!el.querySelector(live), live)).toBe(false);
+  const { t } = await probe(page);
+  await pause(page, false);
+  const { rewrites, seconds, drawn } = await page.locator('.measured').evaluate(
+    (el) =>
+      new Promise<{ rewrites: number; seconds: number; drawn: number }>((resolve) => {
+        const [start, frames] = [performance.now(), (window as any).slowlight.frames];
+        let rewrites = 0;
+        // A rewrite of the words arrives as one batch of changes; the drawings' own changes are left out.
+        const watch = new MutationObserver((changes) => {
+          if (changes.some((c) => !(c.target instanceof SVGElement) && !c.target.parentElement?.closest('svg'))) rewrites++;
+        });
+        watch.observe(el, { subtree: true, childList: true, characterData: true });
+        setTimeout(() => {
+          watch.disconnect();
+          resolve({ rewrites, seconds: (performance.now() - start) / 1000, drawn: (window as any).slowlight.frames - frames });
+        }, 6000);
+      }),
+  );
+  console.log(`words rewritten ${rewrites} times in ${seconds.toFixed(1)} s, over ${drawn} frames`);
+  expect(rewrites).toBeLessThanOrEqual(Math.floor(seconds) + 1);
+
+  // A second on, the words hold the new readings.
+  await page.waitForFunction((t0) => (window as any).slowlight.probe().t > t0 + 1, t, { timeout: 90_000 });
+  const after = await heard();
+  expect(await page.locator('.m-map [data-clock="tower"]').textContent()).not.toBe(tower);
+  expect(after).not.toBe(before);
+  expect(errors).toEqual([]);
+});
+
 test('at the carousel, the map shows all eight lamps flashing together every 0.885 s, and the view is unchanged', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'slow-light');

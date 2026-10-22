@@ -24,6 +24,13 @@ for (const world of ['slow-light', 'big-hbar', 'big-g']) {
   });
 }
 
+test('the Measured view, with its map in words, passes axe', async ({ page }) => {
+  await openWorld(page, 'slow-light');
+  await page.locator('.topbar [data-view="measured"]').click();
+  await expect(page.getByRole('region', { name: 'Measured view' }).getByRole('listitem').first()).toContainText(/\d:\d\d\.\d/);
+  expect(await problems(page)).toEqual([]);
+});
+
 test('an answered prediction passes axe', async ({ page }) => {
   await openWorld(page, 'slow-light');
   await page.keyboard.press('KeyN');

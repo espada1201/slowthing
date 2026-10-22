@@ -245,6 +245,8 @@ body[data-mode='world'] #touch { display: block; }
 .m-map, .m-diagram { display: block; width: 100%; background: var(--map); border-radius: 2px; box-shadow: inset 0 0 0 1px var(--rule); }
 .m-map { aspect-ratio: 1; }
 .m-diagram { aspect-ratio: 3 / 2; margin-top: 8px; }
+/* The map and the diagram in words, for screen readers only. */
+.in-words { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .chrome:has(> .measured-view:not([hidden])) .panel { display: none; }
 .chrome:has(> .measured-view:not([hidden])) .panel.open { display: block; z-index: 2; }
 .chrome:has(> .measured-view:not([hidden])) .panel-toggle { display: inline-flex !important; }

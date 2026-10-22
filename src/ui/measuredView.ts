@@ -12,12 +12,17 @@ const MAP_HALF = 45;
 const DIAGRAM_HALF = 90;
 /** Width of a label character (IBM Plex Mono at 10.5 px), to keep labels from overlapping. */
 const CHAR = 6.3;
+/** Milliseconds between rewrites of the view in words: slow enough to read while the clocks run. */
+const SAY_EVERY = 1000;
 
 type Attrs = Record<string, string | number>;
 type Box = [number, number, number, number];
 const set = (e: Element, attrs: Attrs) => {
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
 };
+const nearer = (p: { at: MapPoint }, q: { at: MapPoint }) => Math.hypot(...p.at) - Math.hypot(...q.at);
+/** Each tram car's middle and length, nearest first. */
+const cars = (m: MeasuredModel) => m.trams.map(({ corners: [a, , b], length }) => ({ length, at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as MapPoint })).sort(nearer);
 const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Attrs = {}, ...children: (SVGElement | string)[]) => {
   const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
   set(e, attrs);
@@ -70,6 +75,13 @@ export class MeasuredView {
   private ticks = svg('g');
   private ticksFor = '';
   private axisText = svg('text', { class: 'm-small', 'text-anchor': 'end' });
+  /**
+   * The map and the diagram in words, after each: screen readers never reach the text drawn inside an image. Neither
+   * is a live region, so nothing is announced as the readings change.
+   */
+  private mapWords = h('ul', { class: 'in-words', 'aria-label': 'On the map' });
+  private diagramWords = h('p', { class: 'in-words' });
+  private saidAt = -Infinity;
 
   constructor(private readonly clockStart: number) {
     this.map.el.append(this.grid, this.track, this.blocks, this.trams, this.lamps, this.clocks, this.carText, this.motion, this.you, this.north, this.scaleBar, this.scaleText);
@@ -77,14 +89,20 @@ export class MeasuredView {
     this.root = h(
       'div',
       { class: 'measured-view', hidden: true },
-      h('section', { class: 'measured', 'aria-label': 'Measured view' }, h('h2', { class: 'measured-h' }, 'Measured ', h('span', {}, 'your now, in your frame')), this.map.el, this.diagram.el),
-      h('p', { class: 'seen-tag' }, 'Seen ', h('span', {}, 'the light reaching you now')),
+      h('section', { class: 'measured', 'aria-label': 'Measured view' }, h('h2', { class: 'measured-h' }, 'Measured ', h('span', {}, 'your now, in your frame')), this.map.el, this.mapWords, this.diagram.el, this.diagramWords),
+      // A caption on the 3D view, for the eye; the diagram's words say what the light reaching you shows.
+      h('p', { class: 'seen-tag', 'aria-hidden': 'true' }, 'Seen ', h('span', {}, 'the light reaching you now')),
     );
   }
 
   update(m: MeasuredModel, c: number) {
     this.drawMap(m);
     this.drawDiagram(m, c);
+    const now = performance.now();
+    if (now - this.saidAt >= SAY_EVERY && this.map.size.w) {
+      this.saidAt = now;
+      this.say(m);
+    }
   }
 
   private reading(seconds: number, full: boolean) {
@@ -143,10 +161,8 @@ export class MeasuredView {
     // The tower first, as the clock to compare with the instruments, then the nearest.
     const order = m.clocks.map((ck, i) => ({ ck, at: spots[i] })).sort((a, b) => Number(b.ck.id === 'tower') - Number(a.ck.id === 'tower') || Math.hypot(...a.ck.at) - Math.hypot(...b.ck.at));
     for (const { ck, at } of order) place(this.clockMarks.get(ck.id)!.label, this.reading(ck.reads, ck.id === 'tower'), at, ck.id === 'tower' ? [1, -1] : [-1, 1]);
-    const car = m.trams
-      .map(({ corners: [a, , b], length }) => ({ length, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as MapPoint }))
-      .sort((p, q) => Math.hypot(...p.mid) - Math.hypot(...q.mid))[0];
-    if (car) place(this.carText, `${car.length.toFixed(2)} m`, px(car.mid), [1, -1]);
+    const [car] = cars(m);
+    if (car) place(this.carText, `${car.length.toFixed(2)} m`, px(car.at), [1, -1]);
 
     this.you.setAttribute('transform', `translate(${w / 2} ${y0})`);
     const [mx, my] = px(m.motion ? [m.motion[0] * 30 * m.beta, m.motion[1] * 30 * m.beta] : [0, 0]);
@@ -224,6 +240,37 @@ export class MeasuredView {
     this.axisText.textContent = m.beta > 1e-3 ? 'along your motion →' : 'ahead of you →';
     set(this.axisText, { x: w - 4, y: ht - 5 });
   }
+
+  /** What the map shows, in words: each clock on it and its reading (the tower first), then the tram cars and the lamps, nearest first. */
+  private say(m: MeasuredModel) {
+    const { w, h: ht } = this.map.size;
+    // The map reaches MAP_HALF to each side, and from a quarter of its height behind you to the rest ahead.
+    const reach = (2 * MAP_HALF * ht) / w;
+    const nearest = <T extends { at: MapPoint }>(items: T[]) => items.filter(({ at: [x, y] }) => Math.abs(x) <= MAP_HALF && y >= -0.25 * reach && y <= 0.75 * reach).sort(nearer);
+    const lines = [
+      ...nearest(m.clocks)
+        .sort((a, b) => Number(b.id === 'tower') - Number(a.id === 'tower'))
+        .map((ck) => `${ck.id === 'tower' ? 'Tower' : 'Street'} clock reads ${this.reading(ck.reads, true)}, ${fromYou(ck.at)}`),
+      ...nearest(cars(m)).map((car) => `Tram car ${car.length.toFixed(2)} m long, ${fromYou(car.at)}`),
+      ...nearest(m.lamps).map((l) => `Lamp, ${fromYou(l.at)}`),
+    ];
+    const items = this.mapWords.children;
+    while (items.length < lines.length) this.mapWords.append(h('li'));
+    while (items.length > lines.length) items[items.length - 1].remove();
+    // Only what changed is rewritten, so a screen reader keeps its place in the list.
+    lines.forEach((line, i) => {
+      if (items[i].textContent !== line) items[i].textContent = line;
+    });
+    const tower = m.clocks.find((ck) => ck.id === 'tower');
+    const seen = tower ? `The tower clock reads ${this.reading(tower.reads, true)} at your now, and ${this.reading(tower.seen, true)} in the light reaching you.` : '';
+    if (this.diagramWords.textContent !== seen) this.diagramWords.textContent = seen;
+  }
+}
+
+/** Where a point on the map lies from you, to the metre: "12 m ahead and 4 m left". */
+function fromYou([x, y]: MapPoint) {
+  const part = (d: number, plus: string, minus: string) => (Math.round(d) ? `${Math.abs(Math.round(d))} m ${d > 0 ? plus : minus}` : '');
+  return [part(y, 'ahead', 'behind'), part(x, 'right', 'left')].filter(Boolean).join(' and ') || 'where you are';
 }
 
 function niceStep(x: number) {
