@@ -1,11 +1,10 @@
 // The shaders' table lookups, step for step, on the CPU: shaders/reflect.glsl reflectKnots and
 // shaders/slow-surface.frag skyKnots / skyBeam. Tests run them against the full spectral sums.
-import { SKY_HALF, SKY_RAPIDITY_MAX, SKY_STEP, SKY_TEXELS, buildSkyLUT } from '../src/physics/skylight';
-import { KNOTS, LUT_LOG_D_RANGE, buildKnotLUT } from '../src/physics/spectrum';
-import { LUT_SIZE, SKY_ETA, SKY_X } from '../src/lut';
+import { SKY_ETA, SKY_HALF, SKY_RAPIDITY_MAX, SKY_STEP, SKY_TEXELS, SKY_X, buildSkyLUT } from '../src/physics/skylight';
+import { KNOTS, LUT_LOG_D_RANGE, LUT_SIZE, buildKnotLUT } from '../src/physics/spectrum';
 
-const knotLut = buildKnotLUT(LUT_SIZE);
-const { spectrum, beam } = buildSkyLUT(SKY_X, SKY_ETA);
+const knotLut = buildKnotLUT();
+const { spectrum, beam } = buildSkyLUT();
 
 /** Σ_p K_p(dR) · light[p], light[p] being the light at knot p times the surface colour. */
 export function reflectKnots(dR: number, light: number[][]): number[] {

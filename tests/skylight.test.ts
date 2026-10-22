@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SKY_HALF, SKY_LAMBDAS, SKY_STEP, SKY_TEXELS, buildSkyLUT, hemisphereWeight, skyLight } from '../src/physics/skylight';
-import { reflectionTransform, sun } from '../src/physics/spectrum';
+import { SKY_HALF, SKY_LAMBDAS, SKY_STEP, SKY_TEXELS, buildSkyLUT, hemisphereWeight, skyLambda, skyLight } from '../src/physics/skylight';
+import { KNOTS, reflectionTransform, sun } from '../src/physics/spectrum';
 import { reflectKnots, skyBeam, skyKnots } from './shaderLookups';
 
 const apply = (m: number[], c: number[]) => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]);
@@ -87,10 +87,11 @@ describe('sky light reflected on to the eye, as the shader looks it up', () => {
     expect(spectrum.every(Number.isFinite)).toBe(true);
     expect(beam.every(Number.isFinite)).toBe(true);
     // Row e = 0 (at rest), face ix = 2: texel n holds ln sun at λ_n…λ_{n+3}, floored far below anything visible.
-    const lambda = (n: number) => 380 * Math.exp((n - 2 - SKY_HALF) * SKY_STEP);
     for (const n of [0, 40, 100]) {
-      for (let k = 0; k < 4; k++) expect(spectrum[(2 * 2 * SKY_TEXELS + n) * 4 + k]).toBeCloseTo(Math.log(Math.max(sun(lambda(n + k)), 1e-30)), 3);
+      for (let k = 0; k < 4; k++) expect(spectrum[(2 * 2 * SKY_TEXELS + n) * 4 + k]).toBeCloseTo(Math.log(Math.max(sun(skyLambda(n + k)), 1e-30)), 3);
     }
+    // The shader reads knot p of a face seen with D_out = e^{(i − SKY_HALF)·SKY_STEP} at λ_{2p+i}.
+    for (const i of [0, SKY_HALF, 2 * SKY_HALF]) KNOTS.forEach((l, p) => expect(skyLambda(2 * p + i) / (l * Math.exp((i - SKY_HALF) * SKY_STEP))).toBeCloseTo(1, 12));
     expect(SKY_LAMBDAS).toBe(SKY_TEXELS + 3);
   });
 });

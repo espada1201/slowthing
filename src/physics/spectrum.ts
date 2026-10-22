@@ -47,9 +47,13 @@ export function planck(lambdaNm: number, T: number): number {
 
 const THERMAL_PEAK_NM = 2.897771955e6 / 300;
 const SUN_T = 5778;
-const SUN_550 = planck(550, SUN_T);
-/** Sunlight, normalised to 1 at 550 nm. Surfaces are sunlit reflectors. */
-export const sun = (lambda: number) => planck(lambda, SUN_T) / SUN_550;
+/** The wavelength at which sunlight is 1, nm. */
+export const SUN_REF_NM = 550;
+/** hc/kT for sunlight, nm: the exponent in its Planck spectrum is SUN_HC_KT_NM / λ. */
+export const SUN_HC_KT_NM = ((H * C) / (KB * SUN_T)) * 1e9;
+const SUN_AT_REF = planck(SUN_REF_NM, SUN_T);
+/** Sunlight, normalised to 1 at SUN_REF_NM. Surfaces are sunlit reflectors. */
+export const sun = (lambda: number) => planck(lambda, SUN_T) / SUN_AT_REF;
 /**
  * Thermal emission of a 300 K surface relative to sunlit reflection: for an albedo-1 surface the
  * reflected solar radiance at 550 nm is ≈0.57 W·m⁻²·sr⁻¹·nm⁻¹, a 300 K black body peaks at ≈0.0099.
@@ -143,12 +147,15 @@ export function packColumns(data: Float32Array, texel: (k: number) => number, m:
 }
 
 export const LUT_LOG_D_RANGE = Math.log(60);
+/** Shifts in the Doppler and reflection tables, over ln D ∈ ±LUT_LOG_D_RANGE: fine enough for the 12 nm edges of
+ * the reflectance windows. */
+export const LUT_SIZE = 1024;
 
 /**
  * Lookup table over ln D ∈ [−LUT_LOG_D_RANGE, +LUT_LOG_D_RANGE], 3 rows of RGBA texels.
  * Row k holds the contribution of input channel k (rgb) and, in alpha, thermal glow of output channel k.
  */
-export function buildDopplerLUT(size: number): Float32Array {
+export function buildDopplerLUT(size = LUT_SIZE): Float32Array {
   const data = new Float32Array(size * 3 * 4);
   for (let i = 0; i < size; i++) {
     const { matrix, thermal: th } = dopplerColorTransform(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1)));
@@ -197,7 +204,7 @@ export function reflectionKnots(dR: number): number[][] {
 }
 
 /** reflectionKnots over ln D_R ∈ ±LUT_LOG_D_RANGE for shaders/reflect.glsl: texel (i, 3p + k) holds column k of K_p. */
-export function buildKnotLUT(size: number): Float32Array {
+export function buildKnotLUT(size = LUT_SIZE): Float32Array {
   const data = new Float32Array(size * KNOTS.length * 3 * 4);
   for (let i = 0; i < size; i++) {
     reflectionKnots(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1))).forEach((m, p) => packColumns(data, (k) => (3 * p + k) * size + i, m));

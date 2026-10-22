@@ -1,6 +1,6 @@
 // World III: light around a Schwarzschild black hole, marched per pixel with the same maths as
 // src/physics/schwarzschild.ts (coordinateDirection, x'' = −(3/2) rs h² x / r⁵ by velocity-Verlet with
-// steps k·r/|v|, asymptoticDirection for the leftover bending; reflect.glsl prepended). Lengths are in scene units of uScale
+// steps k·r/|v|, asymptoticDirection for the leftover bending; TABLES_GLSL and reflect.glsl prepended). Lengths are in scene units of uScale
 // metres so r⁵ stays finite for any rs. The observer hovers: a static observer's local frame.
 uniform vec3 uCamPos;
 uniform mat3 uCamRot;
@@ -287,7 +287,7 @@ void main() {
       // Reflected starlight: the surface's colours shift by De (surface → eye), the light itself by Dsky (infinity → eye).
       float De = sqrt(max(1.0 - uRs / rEmit, 0.0) / lapseObs);
       vec3 light[KNOTS];
-      for (int p = 0; p < KNOTS; p++) light[p] = sunlight(knotLambda(p) * Dsky) * refl;
+      for (int p = 0; p < KNOTS; p++) light[p] = sunlight(KNOT_LAMBDA[p] * Dsky) * refl;
       col = reflectKnots(De, light) * pow(Dsky, 5.0) + dopplerShift(emit, De, 1.0) * pow(De, 5.0);
     } else {
       col = refl + emit;

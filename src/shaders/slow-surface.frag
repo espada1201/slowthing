@@ -1,5 +1,5 @@
 // Lit surface colour in the scenery's rest frame. Alpha carries the source Doppler factor, which the composite
-// combines with the observer's own. Moving objects (MOVING, with common.glsl and reflect.glsl prepended) are shaded
+// combines with the observer's own. Moving objects (MOVING, with TABLES_GLSL, common.glsl and reflect.glsl prepended) are shaded
 // all the way to the eye instead, and write alpha = 1 / (the observer's factor) so the composite shifts them no further.
 uniform vec3 uSun;
 uniform float uBlinkPeriod;
@@ -20,32 +20,29 @@ uniform float uDopplerOn;
 uniform float uBeamingOn;
 uniform sampler2D uSky;
 uniform sampler2D uSkyBeam;
-uniform vec4 uSkySize;    // face directions, rapidities, top rapidity, texels per searchlight setting
-uniform vec2 uSkyGrid;    // ln D_out per wavelength step, D_out nodes either side of 1
 
 const float PI = 3.14159265;
 
 vec2 skyCell(float x, float eta) {
-  return vec2(acos(clamp(x, -1.0, 1.0)) / PI * (uSkySize.x - 1.0), clamp(eta / uSkySize.z, 0.0, 1.0) * (uSkySize.y - 1.0));
+  return vec2(acos(clamp(x, -1.0, 1.0)) / PI * float(SKY_X - 1), clamp(eta / SKY_RAPIDITY_MAX, 0.0, 1.0) * float(SKY_ETA - 1));
 }
 
 // The sky light on a face at cos x to its motion at rapidity eta, in its own frame, reflected on to the eye with
 // Doppler factor dOut: its value at each knot (physics/skylight.ts buildSkyLUT). The table holds its logarithm on one
 // wavelength grid; knot p of a face seen with D_out at node i sits at wavelength 2p + i.
 void skyKnots(float dOut, float x, float eta, int setting, out float light[KNOTS]) {
-  float i = clamp(log(max(dOut, 1e-6)) / uSkyGrid.x + uSkyGrid.y, 0.0, 2.0 * uSkyGrid.y);
-  int n0 = min(int(i), int(2.0 * uSkyGrid.y) - 1);
+  float i = clamp(log(max(dOut, 1e-6)) / SKY_STEP + float(SKY_HALF), 0.0, float(2 * SKY_HALF));
+  int n0 = min(int(i), 2 * SKY_HALF - 1);
   float f = i - float(n0);
   vec2 q = skyCell(x, eta);
   ivec2 a = ivec2(floor(q));
-  ivec2 b = min(a + 1, ivec2(uSkySize.xy) - 1);
+  ivec2 b = min(a + 1, ivec2(SKY_X, SKY_ETA) - 1);
   vec2 g = q - vec2(a);
-  int nx = int(uSkySize.x);
-  float v[16];
-  for (int t = 0; t < 4; t++) {
-    int col = n0 + 4 * t + setting * int(uSkySize.w);
-    vec4 lo = mix(texelFetch(uSky, ivec2(col, a.x + nx * a.y), 0), texelFetch(uSky, ivec2(col, b.x + nx * a.y), 0), g.x);
-    vec4 hi = mix(texelFetch(uSky, ivec2(col, a.x + nx * b.y), 0), texelFetch(uSky, ivec2(col, b.x + nx * b.y), 0), g.x);
+  float v[2 * KNOTS];
+  for (int t = 0; t < KNOTS / 2; t++) {
+    int col = n0 + 4 * t + setting * SKY_TEXELS;
+    vec4 lo = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * a.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * a.y), 0), g.x);
+    vec4 hi = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * b.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * b.y), 0), g.x);
     vec4 c = mix(lo, hi, g.y);
     for (int k = 0; k < 4; k++) v[4 * t + k] = c[k];
   }
@@ -56,7 +53,7 @@ void skyKnots(float dOut, float x, float eta, int setting, out float light[KNOTS
 float skyBeam(float x, float eta) {
   vec2 q = skyCell(x, eta);
   ivec2 a = ivec2(floor(q));
-  ivec2 b = min(a + 1, ivec2(uSkySize.xy) - 1);
+  ivec2 b = min(a + 1, ivec2(SKY_X, SKY_ETA) - 1);
   vec2 g = q - vec2(a);
   float lo = mix(texelFetch(uSkyBeam, a, 0).r, texelFetch(uSkyBeam, ivec2(b.x, a.y), 0).r, g.x);
   float hi = mix(texelFetch(uSkyBeam, ivec2(a.x, b.y), 0).r, texelFetch(uSkyBeam, b, 0).r, g.x);
@@ -120,7 +117,7 @@ void main() {
     float sky[KNOTS];
     skyKnots(dOut, x, eta, beam ? 0 : 1, sky);
     vec3 light[KNOTS];
-    for (int p = 0; p < KNOTS; p++) light[p] = sunlight(knotLambda(p) * vDin * dOut) * sunGain * sunlit + sky[p] * skylit;
+    for (int p = 0; p < KNOTS; p++) light[p] = sunlight(KNOT_LAMBDA[p] * vDin * dOut) * sunGain * sunlit + sky[p] * skylit;
     col = reflectKnots(dOut, light) + dopplerShift(vec3(0.0), dOut, 1.0);
   } else if (beam) {
     col = sunlit * sunGain + skylit * skyBeam(x, eta);

@@ -1,10 +1,9 @@
 import { Color } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  KNOTS, KNOT_STEP, LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, buildKnotLUT, cieXYZ, planck, reflectionKnots,
+  KNOTS, LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, buildKnotLUT, cieXYZ, planck, reflectionKnots,
   reflectionTransform, sun, wavelengthToRGB, whiteLuminance,
 } from '../src/physics/spectrum';
-import reflectGlsl from '../src/shaders/reflect.glsl?raw';
 import { reflectKnots } from './shaderLookups';
 
 const apply = (m: ArrayLike<number>, c: number[]) => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]);
@@ -167,15 +166,5 @@ describe('light carried at eight wavelengths, as the shaders carry it', () => {
         }
       });
     }
-  });
-  it('uses the same knots and sunlight as shaders/reflect.glsl', () => {
-    expect(Number(/const int KNOTS = (\d+);/.exec(reflectGlsl)?.[1])).toBe(KNOTS.length);
-    const [, base, step] = /([\d.]+) \* exp\(([\d.]+) \* float\(p - 1\)\)/.exec(reflectGlsl) ?? [];
-    expect(Number(base)).toBe(380);
-    expect(Number(step)).toBe(KNOT_STEP);
-    expect(KNOTS[1]).toBe(380);
-    const [, scale, hcOverKT] = /r \* r \* r \* r \* r \* ([\d.]+) \/ \(exp\(min\(([\d.]+) \/ lambda/.exec(reflectGlsl) ?? [];
-    const glslSun = (l: number) => (550 / l) ** 5 * Number(scale) / Math.expm1(Math.min(Number(hcOverKT) / l, 80));
-    for (const l of [250, 400, 550, 700, 934, 3000]) expect(glslSun(l) / sun(l)).toBeCloseTo(1, 6);
   });
 });

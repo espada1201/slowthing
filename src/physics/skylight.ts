@@ -2,7 +2,7 @@
 // direction μ (cosine to the motion) with Doppler factor D = 1/(γ(1 − βμ)): from ahead bluer and brighter
 // (D⁵ per unit wavelength), from behind redder and dimmer. Each face sees the half of that sky in front of it.
 
-import { KNOTS, KNOT_STEP, sun } from './spectrum';
+import { KNOTS, KNOT_STEP, SUN_HC_KT_NM, SUN_REF_NM, sun } from './spectrum';
 
 /**
  * Share of a surface's cosine-weighted view of the sky that lies at cos μ to its direction of motion, per unit μ,
@@ -51,21 +51,20 @@ export function skyLight(x: number, eta: number, power: number, colour: (D: numb
 export const SKY_RAPIDITY_MAX = 3;
 
 /**
- * The sky light is tabulated as a spectrum on the wavelengths λ_n = 380·e^{(n − 2 − SKY_HALF)·SKY_STEP}, n < SKY_LAMBDAS.
- * SKY_STEP is half the knot spacing, so for a face whose light reaches the eye shifted by D_out = e^{(i − SKY_HALF)·SKY_STEP}
- * knot p falls on λ_{2p+i}: one wavelength grid serves every D_out over the Doppler LUT's range.
+ * The sky light is tabulated as a spectrum on the wavelengths skyLambda(n), n < SKY_LAMBDAS. SKY_STEP is half the knot
+ * spacing, so for a face whose light reaches the eye shifted by D_out = e^{(i − SKY_HALF)·SKY_STEP} knot p falls on
+ * λ_{2p+i}: one wavelength grid serves every D_out over the Doppler LUT's range.
  */
 export const SKY_STEP = KNOT_STEP / 2;
 export const SKY_HALF = 55;
 export const SKY_LAMBDAS = 2 * (KNOTS.length - 1) + 2 * SKY_HALF + 1;
+export const skyLambda = (n: number) => KNOTS[0] * Math.exp((n - SKY_HALF) * SKY_STEP);
 /** Sky Doppler grid steps per SKY_STEP: the sunlight arriving with each D is interpolated between them. */
 const FINE = 2;
 const SKY_FINE = SKY_STEP / FINE;
 const FINE_REACH = Math.ceil(SKY_RAPIDITY_MAX / SKY_FINE);
-/** Sunlight at 380·e^{(q − FINE·(2 + SKY_HALF) − FINE_REACH)·SKY_FINE} nm: every λ_n shifted by every grid D. */
-const SUN_FINE = Float64Array.from({ length: FINE * (SKY_LAMBDAS - 1) + 2 * FINE_REACH + 1 }, (_, q) =>
-  sun(380 * Math.exp((q - FINE * (2 + SKY_HALF) - FINE_REACH) * SKY_FINE)),
-);
+/** Sunlight at λ_{(q − FINE_REACH)/FINE}: every λ_n shifted by every grid D. */
+const SUN_FINE = Float64Array.from({ length: FINE * (SKY_LAMBDAS - 1) + 2 * FINE_REACH + 1 }, (_, q) => sun(skyLambda((q - FINE_REACH) / FINE)));
 
 /**
  * Sky light on a face at cos x to the motion, at rapidity η, in its own frame, relative to sunlight at rest, at each λ_n:
@@ -101,6 +100,9 @@ export function skySpectrum(x: number, eta: number): { lit: Float64Array; unlit:
 
 /** Texels per row of the sky table for one searchlight setting: texel n holds λ_n…λ_{n+3}. */
 export const SKY_TEXELS = SKY_LAMBDAS - 3;
+/** Face directions and rapidities in the sky table. */
+export const SKY_X = 33;
+export const SKY_ETA = 32;
 
 /**
  * Tables for shaders/slow-surface.frag over nx face directions spaced evenly in angle from the motion, x = cos(π·ix/(nx − 1))
@@ -109,7 +111,7 @@ export const SKY_TEXELS = SKY_LAMBDAS - 3;
  * with the searchlight on (s = 0) or off (s = 1); logarithms, because they interpolate smoothly. `beam`: texel (ix, e)
  * holds in red the logarithm of the total with the searchlight on, for when the colour shift is off.
  */
-export function buildSkyLUT(nx: number, ne: number): { spectrum: Float32Array; beam: Float32Array } {
+export function buildSkyLUT(nx = SKY_X, ne = SKY_ETA): { spectrum: Float32Array; beam: Float32Array } {
   const width = 2 * SKY_TEXELS;
   const spectrum = new Float32Array(width * nx * ne * 4);
   const beam = new Float32Array(nx * ne * 4);
@@ -131,3 +133,22 @@ export function buildSkyLUT(nx: number, ne: number): { spectrum: Float32Array; b
   }
   return { spectrum, beam };
 }
+
+const glsl = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
+
+/**
+ * The numbers the shaders' lookups share with these tables and the knot table, as GLSL constants. Prepended wherever
+ * shaders/reflect.glsl is, so the shaders cannot drift from the tables they read.
+ */
+export const TABLES_GLSL = `const int KNOTS = ${KNOTS.length};
+const float KNOT_LAMBDA[KNOTS] = float[KNOTS](${KNOTS.map(glsl).join(', ')});
+const float SUN_REF_NM = ${glsl(SUN_REF_NM)};
+const float SUN_HC_KT_NM = ${glsl(SUN_HC_KT_NM)};
+const float SUN_NORM = ${glsl(Math.expm1(SUN_HC_KT_NM / SUN_REF_NM))};
+const int SKY_X = ${SKY_X};
+const int SKY_ETA = ${SKY_ETA};
+const float SKY_RAPIDITY_MAX = ${glsl(SKY_RAPIDITY_MAX)};
+const float SKY_STEP = ${glsl(SKY_STEP)};
+const int SKY_HALF = ${SKY_HALF};
+const int SKY_TEXELS = ${SKY_TEXELS};
+`;

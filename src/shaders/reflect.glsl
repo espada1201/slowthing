@@ -1,17 +1,12 @@
 // Reflected light (src/physics/spectrum.ts reflectionKnots). Light is carried as its spectrum at the eye, relative to
-// sunlight at rest, at KNOTS wavelengths λ_p = 380·e^{0.15(p − 1)} nm; a surface's reflectance windows shift by dR on
-// the way to the eye. Needs common.glsl: the table shares the Doppler LUT's grid of ln dR.
+// sunlight at rest, at the KNOTS wavelengths KNOT_LAMBDA; a surface's reflectance windows shift by dR on the way to the
+// eye. Needs physics/skylight.ts TABLES_GLSL, and common.glsl: the table shares the Doppler LUT's grid of ln dR.
 uniform sampler2D uKnots;
-const int KNOTS = 8;
 
-float knotLambda(int p) {
-  return 380.0 * exp(0.15 * float(p - 1));
-}
-
-// Sunlight at λ nm relative to 550 nm, a 5778 K black body: hc/(kT) = 2490.094977 nm, e^{hc/(kT·550 nm)} − 1 = 91.52190359.
+// Sunlight at λ nm relative to SUN_REF_NM, a black body whose exponent is SUN_HC_KT_NM / λ (SUN_NORM normalises it).
 float sunlight(float lambda) {
-  float r = 550.0 / lambda;
-  return r * r * r * r * r * 91.52190359 / (exp(min(2490.094977 / lambda, 80.0)) - 1.0);
+  float r = SUN_REF_NM / lambda;
+  return r * r * r * r * r * SUN_NORM / (exp(min(SUN_HC_KT_NM / lambda, 80.0)) - 1.0);
 }
 
 // Observed linear RGB of the light reflected off a surface whose reflectance shifts by dR on its way to the eye:

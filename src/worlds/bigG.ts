@@ -7,6 +7,7 @@ import { tick } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
 import { knotUniforms } from '../lut';
+import { TABLES_GLSL } from '../physics/skylight';
 import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, einsteinRingRadius, gravitationalShift, rsFromShadow, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
@@ -52,7 +53,7 @@ const LAMPS: { pos: THREE.Vector3; color: THREE.Color; radius: number }[] = [
   })),
 ];
 
-const frag = `${reflect}\n${rayFrag}`;
+const frag = `${TABLES_GLSL}\n${reflect}\n${rayFrag}`;
 
 /** Uniforms for shaders/big-g.frag; per-frame values are filled in by the world (or the proof). */
 function rayUniforms(): Record<string, THREE.IUniform> {
