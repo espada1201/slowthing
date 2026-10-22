@@ -5,9 +5,10 @@ uniform float uLutRange;
 
 // Observed linear RGB for a surface of colour rgb seen with Doppler factor D (no beaming).
 // thermal = 1 adds the 300 K glow that a strong blueshift drags into the visible.
+// Beyond the table (|ln D| > uLutRange) it holds the edge colour, so a source shifted further still shows
+// (and D⁵ beaming makes it blaze) instead of turning black.
 vec3 dopplerShift(vec3 rgb, float D, float thermal) {
-  float x = (log(max(D, 1e-6)) + uLutRange) / (2.0 * uLutRange) * (uLutSize - 1.0);
-  if (x < 0.0 || x > uLutSize - 1.0) return vec3(0.0);
+  float x = clamp((log(max(D, 1e-6)) + uLutRange) / (2.0 * uLutRange), 0.0, 1.0) * (uLutSize - 1.0);
   int i0 = int(floor(x));
   int i1 = min(i0 + 1, int(uLutSize) - 1);
   float f = fract(x);

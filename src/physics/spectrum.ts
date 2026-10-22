@@ -150,10 +150,12 @@ const LUM_TABLE = (() => {
   return t;
 })();
 
-/** Luminance of a white surface seen with Doppler factor D (colour shift only, no beaming). */
+/**
+ * Luminance of a white surface seen with Doppler factor D (colour shift only, no beaming). Beyond the
+ * table it holds the edge value, as the shaders' lookup (common.glsl dopplerShift) does.
+ */
 export function whiteLuminance(D: number): number {
-  const x = ((Math.log(D) + LUT_LOG_D_RANGE) / (2 * LUT_LOG_D_RANGE)) * (LUM_TABLE.length - 1);
-  if (x < 0 || x > LUM_TABLE.length - 1) return 0;
+  const x = Math.min(1, Math.max(0, (Math.log(D) + LUT_LOG_D_RANGE) / (2 * LUT_LOG_D_RANGE))) * (LUM_TABLE.length - 1);
   const i = Math.min(LUM_TABLE.length - 2, Math.floor(x));
   return LUM_TABLE[i] + (LUM_TABLE[i + 1] - LUM_TABLE[i]) * (x - i);
 }

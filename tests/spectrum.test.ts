@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyDoppler, buildDopplerLUT, cieXYZ, planck, wavelengthToRGB } from '../src/physics/spectrum';
+import { LUT_LOG_D_RANGE, applyDoppler, buildDopplerLUT, cieXYZ, planck, wavelengthToRGB, whiteLuminance } from '../src/physics/spectrum';
 
 describe('CIE 1931 colour matching fit', () => {
   it('reproduces tabulated values within 3%', () => {
@@ -68,5 +68,15 @@ describe('Doppler colour shift', () => {
     const lut = buildDopplerLUT(64);
     expect(lut.length).toBe(64 * 3 * 4);
     expect(lut.every(Number.isFinite)).toBe(true);
+  });
+  it('holds the table edge beyond its range instead of going black, as the shader lookup does', () => {
+    const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    for (const D of [0.5, 1, 2, 10]) expect(whiteLuminance(D) / lum(applyDoppler([1, 1, 1], D))).toBeCloseTo(1, 2);
+    // Sprinting at an oncoming tram with c = 8 m/s gives D ≈ 93, past the table's 60: the edge colour, which
+    // D⁵ beaming then makes blinding, not black.
+    const edge = Math.exp(LUT_LOG_D_RANGE);
+    expect(whiteLuminance(93)).toBeGreaterThan(0);
+    expect(whiteLuminance(93)).toBe(whiteLuminance(edge));
+    expect(whiteLuminance(1 / 93)).toBe(whiteLuminance(1 / edge));
   });
 });
