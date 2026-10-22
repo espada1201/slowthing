@@ -91,11 +91,9 @@ export function titleScreen(onEnter: (id: string) => void, onProofs: () => void,
   );
 }
 
-const capital = (s: string) => s[0].toUpperCase() + s.slice(1);
-
 function qualitySelect(q: QualitySetting, onChange: (q: QualitySetting) => void) {
   const s = h('select', { 'aria-label': 'Rendering quality', onchange: (e: Event) => onChange((e.target as HTMLSelectElement).value as QualitySetting) });
-  for (const v of ['auto', 'low', 'medium', 'high'] as QualitySetting[]) s.append(h('option', { value: v, ...(v === q ? { selected: true } : {}) }, capital(v)));
+  for (const v of ['auto', 'low', 'medium', 'high'] as QualitySetting[]) s.append(h('option', { value: v, ...(v === q ? { selected: true } : {}) }, v[0].toUpperCase() + v.slice(1)));
   return s;
 }
 
