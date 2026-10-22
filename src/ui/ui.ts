@@ -84,8 +84,13 @@ export function titleScreen(onEnter: (id: string) => void, onProofs: () => void,
     h(
       'footer',
       { class: 'title-foot' },
-      h('span', {}, 'Click to look · WASD to move · Shift to run · on phones: left thumb moves, right thumb looks'),
-      h('button', { class: 'btn ghost proofs-link', 'data-proofs': true, onclick: onProofs }, 'Check the physics →'),
+      h('span', { class: 'title-hint' }, 'Click to look · WASD to move · Shift to run · on phones: left thumb moves, right thumb looks'),
+      h(
+        'span',
+        { class: 'title-links' },
+        h('button', { class: 'btn ghost proofs-link', 'data-proofs': true, onclick: onProofs }, 'Check the physics →'),
+        h('a', { class: 'btn ghost proofs-link', 'data-teach': true, href: 'teach.html' }, 'For teachers →'),
+      ),
       h('label', { class: 'quality' }, 'Quality ', select),
     ),
   );

@@ -18,6 +18,8 @@ Each world has a guided tour, effect switches, live instruments and a **Real uni
 
 Controls: click the view to look around, use WASD to move and ← → to turn, hold Shift to run, press N for the next tour stop. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to the exact tour stop, switches and dials you are looking at.
 
+For a class, **For teachers →** on the title screen opens a one-page student sheet and a teacher page for each world, with the answers, a 15-minute lesson and a QR code for every activity.
+
 ## How the physics is computed
 
 | World | Method |
