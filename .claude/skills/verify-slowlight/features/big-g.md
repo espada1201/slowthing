@@ -12,6 +12,7 @@ A platform in space where gravity is turned up until a 90-tonne boulder becomes 
 - `bg-ruler` `Ruler` (R; in the panel, and on the tour card on a phone) puts a layer over the view: two clicks or taps mark two points of the sky and show the angle between them, a third starts again, and Esc or R turns it off.
 - `bg-ruler-keys` with the ruler on, the arrows move a cross out from the middle of the view (10 px with Shift) and Enter marks.
 - `bg-weigh` tour stop 5, `Weigh the hole`, asks for rs and M from the shadow's size. The instruments show only `Your distance r` until `Check` or `Just show me`; the reveal gives the true values and how far off each typed answer was.
+- `bg-weigh-sideways` on a phone held sideways (844×390) the weighing card keeps below the middle of the view and scrolls, so the shadow, `Your distance r` and the top bar stay clear of it; the ruler is in the panel behind `Dials`.
 - `bg-ring` tour stop 6, `Einstein ring`, gives the ring's size, 20.2°, beside the 18.1° of the usual formula √(2rs/r).
 
 ## How to get to it (user POV)
@@ -25,6 +26,7 @@ Preconditions:
 
 - A desktop instance is ready, Low quality chosen on the title screen.
 - For **Ruler by touch**, a phone instance (see phone.md).
+- For **Weigh the hole held sideways**, a sideways instance: `VERIFY_PORT=4320 VERIFY_DEVICE=sideways ctl launch`, with the same `VERIFY_PORT` on every command for it.
 
 - **Enter.** Choose the plate. Run `ctl click '.plate[data-world="big-g"]'` and `ctl frames 3`. `Schwarzschild radius` reads `4.5 m`.
 - **Real G.** Move the slider to its minimum. Run `ctl press Home '[data-dial="G"]'` and `ctl frames 2`. `Schwarzschild radius` contains `10⁻²²` and the status contains `nothing visibly bends`. Take `ctl shot bg-real`.
@@ -37,6 +39,7 @@ Preconditions:
 - **Einstein ring.** Run `ctl press KeyN` and `ctl frames 2`. `tour.title` is `Einstein ring` and `ctl text '.tour-text'` mentions `20.2°` and `18.1°`.
 - **Last stop.** Run `ctl press KeyN` three times, then `ctl frames 2`. `Your clock rate` reads about 0.414 and `Shadow` reads `73% of sky`. The stop asks a prediction, so the visitor sees these only after answering: run `ctl click '.choice[data-choice="2"]'`, then `ctl text '.readouts'`.
 - **Ruler by touch.** On the phone instance, choose the plate, then run `ctl click '[data-tour-next]'` four times and `ctl frames 3` to reach `Weigh the hole`. Run `ctl click '.quick [data-ruler]'`, then tap the shadow's left and right edges on its middle row with `ctl swipe 151 357 151 357` and `ctl swipe 239 357 239 357`. `ctl text '.ruler-angle'` prints `["14.58°"]`, within 0.1° of twice the shadow's 7.27° radius. Take `ctl shot bg-ruler-touch`.
+- **Weigh the hole held sideways.** On the sideways instance, choose the plate, then run `ctl click '[data-tour-next]'` four times and `ctl frames 3` to reach `Weigh the hole`. Take `ctl shot bg-weigh-sideways`: the card fills the bottom half and scrolls, and the shadow, `Your distance r` (`80 m`) and the top bar sit above it. Run `ctl click --role button --name "Dials"`, `ctl click '.panel [data-ruler]'` and `ctl click --role button --name "Dials"` again, then tap the shadow's edges on its middle row with `ctl swipe 389 146 389 146` and `ctl swipe 455 146 455 146`. `ctl text '.ruler-angle'` prints `["14.57°"]`. Answer as in **Answer**: `ctl press` and `ctl click` scroll the card to the boxes and `Check`, and `ctl text '.predict-reveal'` starts the same. Take `ctl shot bg-weighed-sideways`.
 - **Proof.** Run `ctl aria bg-final` and `ctl errors`, on each instance.
 
 ## Gotchas
@@ -46,3 +49,4 @@ Preconditions:
 - The tour moves you, so read distances right after the step that sets them.
 - The probe's `readouts` lists every instrument even while the weighing stop hides them; read what the visitor sees with `ctl text '.readouts'`.
 - With the ruler on, clicks and taps on the view mark the sky instead of looking around; turn it off to look.
+- Held sideways, the instruments that come back after `Check` run down behind the weighing card from about `1 min here`; the card is kept to the bottom half so that the shadow stays clear.

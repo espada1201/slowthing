@@ -5,7 +5,7 @@ This directory is the maintained source for verifying what a Slowlight visitor c
 ## Baseline preconditions
 
 - `ctl launch` has printed `"ready"` and `ctl doctor` exits 0 on this instance.
-- Desktop recipes run on a default instance (1280×800). Recipes marked phone run on one launched with `VERIFY_DEVICE=phone` and its own `VERIFY_PORT`.
+- Desktop recipes run on a default instance (1280×800). Recipes marked phone run on one launched with `VERIFY_DEVICE=phone` and its own `VERIFY_PORT`, and recipes marked sideways on one launched with `VERIFY_DEVICE=sideways` (844×390).
 - Every recipe starts on the title screen (`ctl go /`) unless it says otherwise.
 - Never drive an instance this run did not launch.
 

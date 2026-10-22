@@ -1,4 +1,4 @@
-import { type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 import { expectRendered, frames, goToStop, meanDiff, openWorld, readout, sample, switchDiff, watchErrors } from './helpers';
 
 // Every pixel marches a light ray, which software rendering in CI draws at well under one frame a second.
@@ -168,6 +168,15 @@ async function weigh(page: Page) {
   return { rs, M: (rs * 3e8 ** 2) / (2 * 2e12) };
 }
 
+/** True when a tap at the middle of a control, scrolled into view, lands on it and not on something drawn over it. */
+const tappable = (control: Locator) =>
+  control.evaluate((el) => {
+    el.scrollIntoView({ block: 'center' });
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !!hit && (el === hit || el.contains(hit) || (el instanceof HTMLInputElement && !!el.labels?.[0]?.contains(hit)));
+  });
+
 /** How far off the reveal says each typed answer was, in per cent. */
 const offs = async (page: Page) => [...(await page.locator('.predict-reveal').innerText()).matchAll(/([\d.]+)% (?:low|high)/g)].map((m) => parseFloat(m[1]));
 
@@ -260,6 +269,58 @@ test.describe('on a phone', () => {
     await page.touchscreen.tap(shadow.left, shadow.y);
     await page.touchscreen.tap(shadow.right, shadow.y);
     const { rs, M } = await weigh(page);
+    await page.locator('[data-ask="rs"]').tap();
+    await page.keyboard.type(rs.toFixed(2));
+    await page.locator('[data-ask="M"]').tap();
+    await page.keyboard.type(String(Math.round(M)));
+    await page.locator('[data-check]').tap();
+    await expect(page.locator('.predict-reveal')).toContainText('rs = 4 m');
+    expect(await offs(page)).toHaveLength(2);
+    for (const off of await offs(page)) expect(off).toBeLessThan(2);
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('on a phone held sideways', () => {
+  test.use({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+
+  test('weighing the hole by touch, held sideways: the shadow and your distance sit clear of the tour card, every control can still be tapped, and the answer boxes take typing', async ({ page }) => {
+    const errors = watchErrors(page);
+    await openWorld(page, 'big-g');
+    for (let i = 0; i < 4; i++) await page.locator('[data-tour-next]').tap();
+    await expect(page.locator('.tour-title')).toHaveText('Weigh the hole');
+    await frames(page, 2);
+    const shadow = await shadowEdges(page);
+    const card = (await page.locator('.tour').boundingBox())!;
+    expect(shadow.bottom).toBeLessThan(card.y);
+    const hud = (await page.locator('.hud').boundingBox())!;
+    expect(hud.y + hud.height, 'the instruments give your distance r').toBeLessThan(card.y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // A tap on each control lands on it, once it is scrolled into view.
+    for (const control of [
+      page.locator('[data-back]'),
+      page.getByRole('button', { name: 'Dials' }),
+      page.locator('[data-sound]'),
+      page.getByRole('combobox', { name: 'Rendering quality' }),
+      page.getByRole('button', { name: 'Controls help' }),
+      page.locator('[data-ask="rs"]'),
+      page.locator('[data-ask="M"]'),
+      page.locator('[data-check]'),
+      page.getByRole('button', { name: 'Just show me' }),
+      page.getByRole('button', { name: 'Previous tour stop' }),
+      page.locator('[data-tour-next]'),
+    ])
+      expect(await tappable(control), `${control} should be tappable`).toBe(true);
+
+    // Held sideways the ruler is behind Dials, with the rest of the panel.
+    await page.getByRole('button', { name: 'Dials' }).tap();
+    await page.locator('.panel [data-ruler]').tap();
+    await page.getByRole('button', { name: 'Dials' }).tap();
+    await expect(page.locator('#panel')).toBeHidden();
+    await page.touchscreen.tap(shadow.left, shadow.y);
+    await page.touchscreen.tap(shadow.right, shadow.y);
+    const { rs, M } = await weigh(page);
+    console.log(`held sideways: marks at (${shadow.left}, ${shadow.y}) and (${shadow.right}, ${shadow.y}) read ${await rulerReading(page)}°, so rs = ${rs.toFixed(3)} m`);
     await page.locator('[data-ask="rs"]').tap();
     await page.keyboard.type(rs.toFixed(2));
     await page.locator('[data-ask="M"]').tap();

@@ -15,7 +15,7 @@ Every command runs from the repo root through one script. Below, `ctl` stands fo
 
 - Needs `npm install` once and Playwright's Chromium: `npx playwright install chromium` on a Mac. In the cloud container, export `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and never install.
 - `ctl launch` runs `npm run build`, serves `dist/` with `vite preview` on port 4317, starts headless Chromium with software WebGL (SwiftShader, as CI does) and opens the title screen. It prints `"ready"` once the three world plates are on screen. `ctl launch --no-build` reuses the current `dist/`.
-- One instance per port. For another instance at the same time (a parallel checker, or the phone layout), set `VERIFY_PORT`; the browser's debug port is `VERIFY_PORT + 1000`. `VERIFY_DEVICE=phone` makes it a 390×844 touch phone instead of a 1280×800 desktop. `VERIFY_MOTION=reduce` makes its browser ask for reduced motion, as the operating system setting does.
+- One instance per port. For another instance at the same time (a parallel checker, or the phone layout), set `VERIFY_PORT`; the browser's debug port is `VERIFY_PORT + 1000`. `VERIFY_DEVICE=phone` makes it a 390×844 touch phone instead of a 1280×800 desktop, and `VERIFY_DEVICE=sideways` the same phone held sideways, 844×390. `VERIFY_MOTION=reduce` makes its browser ask for reduced motion, as the operating system setting does.
 - State and evidence live in `$VERIFY_DIR`, by default `<os tmp>/verify-slowlight-<port>/`.
 
 ## Doctor

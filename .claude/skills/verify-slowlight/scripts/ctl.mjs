@@ -12,7 +12,13 @@ const self = fileURLToPath(import.meta.url);
 const repo = path.resolve(self, '../../../../..');
 const port = Number(process.env.VERIFY_PORT ?? 4317);
 const cdpPort = port + 1000;
-const phone = process.env.VERIFY_DEVICE === 'phone';
+/** The screens an instance can be: a desktop, a phone, and a phone held sideways. */
+const devices = {
+  desktop: { viewport: { width: 1280, height: 800 } },
+  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  sideways: { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+};
+const device = Object.hasOwn(devices, process.env.VERIFY_DEVICE ?? '') ? process.env.VERIFY_DEVICE : 'desktop';
 const motion = process.env.VERIFY_MOTION === 'reduce' ? 'reduce' : 'no-preference';
 const dir = process.env.VERIFY_DIR ?? path.join(os.tmpdir(), `verify-slowlight-${port}`);
 const evidence = path.join(dir, 'evidence');
@@ -115,22 +121,21 @@ const commands = {
     const browser = spawn(process.execPath, [self, 'browserd'], { cwd: repo, detached: true, stdio: ['ignore', blog, blog] });
     preview.unref();
     browser.unref();
-    fs.writeFileSync(stateFile, JSON.stringify({ base, preview: preview.pid, browser: browser.pid, device: phone ? 'phone' : 'desktop', motion, launchedAt: new Date().toISOString() }));
+    fs.writeFileSync(stateFile, JSON.stringify({ base, preview: preview.pid, browser: browser.pid, device, motion, launchedAt: new Date().toISOString() }));
     await ready(() => fetch(base).then((r) => r.ok), 30_000, 'preview server');
     await ready(() => fetch(`http://127.0.0.1:${cdpPort}/json/version`).then((r) => r.ok), 60_000, 'browser');
     await withPage(async (page) => {
       await page.goto(base);
       await page.locator('.plate').first().waitFor();
-      print({ ready: base, device: phone ? 'phone' : 'desktop', motion, evidence, ...(await snapshot(page)) });
+      print({ ready: base, device, motion, evidence, ...(await snapshot(page)) });
     });
   },
 
   /** Internal: the long-lived browser that `launch` starts. Records console errors for `errors`. */
   async browserd() {
-    const device = phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : { viewport: { width: 1280, height: 800 } };
     const ctx = await chromium.launchPersistentContext(path.join(dir, 'profile'), {
       headless: true,
-      ...device,
+      ...devices[device],
       reducedMotion: motion,
       args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--remote-debugging-port=${cdpPort}`],
     });

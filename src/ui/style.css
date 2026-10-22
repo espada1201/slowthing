@@ -213,6 +213,11 @@ body[data-mode='world'] #touch { display: block; }
   .steps { font-size: 15px; }
   .help { right: 12px; left: 12px; width: auto; z-index: 2; }
 }
+/* A phone held sideways: a card with a measurement's steps and answers keeps below the middle of the view and scrolls,
+   so the ruler can reach what it measures (World III's shadow sits just above the middle). */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tour:has(> .predict:not([hidden]) .answers) { max-height: calc(50vh - 26px - var(--safe-b)); overflow-y: auto; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* Proofs */
