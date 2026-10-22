@@ -24,10 +24,10 @@ Preconditions:
 - A desktop instance is on the title screen.
 
 - **Open.** Run `ctl click '[data-teach]'`. The URL is `/teach.html`; `ctl text '.world h2'` prints the three world titles.
-- **Sheet.** Run `ctl go teach.html?sheet=slow-light`, then `ctl text '.activity h2'` and `ctl text '.activity .stop'`. Each activity reads `Stop <n> of <N>`. `ctl text '.sheet'` contains no `Answer:`.
-- **Guide.** Run `ctl go teach.html?guide=slow-light`, then `ctl text '.step .meta'`: the minutes add up to 15. `ctl text '.answer'` and `ctl text '.why'` print one answer and one reason per prediction.
-- **Copy.** Run `ctl click '[data-copy-links]'`, then `ctl text '.copied'`. It reads `Copied <N> links.` (or says copying is blocked).
-- **Activity link.** Run `ctl text '.step a.link'`, then `ctl go '<first link>&quality=low'`. `tour.title` is the activity's title and `toggles` match the stop as authored. `ctl click '[data-share]'` leaves `url` at the same link.
+- **Sheet.** Run `ctl go teach.html?sheet=slow-light`, then `ctl text '.activity h2'` and `ctl text '.activity .stop'`. Each activity prints `STOP <n> OF <N>` (the page sets `Stop <n> of <N>` in capitals). `ctl text '.sheet'` contains no `Answer:`.
+- **Guide.** Run `ctl go teach.html?guide=slow-light`, then `ctl text '.step .meta'`: the minutes add up to 15. `ctl text '.answer'` and `ctl text '.why'` print one answer and one reason for each prediction, then for each before-and-after question: 9 of each for Slow Light.
+- **Copy.** Run `ctl click '[data-copy-links]'`, then `ctl text '.copied'`. It reads `Copied <N> links.` (or says copying is blocked, as it does in ctl's headless browser).
+- **Activity link.** Run `ctl text '.step a.link'`, then `ctl go '<first link>&quality=low'`. `tour.title` is the activity's title and `toggles` match the stop as authored. `ctl click '[data-share]'` sets `url` to the activity's link, without `&quality=low`.
 - **Bad id.** Run `ctl go teach.html?sheet=__proto__`. `ctl text '.world h2'` prints the three titles.
 - **Proof.** Run `ctl shot kit-sheet` and `ctl aria kit-sheet` on the sheet, `ctl shot kit-guide` on the guide, then `ctl errors`.
 

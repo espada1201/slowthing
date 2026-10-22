@@ -23,10 +23,10 @@ Preconditions:
 - **Enter.** Run `ctl click '.plate[data-world="slow-light"]'` and `ctl frames 8`. World is `slow-light`.
 - **Panel hidden.** Run `ctl aria phone-closed`. The `Constants and effects` panel is absent and a `Dials` button shows.
 - **Open the panel.** Run `ctl click --role button --name "Dials"` and `ctl shot phone-panel`. The panel shows the c slider, `Real universe` and the switches.
-- **Reset from the panel.** Run `ctl click '[data-reset="real"]'`. `constants.c` is 299792458.
+- **Reset from the panel.** Run `ctl click '[data-reset="real"]'`. `constants.c` is 299792458. Then run `ctl click '[data-reset="preset"]'`: `constants.c` is 12 again. At the real c a cruise at 0.9 c reaches the edge of town in one frame and stops there (`Edge of town…`), so the next step needs the preset.
 - **Quick actions.** Close the panel with `ctl click --role button --name "Dials"`, then run `ctl click '.quick [data-action="cruise"]'`. `β = v/c` rises over the next 30 frames.
 - **Walk.** Run `ctl click '.quick [data-action="stop"]'`, `ctl frames 30`, then `ctl swipe 80 600 80 480 2500`. Speed is above 0 while the thumb is held.
-- **Look.** Run `ctl swipe 300 400 200 400`. The view turns (compare `ctl shot phone-look` with the one before).
+- **Look.** If the walk left you facing a wall, run `ctl click '[data-tour-next]'`, which puts you in the open. Run `ctl shot phone-look-before`, `ctl swipe 300 400 200 400` and `ctl shot phone-look`. The view turns between the two shots.
 - **Fit.** Run `ctl aria phone-final` and `ctl errors`. In the screenshots nothing is cut off at the right edge.
 
 ## Gotchas

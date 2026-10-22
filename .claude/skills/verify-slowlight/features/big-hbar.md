@@ -26,11 +26,11 @@ Preconditions:
 
 - **Enter.** Choose the plate. Run `ctl click '.plate[data-world="big-hbar"]'` and `ctl frames 8`. The first tour stop sets the real ħ: `Wavelength λ` reads `4.14×10⁻³⁴ m`, `Spread Δx` reads `0 (a point)`, and the status starts with `Classical`.
 - **Classical landing.** Wait for the first roll. Run `ctl frames 60` until the status contains `landed at x = 2.6 m`. `Dots recorded` reads `1`.
-- **Turn ħ up.** Go to the next stop. Run `ctl press KeyN` and `ctl frames 60`. `Wavelength λ` reads `0.982 m`, the status contains `Wave on a 256² grid`, and `Past the obstacle` rises above 15%.
+- **Turn ħ up.** Go to the next stop. Run `ctl press KeyN` and `ctl frames 60`. `Wavelength λ` reads `0.982 m` and the status contains `Wave on a 256² grid`. A new ħ starts a new tally, so `Dots recorded` is back to `0`. Run `ctl frames 30` until `Past the obstacle` rises above 15%: the wave reaches the doorway about 100 frames after the stop.
 - **Measure.** Roll and measure. Run `ctl press KeyF`, `ctl frames 20`, `ctl press KeyM`, `ctl frames 5`, `ctl shot bh-measure`. The status contains `Detector fired at`, a cyan spot and beam stand where it fired, and `Spread Δx` drops to at most `0.53 m`, the resolution stop 5 (`A detector pins it down`) names, then grows again.
-- **Clear.** Run `ctl click '[data-action="clear"]'`. `Dots recorded` reads `0`.
-- **Glass.** Go to stop 6 (`Through glass`) with `ctl press KeyN` four times. Run `ctl frames 30` until `Glass: speed through` reads a speed: about `4.02 m/s`, never below `4.00 m/s`. By then `Glass: through` reads `k of n (p%)` with n above 0, next to `Theory (plane wave)` at `28%`.
+- **Glass.** Go to stop 6 (`Through glass`) with `ctl press KeyN` four times. Run `ctl frames 30` until `Glass: speed through` reads a speed: about `4.02 m/s`, never below `4.00 m/s`. Keep running `ctl frames 30` until `Glass: through` reads `k of n (p%)` with n above 0, next to `Theory (plane wave)` at `28%`; the first balls can land some 50 frames after the speed shows. The share starts high, since the balls that tunnel land first, and falls toward the theory as the reflected part comes back.
 - **Fainter, not slower.** Go to stop 7. Run `ctl press KeyN`, `ctl click '.choice[data-choice="1"]'` and `ctl text '.predict-reveal'`. The reveal says what gets through `averages 4.02 m/s`, within 0.01 of `Glass: speed through`.
+- **Clear.** With the glass's dots on the walls, run `ctl click '[data-action="clear"]'` (or `ctl press KeyR`). `Dots recorded` reads `0`, and `Glass: through` and `Glass: speed through` read `—`.
 - **Proof.** Run `ctl aria bh-final` and `ctl errors`.
 
 ## Gotchas
