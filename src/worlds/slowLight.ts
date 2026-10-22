@@ -32,6 +32,8 @@ const BOUND = 260;
 const SUN = new THREE.Vector3(0.45, 0.62, -0.64).normalize();
 const CLOCK_TOWER = new THREE.Vector3(0, 0, -26);
 const CLOCK_START = 10 * 3600 + 8 * 60;
+/** Street clocks every 20 m along the west side of the north–south avenue (none in the carousel). */
+const STREET_CLOCKS = [120, 100, 80, 60, 40, 20, -20, -40, -60, -80, -100].map((z) => new THREE.Vector3(-4, 3.2, z));
 /** Tour cruises start out of town and run straight through it. */
 const CRUISE_NORTH: Pose = { position: [4, EYE, 130], yaw: 0, pitch: 0 };
 const CRUISE_WEST: Pose = { position: [130, EYE, -4], yaw: Math.PI / 2, pitch: 0 };
@@ -260,21 +262,26 @@ export class SlowLightWorld implements World {
     spire.translate(T.x, 23, T.z);
     statics.push(paint(spire, 0x2f5d62));
     this.obstacles.push(new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(T.x, T.z), new THREE.Vector2(6, 6)));
-    for (let k = 0; k < 4; k++) {
-      const face = new THREE.CircleGeometry(2.1, 48);
-      const n = face.getAttribute('position').count;
-      const local = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) {
-        local[i * 3] = face.getAttribute('position').getX(i) / 2.1;
-        local[i * 3 + 1] = face.getAttribute('position').getY(i) / 2.1;
-      }
-      face.setAttribute('aColor', new THREE.BufferAttribute(local, 3));
-      face.setAttribute('aPattern', new THREE.BufferAttribute(new Float32Array(n), 1));
-      face.translate(0, 0, 2.52);
-      face.rotateY((k * Math.PI) / 2);
-      face.translate(T.x, 14.5, T.z);
-      this.scene.add(new THREE.Mesh(face, this.clockMaterial));
+    // Clock faces carry their own dial coordinates in aColor.xy for the clock shader.
+    const faces: THREE.BufferGeometry[] = [];
+    const face = (r: number, out: number, turn: number, at: THREE.Vector3) => {
+      const g = new THREE.CircleGeometry(r, 48);
+      const p = g.getAttribute('position');
+      const local = new Float32Array(p.count * 3);
+      for (let i = 0; i < p.count; i++) local.set([p.getX(i) / r, p.getY(i) / r], i * 3);
+      g.setAttribute('aColor', new THREE.BufferAttribute(local, 3));
+      g.setAttribute('aPattern', new THREE.BufferAttribute(new Float32Array(p.count), 1));
+      faces.push(g.translate(0, 0, out).rotateY(turn).translate(at.x, at.y, at.z));
+    };
+    for (let k = 0; k < 4; k++) face(2.1, 2.52, (k * Math.PI) / 2, new THREE.Vector3(T.x, 14.5, T.z));
+    for (const at of STREET_CLOCKS) {
+      statics.push(paint(new THREE.CylinderGeometry(0.1, 0.13, at.y - 0.6, 8).translate(at.x, (at.y - 0.6) / 2, at.z), 0x2b3035));
+      statics.push(paint(new THREE.CylinderGeometry(0.66, 0.66, 0.12, 32).rotateX(Math.PI / 2).translate(at.x, at.y, at.z), 0x2b3035));
+      for (const turn of [0, Math.PI]) face(0.6, 0.065, turn, at);
+      this.obstacles.push(new THREE.Box2().setFromCenterAndSize(new THREE.Vector2(at.x, at.z), new THREE.Vector2(0.6, 0.6)));
     }
+    this.scene.add(new THREE.Mesh(mergeGeometries(faces), this.clockMaterial));
+    faces.forEach((g) => g.dispose());
 
     // Carousel hub.
     const hub = new THREE.CylinderGeometry(1.4, 1.8, 5, 24);
