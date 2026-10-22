@@ -38,6 +38,10 @@ export class Schrodinger2D {
   readonly potential: Float64Array;
   /** 1 where the particle may be, 0 inside hard walls. */
   readonly open: Float64Array;
+  /** Damping rate (1/s) of the amplitude where edges absorb, as the GPU solver's sponge does; none by default. */
+  sponge: Float64Array | null = null;
+  /** The probability the sponge has removed so far: norm() + absorbed stays at the starting norm. */
+  absorbed = 0;
   time = 0;
 
   constructor(readonly grid: GridSpec, readonly particle: Particle, readonly dt: number) {
@@ -130,7 +134,20 @@ export class Schrodinger2D {
       this.imPrev.set(this.im);
       this.applyH(this.re, this.tmp);
       for (let k = 0; k < N; k++) this.im[k] -= (this.dt * this.tmp[k]) / h;
+      if (this.sponge) this.absorb(this.sponge);
       this.time += this.dt;
+    }
+  }
+
+  /** Damp the amplitude by e^(−rate·Δt) and bank the density removed, as the GPU's second pass does. */
+  private absorb(sponge: Float64Array) {
+    const cell = this.grid.dx * this.grid.dx;
+    for (let k = 0; k < sponge.length; k++) {
+      const f = Math.exp(-sponge[k] * this.dt);
+      this.absorbed += Math.max(this.re[k] * this.re[k] + this.im[k] * this.imPrev[k], 0) * (1 - f * f) * cell;
+      this.re[k] *= f;
+      this.im[k] *= f;
+      this.imPrev[k] *= f;
     }
   }
 

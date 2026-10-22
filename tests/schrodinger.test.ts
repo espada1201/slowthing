@@ -27,6 +27,26 @@ describe('Schrödinger leapfrog solver', () => {
     expect(Math.abs(sim.norm() - n0)).toBeLessThan(1e-9);
   });
 
+  it('banks what a sponge removes: exactly if it damps everywhere alike, to a fraction of a percent if it ramps', () => {
+    const grid = { nx: 96, ny: 96, dx: 0.25 };
+    const run = (rate: (i: number) => number) => {
+      const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, 4));
+      sim.sponge = new Float64Array(96 * 96);
+      for (let k = 0; k < 96 * 96; k++) sim.sponge[k] = rate(k % 96);
+      sim.setGaussian(6, 12, 1.2, 3, 0);
+      const n0 = sim.norm();
+      sim.step(1500);
+      return { absorbed: sim.absorbed, norm: sim.norm(), n0 };
+    };
+    const uniform = run(() => 0.3);
+    expect(uniform.absorbed).toBeGreaterThan(0.5);
+    expect(Math.abs(uniform.norm + uniform.absorbed - uniform.n0)).toBeLessThan(1e-9);
+    const ramp = run((i) => (i < 64 ? 0 : 6 * ((i - 63) / 32) ** 2));
+    expect(ramp.absorbed).toBeGreaterThan(0.1);
+    expect(ramp.norm).toBeLessThan(ramp.n0 - 0.1);
+    expect(Math.abs(ramp.norm + ramp.absorbed - ramp.n0)).toBeLessThan(0.01 * ramp.absorbed);
+  });
+
   it('spreads a free Gaussian as σ₀√(1 + (ħt/2mσ₀²)²)', () => {
     const grid = { nx: 160, ny: 160, dx: 0.2 };
     const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, 0));

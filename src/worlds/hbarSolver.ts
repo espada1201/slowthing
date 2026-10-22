@@ -231,9 +231,13 @@ export class GpuSchrodinger {
   }
 }
 
+/** The comparison's sponge: a strip of this many cells along the far edge, damping up to this rate (1/s) at the rim. */
+const SPONGE_CELLS = 8, SPONGE_RATE = 0.5;
+
 /**
  * Run the GPU solver (the very shaders the courtyard uses) and the CPU reference side by side on a
- * small box with a two-cell wall, an opening and a finite barrier, and compare them value by value.
+ * small box with a two-cell wall, an opening and a finite barrier, and a sponge strip along the far edge that absorbs
+ * some of the wave, and compare them value by value, the probability they bank at the sponge included.
  */
 function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
   const n = 64, dx = 0.25, p = { mass: 1, hbar: 1 };
@@ -241,11 +245,13 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
   for (let j = 0; j < n; j++) {
     for (const i of [40, 41]) field.open[j * n + i] = j > 26 && j < 37 ? 1 : 0;
     for (const i of [24, 25]) field.potential[j * n + i] = 4;
+    for (let i = n - SPONGE_CELLS; i < n; i++) field.sponge[j * n + i] = SPONGE_RATE * ((i - (n - SPONGE_CELLS) + 1) / SPONGE_CELLS) ** 2;
   }
   const grid = { nx: n, ny: n, dx, stencil: 4 as const };
   const cpu = new Schrodinger2D(grid, p, stableTimeStep(grid, p, 4));
   cpu.potential.set(correctSteps(field.potential, field.open, n, n));
   cpu.open.set(field.open);
+  cpu.sponge = Float64Array.from(field.sponge);
   cpu.setGaussian(3, 8, 1, 3, 0.5);
   const normBefore = cpu.norm();
   return readBack(r, (own) => {
@@ -254,7 +260,7 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
     gpu.step(r, steps, cpu.dt, p);
     cpu.step(steps);
     const out = gpu.read(r);
-    let maxDiff = 0, maxAmp = 0, gpuNorm = 0;
+    let maxDiff = 0, maxAmp = 0, gpuNorm = 0, gpuAbsorbed = 0;
     for (let k = 0; k < n * n; k++) {
       const pairs: [number, number][] = [[out[k * 4], cpu.re[k]], [out[k * 4 + 1], cpu.im[k]], [out[k * 4 + 2], cpu.imPrev[k]]];
       for (const [g, c] of pairs) {
@@ -262,19 +268,30 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
         maxAmp = Math.max(maxAmp, Math.abs(c));
       }
       gpuNorm += out[k * 4] ** 2 + out[k * 4 + 1] * out[k * 4 + 2];
+      gpuAbsorbed += out[k * 4 + 3];
     }
-    return { steps, relative: maxDiff / maxAmp, normBefore, gpuNorm: gpuNorm * dx * dx };
+    return { steps, relative: maxDiff / maxAmp, normBefore, cpuNorm: cpu.norm(), gpuNorm: gpuNorm * dx * dx, cpuAbsorbed: cpu.absorbed, gpuAbsorbed };
   });
 }
 
-/** Proof for the in-browser checks: the GPU wave matches the CPU physics to float32 precision. */
+/**
+ * Proof for the in-browser checks: the GPU wave matches the CPU physics to float32 precision, and what the sponge
+ * absorbs is banked as the CPU banks it, with the norm and the bank adding up to the start. The damping is not
+ * uniform, so even the exact scheme leaks a fraction of a percent of what it banks: that much is allowed.
+ */
 export async function proveSolver(r: THREE.WebGLRenderer): Promise<{ pass: boolean; measured: string; expected: string }> {
   const c = compareWithCpu(r, 400);
-  const drift = Math.abs(c.gpuNorm - c.normBefore);
-  const ok = Number.isFinite(c.relative) && c.relative < 1e-3 && drift < 1e-4;
+  const normDiff = Math.abs(c.gpuNorm - c.cpuNorm);
+  const leak = Math.abs(c.gpuNorm + c.gpuAbsorbed - c.normBefore);
+  const cpuLeak = Math.abs(c.cpuNorm + c.cpuAbsorbed - c.normBefore);
+  const bankDiff = Math.abs(c.gpuAbsorbed - c.cpuAbsorbed);
+  const ok =
+    Number.isFinite(c.relative) && c.relative < 1e-3 && normDiff < 1e-4 &&
+    Number.isFinite(c.gpuAbsorbed) && c.cpuAbsorbed > 0.01 && bankDiff < 1e-4 &&
+    leak < 1e-4 + 0.01 * c.gpuAbsorbed && cpuLeak < 1e-4 + 0.01 * c.cpuAbsorbed;
   return {
     pass: ok,
-    measured: `after ${c.steps} steps: max |Δψ| = ${c.relative.toExponential(1)} of max |ψ|, norm drift ${drift.toExponential(1)}`,
-    expected: 'max |Δψ| < 1e-3 of max |ψ| (float32), norm drift < 1e-4',
+    measured: `after ${c.steps} steps: max |Δψ| = ${c.relative.toExponential(1)} of max |ψ|, norm ${c.gpuNorm.toFixed(3)} (CPU ${c.cpuNorm.toFixed(3)}); the sponge banks ${c.gpuAbsorbed.toFixed(3)} (CPU ${c.cpuAbsorbed.toFixed(3)}), norm + bank off by ${leak.toExponential(1)} (CPU ${cpuLeak.toExponential(1)})`,
+    expected: 'max |Δψ| < 1e-3 of max |ψ| (float32), norm within 1e-4 of the CPU’s, banked probability within 1e-4 of the CPU’s, norm + bank within 1e-4 + 1% of the bank of the start',
   };
 }
