@@ -1412,6 +1412,8 @@ export class BigHbarWorld implements World {
     this.textures.forEach((t) => t.dispose());
     this.scene.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return;
+      // An instanced mesh's matrix buffer goes with the mesh's own dispose, not its geometry's.
+      o.dispose();
       o.geometry.dispose();
       (Array.isArray(o.material) ? o.material : [o.material]).forEach((m: THREE.Material) => m.dispose());
     });

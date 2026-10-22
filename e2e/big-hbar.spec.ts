@@ -198,3 +198,41 @@ test('a GPU context lost and restored mid-roll starts the roll over, and the wav
   expect(warnings).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+test('leaving the courtyard frees the GPU objects it made, visit after visit', async ({ page }) => {
+  // Count live WebGL objects of each kind by wrapping the context's create and delete calls.
+  await page.addInitScript(() => {
+    const live: Record<string, number> = ((window as any).liveGl = {});
+    const gl = WebGL2RenderingContext.prototype as any;
+    for (const kind of ['Buffer', 'Texture', 'Framebuffer', 'Renderbuffer', 'Program', 'Shader', 'VertexArray']) {
+      live[kind] = 0;
+      const create = gl[`create${kind}`], remove = gl[`delete${kind}`];
+      gl[`create${kind}`] = function (this: unknown, ...args: unknown[]) {
+        const o = create.apply(this, args);
+        if (o) live[kind]++;
+        return o;
+      };
+      gl[`delete${kind}`] = function (this: unknown, o: unknown) {
+        if (o) live[kind]--;
+        return remove.call(this, o);
+      };
+    }
+  });
+  const errors = watchErrors(page);
+  await page.goto('./?quality=low&e2e');
+  const live: Record<string, number>[] = [];
+  for (let visit = 0; visit < 3; visit++) {
+    await page.locator('.plate[data-world="big-hbar"]').click();
+    await expect(page.locator('.tour-title')).toHaveText('A real ball');
+    // Roll a wave and wait for a read-back, so the visit makes everything a roll needs.
+    await page.keyboard.press('KeyN');
+    await untilAbove(page, 'Spread Δx', 1.2);
+    await page.getByRole('button', { name: '← Worlds' }).click();
+    await expect(page.locator('.plate')).toHaveCount(3);
+    live.push(await page.evaluate(() => ({ ...(window as any).liveGl })));
+  }
+  // The first visit leaves what three.js keeps for any later scene, such as compiled programs; no visit adds to it.
+  expect(live[1]).toEqual(live[0]);
+  expect(live[2]).toEqual(live[0]);
+  expect(errors).toEqual([]);
+});
