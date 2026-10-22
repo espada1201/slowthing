@@ -22,7 +22,7 @@ Controls: click the view to look around, use WASD to move and ← → to turn, h
 
 | World | Method |
 | --- | --- |
-| Slow Light | The scene is drawn in its rest frame into a cube map, with moving objects at their retarded (light-delayed) positions, solved per vertex. A per-pixel Lorentz boost then applies aberration. The colour shift integrates a sunlit spectrum, plus 300 K thermal glow, against the CIE 1931 observer, with D⁵ beaming. Trams and lamps are lit in their own frame: sunlight arrives aberrated and shifted, and sky light is integrated over the half of the sky each face sees. |
+| Slow Light | The scene is drawn in its rest frame into a cube map, with moving objects at their retarded (light-delayed) positions, solved per vertex. A per-pixel Lorentz boost then applies aberration. The colour shift integrates a sunlit spectrum, plus 300 K thermal glow, against the CIE 1931 observer, with D⁵ beaming. Trams and lamps are shaded all the way to your eye. In their own frame, sunlight arrives aberrated and shifted, and sky light is summed over the half of the sky each face sees. That light is carried at eight wavelengths, so it can be shifted twice: once onto the tram, then again on its way to you. |
 | Big ħ | The time-dependent Schrödinger equation is solved on the GPU with Visscher's staggered leapfrog, which conserves probability. A CPU twin of the same scheme is unit-tested against free spreading and analytic barrier tunnelling. |
 | Big G | Photon geodesics in the Schwarzschild metric are ray-marched per pixel. The integrator is tested against the exact bending integral, the weak-field limit 4GM/c²b, the photon sphere at 1.5 rs and the capture radius. |
 

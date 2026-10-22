@@ -1,5 +1,14 @@
+import { Color } from 'three';
 import { describe, expect, it } from 'vitest';
-import { LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, cieXYZ, planck, wavelengthToRGB, whiteLuminance } from '../src/physics/spectrum';
+import {
+  KNOTS, KNOT_STEP, LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, buildKnotLUT, cieXYZ, planck, reflectionKnots,
+  reflectionTransform, sun, wavelengthToRGB, whiteLuminance,
+} from '../src/physics/spectrum';
+import reflectGlsl from '../src/shaders/reflect.glsl?raw';
+import { reflectKnots } from './shaderLookups';
+
+const apply = (m: ArrayLike<number>, c: number[]) => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]);
+const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
 describe('CIE 1931 colour matching fit', () => {
   it('reproduces tabulated values within 3%', () => {
@@ -22,7 +31,6 @@ describe('CIE 1931 colour matching fit', () => {
 
 describe('wavelength → RGB, as every spectral integration sums it', () => {
   const dominant = (rgb: number[]) => rgb.indexOf(Math.max(...rgb));
-  const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   const integrate = (spectrum: (l: number) => number) =>
     SAMPLES.reduce((acc, l) => acc.map((v, k) => v + wavelengthToRGB(l)[k] * spectrum(l) * STEP), [0, 0, 0]);
   it('puts monochromatic red, green and blue light in the R, G and B channels', () => {
@@ -80,7 +88,6 @@ describe('Doppler colour shift', () => {
     expect(red[0]).toBeGreaterThan(g[0] + 0.2);
   });
   it('strong blueshift reveals room-temperature thermal glow (infrared made visible)', () => {
-    const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     expect(lum(applyDoppler([0, 0, 0], 1))).toBeLessThan(1e-9);
     expect(lum(applyDoppler([0, 0, 0], 18))).toBeGreaterThan(0.002);
   });
@@ -94,7 +101,6 @@ describe('Doppler colour shift', () => {
     expect(lut.every(Number.isFinite)).toBe(true);
   });
   it('holds the table edge beyond its range instead of going black, as the shader lookup does', () => {
-    const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     for (const D of [0.5, 1, 2, 10]) expect(whiteLuminance(D) / lum(applyDoppler([1, 1, 1], D))).toBeCloseTo(1, 2);
     // Sprinting at an oncoming tram with c = 8 m/s gives D ≈ 93, past the table's 60: the edge colour, which
     // D⁵ beaming then makes blinding, not black.
@@ -102,5 +108,74 @@ describe('Doppler colour shift', () => {
     expect(whiteLuminance(93)).toBeGreaterThan(0);
     expect(whiteLuminance(93)).toBe(whiteLuminance(edge));
     expect(whiteLuminance(1 / 93)).toBe(whiteLuminance(1 / edge));
+  });
+});
+
+describe('light reflected with two Doppler factors', () => {
+  // The surface's reflectance shifts by D_R on its way to the eye, the sunlight it reflects by D_S overall.
+  it('keeps a white surface lit from infinity white, however deep in a gravity well it sits', () => {
+    for (const dR of [0.4, 0.7, 1.5]) apply(reflectionTransform(dR, 1), [1, 1, 1]).forEach((v) => expect(v).toBeCloseTo(1, 9));
+  });
+  it('darkens a red surface near the hole: its red is reflected into the infrared', () => {
+    const red = [0.8, 0.05, 0.03];
+    expect(lum(apply(reflectionTransform(0.75, 1), red))).toBeLessThan(0.5 * lum(red));
+  });
+  it('turns a white tram blue when it drives into the sun and red when it drives away', () => {
+    const into = apply(reflectionTransform(1, 2), [1, 1, 1]);
+    const away = apply(reflectionTransform(1, 0.6), [1, 1, 1]);
+    expect(into[2] / into[0]).toBeGreaterThan(1.2);
+    expect(away[0] / away[2]).toBeGreaterThan(1.2);
+  });
+});
+
+describe('light carried at eight wavelengths, as the shaders carry it', () => {
+  const sumKnots = (K: number[][], light: number[]) => K.reduce((acc, m, p) => acc.map((v, i) => v + light[p] * m[i]), new Array(9).fill(0));
+
+  it('reflects sunlight at rest unchanged', () => {
+    sumKnots(reflectionKnots(1), KNOTS.map(sun)).forEach((v, i) => expect(v).toBeCloseTo(i % 4 === 0 ? 1 : 0, 9));
+  });
+  it('matches the full spectral sums for shifted sunlight, through the shaders’ table: within 1 % where bright, 4 % where dim', () => {
+    // The town's paints, as the scene stores them (linear RGB), under every pair of shifts the worlds reach.
+    const paints = [0xc8553d, 0xf0e6cf, 0x22313a, 0x2f7f79, 0x5b6c8f, 0xe0a458, 0x3d6b35, 0xffffff].map((h) => new Color(h).toArray());
+    const worst = { bright: 0, dim: 0 };
+    for (let lnS = -2; lnS <= 3; lnS += 0.1) {
+      for (let lnR = -1.6; lnR <= 1.6; lnR += 0.1) {
+        for (const rgb of paints) {
+          // What the display shows: out-of-gamut channels clipped at zero, as the shaders do.
+          const want = apply(reflectionTransform(Math.exp(lnR), Math.exp(lnS)), rgb).map((v) => Math.max(v, 0));
+          const brightness = lum(want) / lum(rgb);
+          if (brightness < 0.01) continue;
+          const got = reflectKnots(Math.exp(lnR), KNOTS.map((l) => rgb.map((c) => c * sun(l * Math.exp(lnS)))));
+          const err = Math.max(...got.map((v, j) => Math.abs(v - want[j]) / lum(want)));
+          if (brightness >= 0.1) worst.bright = Math.max(worst.bright, err);
+          else worst.dim = Math.max(worst.dim, err);
+        }
+      }
+    }
+    expect(worst.bright).toBeLessThan(0.01);
+    expect(worst.dim).toBeLessThan(0.04);
+  });
+  it('tabulates knot p’s matrix column by column on the Doppler table’s grid of shifts', () => {
+    const size = 9;
+    const lut = buildKnotLUT(size);
+    expect(lut.length).toBe(size * KNOTS.length * 3 * 4);
+    for (const [i, dR] of [[0, 1 / 60], [4, 1], [8, 60]]) {
+      reflectionKnots(dR).forEach((m, p) => {
+        for (let k = 0; k < 3; k++) {
+          const texel = Array.from(lut.subarray(((3 * p + k) * size + i) * 4, ((3 * p + k) * size + i) * 4 + 4));
+          [m[k], m[3 + k], m[6 + k], 1].forEach((v, j) => expect(texel[j]).toBeCloseTo(v, 5));
+        }
+      });
+    }
+  });
+  it('uses the same knots and sunlight as shaders/reflect.glsl', () => {
+    expect(Number(/const int KNOTS = (\d+);/.exec(reflectGlsl)?.[1])).toBe(KNOTS.length);
+    const [, base, step] = /([\d.]+) \* exp\(([\d.]+) \* float\(p - 1\)\)/.exec(reflectGlsl) ?? [];
+    expect(Number(base)).toBe(380);
+    expect(Number(step)).toBe(KNOT_STEP);
+    expect(KNOTS[1]).toBe(380);
+    const [, scale, hcOverKT] = /r \* r \* r \* r \* r \* ([\d.]+) \/ \(exp\(min\(([\d.]+) \/ lambda/.exec(reflectGlsl) ?? [];
+    const glslSun = (l: number) => (550 / l) ** 5 * Number(scale) / Math.expm1(Math.min(Number(hcOverKT) / l, 80));
+    for (const l of [250, 400, 550, 700, 934, 3000]) expect(glslSun(l) / sun(l)).toBeCloseTo(1, 6);
   });
 });

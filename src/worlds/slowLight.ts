@@ -11,14 +11,13 @@ import { whiteLuminance } from '../physics/spectrum';
 import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
 import noise from '../shaders/noise.glsl?raw';
-import compositeFrag from '../shaders/slow-composite.frag?raw';
 import groundFrag from '../shaders/slow-ground.frag?raw';
-import movingVert from '../shaders/slow-moving.vert?raw';
 import skyFrag from '../shaders/slow-sky.frag?raw';
 import staticVert from '../shaders/slow-static.vert?raw';
 import surfaceFrag from '../shaders/slow-surface.frag?raw';
-import { illuminationUniforms } from '../lut';
+import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
+import { compositeFragment, movingFragment, movingVertex } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
 const TRACK_R = 45;
@@ -93,7 +92,7 @@ export class SlowLightWorld implements World {
   private scene = new THREE.Scene();
   private cubeTarget!: THREE.WebGLCubeRenderTarget;
   private cubeCamera!: THREE.CubeCamera;
-  private composite = fullscreenPass(compositeFrag, {
+  private composite = fullscreenPass(compositeFragment, {
     uCube: { value: null },
     uBeta: { value: new THREE.Vector3() },
     uCamRot: { value: new THREE.Matrix3() },
@@ -332,8 +331,8 @@ export class SlowLightWorld implements World {
 
   private addMover(geometry: THREE.BufferGeometry, phase0: number, radius: number, properSpeed: number, direction: 1 | -1, tram: boolean) {
     const mat = this.material(
-      movingVert,
-      surfaceFrag,
+      movingVertex,
+      movingFragment,
       {
         uObs: { value: this.pos },
         uC: { value: 12 },
@@ -349,7 +348,10 @@ export class SlowLightWorld implements World {
         uAberrationOn: { value: 1 },
         uDopplerOn: { value: 1 },
         uBeamingOn: { value: 1 },
-        ...illuminationUniforms(),
+        uObsBeta: { value: this.composite.material.uniforms.uBeta.value },
+        ...lutUniforms(),
+        ...knotUniforms(),
+        ...skyUniforms(),
       },
       THREE.FrontSide,
       { MOVING: '' },
@@ -436,16 +438,17 @@ export class SlowLightWorld implements World {
     clock.uDelay.value = this.toggle('delay') ? 1 : 0;
     this.sky.position.copy(this.pos);
 
+    // The movers shade with the observer's velocity too (uObsBeta is the same vector), so set it before drawing them.
+    const u = this.composite.material.uniforms;
+    u.uBeta.value.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
     const r = ctx.renderer;
     this.cubeCamera.position.copy(this.pos);
     this.cubeCamera.update(r, this.scene);
 
     const size = r.getDrawingBufferSize(new THREE.Vector2());
     const tanY = Math.tan(THREE.MathUtils.degToRad(this.fov / 2));
-    const u = this.composite.material.uniforms;
     u.uTan.value.set(tanY * (size.x / size.y), tanY);
     u.uCamRot.value.copy(cameraRotation(this.yaw, this.pitch));
-    u.uBeta.value.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
     u.uAberration.value = this.toggle('aberration') ? 1 : 0;
     u.uDoppler.value = this.toggle('doppler') ? 1 : 0;
     u.uBeaming.value = this.toggle('beaming') ? 1 : 0;

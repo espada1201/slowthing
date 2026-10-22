@@ -2,6 +2,7 @@
 // An sRGB surface colour is lifted to a full spectrum (a smooth reflectance lit by 5778 K sunlight, which
 // reaches into the ultraviolet and infrared, plus the surface's own 300 K thermal glow), Doppler-shifted,
 // then re-integrated against the CIE 1931 observer. At D = 1 the round trip returns the original colour.
+// The reflectance and the sunlight it reflects can be shifted by different factors (reflectionTransform).
 
 import type { Vec3 } from './vec';
 
@@ -70,23 +71,21 @@ export function basisSpectra(lambda: number): Vec3 {
 export const STEP = 5;
 export const SAMPLES: number[] = [];
 for (let l = 380; l <= 780; l += STEP) SAMPLES.push(l);
-export const SAMPLE_RGB = SAMPLES.map(wavelengthToRGB);
+const SAMPLE_RGB = SAMPLES.map(wavelengthToRGB);
 
-function integrate(D: number): { a: number[]; t: Vec3 } {
+/** The surface's three reflectance windows at each sample, for its own light shifted by D on the way to the eye. */
+const surfaceAt = (D: number) => SAMPLES.map((l) => basisSpectra(l * D));
+/** Sunlight at each sample, shifted by D overall on the way to the eye. */
+const sunAt = (D: number) => SAMPLES.map((l) => sun(l * D));
+
+/** Σ colour matching × reflectance window k × light: row j (output channel) by column k (surface channel). */
+function sum(surface: Vec3[], light: number[]): number[] {
   const a = new Array(9).fill(0);
-  const t: Vec3 = [0, 0, 0];
-  SAMPLES.forEach((lo, i) => {
-    const le = lo * D;
-    const sl = sun(le);
-    const b = basisSpectra(le).map((v) => v * sl);
-    const th = thermal(le);
+  SAMPLES.forEach((_, i) => {
     const rgb = SAMPLE_RGB[i];
-    for (let j = 0; j < 3; j++) {
-      for (let k = 0; k < 3; k++) a[j * 3 + k] += rgb[j] * b[k] * STEP;
-      t[j] += rgb[j] * th * STEP;
-    }
+    for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) a[j * 3 + k] += rgb[j] * surface[i][k] * light[i] * STEP;
   });
-  return { a, t };
+  return a;
 }
 
 export function invert3(m: number[]): number[] {
@@ -102,22 +101,45 @@ export function mul3(m: number[], n: number[]): number[] {
   return r;
 }
 
-const NORMALISE = invert3(integrate(1).a);
+const NORMALISE = invert3(sum(surfaceAt(1), sunAt(1)));
+
+/**
+ * Colour of a sunlit surface whose own light is shifted by D_R on its way to the eye while the sunlight it
+ * reflects is shifted by D_S overall: observed linear RGB = M · surface RGB, row-major, before any intensity
+ * factor. D_R = D_S = D is a surface seen with Doppler factor D. They differ deep in a gravity well (World III:
+ * starlight falls in, then climbs out) and on a moving tram (World I: sunlight reaches it shifted by D_in, so
+ * D_S = D_in·D_R). A white surface stays white whenever D_S = 1, whatever D_R.
+ */
+export function reflectionTransform(dR: number, dS: number): number[] {
+  return mul3(NORMALISE, sum(surfaceAt(dR), sunAt(dS)));
+}
+
+/** A 300 K surface's own thermal glow, seen with Doppler factor D, in linear RGB. */
+function thermalGlow(D: number): Vec3 {
+  const t = [0, 0, 0];
+  SAMPLES.forEach((l, i) => {
+    const th = thermal(l * D);
+    for (let j = 0; j < 3; j++) t[j] += SAMPLE_RGB[i][j] * th * STEP;
+  });
+  return [0, 1, 2].map((r) => NORMALISE[r * 3] * t[0] + NORMALISE[r * 3 + 1] * t[1] + NORMALISE[r * 3 + 2] * t[2]) as Vec3;
+}
 
 /**
  * Colour transform for a Doppler factor D = ν_observed / ν_emitted (no intensity beaming).
  * Observed linear RGB = matrix · rgb + thermal. `matrix` is row-major 3×3.
  */
 export function dopplerColorTransform(D: number): { matrix: number[]; thermal: Vec3 } {
-  const { a, t } = integrate(D);
-  const matrix = mul3(NORMALISE, a);
-  const th = [0, 1, 2].map((r) => NORMALISE[r * 3] * t[0] + NORMALISE[r * 3 + 1] * t[1] + NORMALISE[r * 3 + 2] * t[2]) as Vec3;
-  return { matrix, thermal: th };
+  return { matrix: reflectionTransform(D, D), thermal: thermalGlow(D) };
 }
 
 export function applyDoppler(rgb: Vec3, D: number): Vec3 {
   const { matrix: m, thermal: t } = dopplerColorTransform(D);
   return [0, 1, 2].map((r) => m[r * 3] * rgb[0] + m[r * 3 + 1] * rgb[1] + m[r * 3 + 2] * rgb[2] + t[r]) as Vec3;
+}
+
+/** Writes a colour matrix as three RGBA texels: texel k holds column k (surface channel k's R, G, B) and alpha[k]. */
+export function packColumns(data: Float32Array, texel: (k: number) => number, m: ArrayLike<number>, alpha: readonly number[] = [1, 1, 1]) {
+  for (let k = 0; k < 3; k++) data.set([m[k], m[3 + k], m[6 + k], alpha[k]], texel(k) * 4);
 }
 
 export const LUT_LOG_D_RANGE = Math.log(60);
@@ -129,15 +151,56 @@ export const LUT_LOG_D_RANGE = Math.log(60);
 export function buildDopplerLUT(size: number): Float32Array {
   const data = new Float32Array(size * 3 * 4);
   for (let i = 0; i < size; i++) {
-    const lnD = -LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1);
-    const { matrix, thermal: th } = dopplerColorTransform(Math.exp(lnD));
-    for (let k = 0; k < 3; k++) {
-      const o = (k * size + i) * 4;
-      data[o] = matrix[k];
-      data[o + 1] = matrix[3 + k];
-      data[o + 2] = matrix[6 + k];
-      data[o + 3] = th[k];
-    }
+    const { matrix, thermal: th } = dopplerColorTransform(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1)));
+    packColumns(data, (k) => k * size + i, matrix, th);
+  }
+  return data;
+}
+
+/**
+ * The shaders carry light as its spectrum at the eye, relative to sunlight at rest, sampled at eight knots
+ * λ_p = 380·e^{KNOT_STEP·(p − 1)} nm (327–935 nm) and joined by a Catmull-Rom spline in ln λ. For the town's paints,
+ * under any shift that leaves them at least a tenth as bright as at rest, that is within 1 % of the full spectral sums
+ * (tests/spectrum.test.ts), so a shader can mix and shift light freely.
+ */
+export const KNOT_STEP = 0.15;
+export const KNOTS = Array.from({ length: 8 }, (_, p) => 380 * Math.exp(KNOT_STEP * (p - 1)));
+
+/** Catmull-Rom weight of knot p in the light at λ ∈ [380, 804] nm. */
+function knotWeight(p: number, lambda: number): number {
+  const u = Math.log(lambda / 380) / KNOT_STEP;
+  const seg = Math.min(KNOTS.length - 4, Math.max(0, Math.floor(u)));
+  const t = u - seg;
+  switch (p - seg) {
+    case 0: return ((-t + 2) * t - 1) * t / 2;
+    case 1: return ((3 * t - 5) * t * t + 2) / 2;
+    case 2: return ((-3 * t + 4) * t + 1) * t / 2;
+    case 3: return (t - 1) * t * t / 2;
+    default: return 0;
+  }
+}
+
+const KNOT_LIGHT = KNOTS.map((_, p) => SAMPLES.map((l) => knotWeight(p, l)));
+const knotSums = (dR: number) => {
+  const surface = surfaceAt(dR);
+  return KNOT_LIGHT.map((light) => sum(surface, light));
+};
+const KNOT_NORMALISE = invert3(knotSums(1).reduce((acc, m, p) => acc.map((v, k) => v + sun(KNOTS[p]) * m[k]), new Array(9).fill(0)));
+
+/**
+ * Reflection off a surface whose reflectance is shifted by D_R on its way to the eye, one row-major 3×3 per knot:
+ * observed linear RGB = Σ_p L_p · K_p · surface RGB, where L_p is the light at the eye at knot p relative to sunlight
+ * at rest, sun(λ_p·D_S) for sunlight shifted by D_S overall (then Σ_p L_p·K_p ≈ reflectionTransform(D_R, D_S)).
+ */
+export function reflectionKnots(dR: number): number[][] {
+  return knotSums(dR).map((m) => mul3(KNOT_NORMALISE, m));
+}
+
+/** reflectionKnots over ln D_R ∈ ±LUT_LOG_D_RANGE for shaders/reflect.glsl: texel (i, 3p + k) holds column k of K_p. */
+export function buildKnotLUT(size: number): Float32Array {
+  const data = new Float32Array(size * KNOTS.length * 3 * 4);
+  for (let i = 0; i < size; i++) {
+    reflectionKnots(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1))).forEach((m, p) => packColumns(data, (k) => (3 * p + k) * size + i, m));
   }
   return data;
 }

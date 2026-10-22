@@ -6,10 +6,11 @@ import * as THREE from 'three';
 import { tick } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
+import { knotUniforms } from '../lut';
 import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
-import { REFLECTION_LOG_RANGE, buildReflectionLUT } from '../physics/reflection';
 import { type Vec3, dot, normalize } from '../physics/vec';
-import frag from '../shaders/big-g.frag?raw';
+import rayFrag from '../shaders/big-g.frag?raw';
+import reflect from '../shaders/reflect.glsl?raw';
 import { cameraRotation, facing, fullscreenPass } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
@@ -51,21 +52,12 @@ const LAMPS: { pos: THREE.Vector3; color: THREE.Color; radius: number }[] = [
   })),
 ];
 
-const REFLECTION_LUT_SIZE = 48;
-let reflectionLUT: THREE.DataTexture | null = null;
+const frag = `${reflect}\n${rayFrag}`;
 
 /** Uniforms for shaders/big-g.frag; per-frame values are filled in by the world (or the proof). */
 function rayUniforms(): Record<string, THREE.IUniform> {
-  if (!reflectionLUT) {
-    const n = REFLECTION_LUT_SIZE;
-    reflectionLUT = new THREE.DataTexture(buildReflectionLUT(n), n, n * 3, THREE.RGBAFormat, THREE.FloatType);
-    reflectionLUT.minFilter = reflectionLUT.magFilter = THREE.NearestFilter;
-    reflectionLUT.needsUpdate = true;
-  }
   return {
-    uRefl: { value: reflectionLUT },
-    uReflSize: { value: REFLECTION_LUT_SIZE },
-    uReflRange: { value: REFLECTION_LOG_RANGE },
+    ...knotUniforms(),
     uCamPos: { value: new THREE.Vector3() },
     uCamRot: { value: new THREE.Matrix3() },
     uTan: { value: new THREE.Vector2(1, 1) },

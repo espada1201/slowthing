@@ -1,4 +1,4 @@
-// Objects on circular paths, drawn where they were when the light now reaching the eye left them.
+// Objects on circular paths, drawn where they were when the light now reaching the eye left them (boost.glsl prepended).
 // Solves c·(t − t_r) = |x_obs − x(t_r)| per vertex by Newton's method kept inside a bracket around the
 // root (as physics/relativity.ts does): unguarded, Newton overshoots and cycles for a fast object seen from afar.
 attribute vec3 aColor;
@@ -28,16 +28,6 @@ varying float vTau;
 varying float vDin;       // Doppler factor of the sunlight the object receives, in its own frame
 varying vec3 vSunLocal;   // direction of the sun as seen from the moving object
 varying vec3 vVelocity;   // object velocity / c
-
-// Where something moving with velocity β sees a source that lies along n in the town (aberration).
-vec3 aberrate(vec3 n, vec3 beta) {
-  float b = length(beta);
-  if (b < 1e-6) return n;
-  vec3 bh = beta / b;
-  float par = dot(n, bh);
-  float den = 1.0 + dot(beta, n);
-  return normalize(bh * (par + b) / den + (n - bh * par) * sqrt(1.0 - b * b) / den);
-}
 
 // sin and cos to float32 accuracy (π/2 reduction in three parts, then the Cephes polynomials). Some GPUs'
 // built-ins are good only to 1e-4, a centimetre on the tram's loop, which the light-cone solve can magnify.
@@ -96,14 +86,15 @@ void main() {
   }
   float a = uPhase + uOmega * delta;
   vec3 wp = pathPos(a, position);
-  vec3 radial = vec3(cos(a), 0.0, sin(a));
-  vec3 forward = vec3(-sin(a), 0.0, cos(a)) * sign(uOmega);
+  vec2 sc = sinCos(a);
+  vec3 radial = vec3(sc.y, 0.0, sc.x);
+  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
   vNormal = normalize(forward * normal.x + vec3(0.0, normal.y, 0.0) + radial * normal.z);
   vec3 k = normalize(uObs - wp);
   vDsrc = 1.0 / (uGamma * (1.0 - dot(forward * uBeta, k)));
   vVelocity = forward * uBeta;
   vDin = uGamma * (1.0 + dot(vVelocity, uSun));
-  vSunLocal = uAberrationOn > 0.5 ? aberrate(uSun, vVelocity) : uSun;
+  vSunLocal = uAberrationOn > 0.5 ? observerToWorld(uSun, -vVelocity) : uSun;
   vTau = uTauNow + delta / uGamma;
   vWorld = wp;
   vColor = aColor;

@@ -1,6 +1,6 @@
 // World III: light around a Schwarzschild black hole, marched per pixel with the same maths as
 // src/physics/schwarzschild.ts (coordinateDirection, x'' = −(3/2) rs h² x / r⁵ by velocity-Verlet with
-// steps k·r/|v|, asymptoticDirection for the leftover bending). Lengths are in scene units of uScale
+// steps k·r/|v|, asymptoticDirection for the leftover bending; reflect.glsl prepended). Lengths are in scene units of uScale
 // metres so r⁵ stays finite for any rs. The observer hovers: a static observer's local frame.
 uniform vec3 uCamPos;
 uniform mat3 uCamRot;
@@ -28,9 +28,6 @@ uniform vec3 uPlanetAxis;
 uniform float uPlanetSize;
 uniform vec3 uGalaxy;
 uniform float uDebug;       // 1: output the escape direction as 0.4 + 0.3·dir (alpha 0 captured, 0.5 unfinished)
-uniform sampler2D uRefl;    // two-factor colour shift for reflected starlight (physics/reflection.ts)
-uniform float uReflSize;
-uniform float uReflRange;
 varying vec2 vUv;
 
 const float TAU = 6.2831853;
@@ -143,22 +140,6 @@ vec3 sky(vec3 d) {
   col += vec3(1.0, 0.93, 0.82) * (30.0 * smoothstep(0.011, 0.008, a) + 0.4 * exp(-a * a / 0.002) + 0.02 * exp(-a / 0.2));
   vec4 p = planet(d);
   return mix(col, p.rgb, p.a);
-}
-
-// Reflected starlight: surface colours shift by dR (surface → eye), the light itself by dS (infinity → eye).
-vec3 reflectShift(vec3 rgb, float dR, float dS) {
-  vec2 f = clamp((log(vec2(dR, dS)) + uReflRange) / (2.0 * uReflRange), 0.0, 1.0) * (uReflSize - 1.0);
-  ivec2 i0 = ivec2(floor(f));
-  ivec2 i1 = min(i0 + 1, ivec2(int(uReflSize) - 1));
-  f = fract(f);
-  vec3 outc = vec3(0.0);
-  for (int k = 0; k < 3; k++) {
-    int o = k * int(uReflSize);
-    vec3 lo = mix(texelFetch(uRefl, ivec2(i0.x, i0.y + o), 0).rgb, texelFetch(uRefl, ivec2(i1.x, i0.y + o), 0).rgb, f.x);
-    vec3 hi = mix(texelFetch(uRefl, ivec2(i0.x, i1.y + o), 0).rgb, texelFetch(uRefl, ivec2(i1.x, i1.y + o), 0).rgb, f.x);
-    outc += rgb[k] * mix(lo, hi, f.y);
-  }
-  return max(outc, 0.0);
 }
 
 // ---------- scenery ----------
@@ -303,8 +284,11 @@ void main() {
       emit = uLampColors[which] * (0.55 + 0.45 * max(dot(nrm, -n), 0.0)) * 2.2;
     }
     if (on > 0.5) {
+      // Reflected starlight: the surface's colours shift by De (surface → eye), the light itself by Dsky (infinity → eye).
       float De = sqrt(max(1.0 - uRs / rEmit, 0.0) / lapseObs);
-      col = reflectShift(refl, De, Dsky) * pow(Dsky, 5.0) + dopplerShift(emit, De, 1.0) * pow(De, 5.0);
+      vec3 light[KNOTS];
+      for (int p = 0; p < KNOTS; p++) light[p] = sunlight(knotLambda(p) * Dsky) * refl;
+      col = reflectKnots(De, light) * pow(Dsky, 5.0) + dopplerShift(emit, De, 1.0) * pow(De, 5.0);
     } else {
       col = refl + emit;
     }
