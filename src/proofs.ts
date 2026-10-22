@@ -8,6 +8,7 @@ import { CRITICAL_IMPACT, exactDeflection, traceRay, tracedDeflection } from './
 import { applyDoppler, cieXYZ } from './physics/spectrum';
 import { type Vec3, add, dot, len, scale, sub } from './physics/vec';
 import compositeFrag from './shaders/slow-composite.frag?raw';
+import movingVert from './shaders/slow-moving.vert?raw';
 import { cameraRotation, fullscreenPass } from './worlds/shared';
 
 export interface ProofResult {
@@ -93,6 +94,105 @@ function pixelDirections(i: number, j: number) {
   return { nObs, nW, D: dopplerFactor(nW, beta) };
 }
 
+// ---------- GPU harness for World I's moving objects ----------
+
+/** Test points of a tram car and of a carousel lamp: (along the track, up, outward), as slow-moving.vert takes them. */
+const CAR: Vec3[] = [[0, 0, 0], [3.7, 0, 0], [-3.7, 0, 0], [0, 3.5, 0], [0, 0, 1.35], [0, 0, -1.35], [3.7, 3.5, 1.35], [-3.7, 0.3, -1.35], [1.8, 1.2, 0.6]];
+const LAMP: Vec3[] = [[0, 3, 0], [0.5, 3, 0], [-0.5, 3, 0], [0, 3.5, 0], [0, 2.5, 0], [0, 3, 0.5], [0, 3, -0.5], [0.35, 3.35, 0.35], [-0.35, 2.65, -0.35]];
+
+/** An object on a circle (centre and eye given as ground-plane x, z; angle = where it is now, in radians). */
+interface Mover {
+  c: number;
+  beta: number;
+  radius: number;
+  dir: 1 | -1;
+  eye: [number, number];
+  angle: number;
+  centre?: [number, number];
+  contract?: boolean;
+  delay?: boolean;
+  points: Vec3[];
+}
+
+const MOVERS: Mover[] = [
+  // The tram at the default c, seen from inside its loop and from 200 m out (where unguarded Newton put it 90 m astray).
+  { c: 12, beta: 0.894, radius: 45, dir: 1, eye: [0, 30], angle: 1.2, points: CAR },
+  { c: 12, beta: 0.894, radius: 45, dir: 1, eye: [4, 200], angle: 4.9, points: CAR },
+  // Near light speed down to the slowest c, beside the track and far out, with and without contraction.
+  { c: 8, beta: 0.95, radius: 45, dir: 1, eye: [25, 0], angle: 6.0, points: CAR },
+  { c: 4, beta: 0.95, radius: 45, dir: 1, eye: [200, -4], angle: 3.7, points: CAR },
+  { c: 6, beta: 0.9, radius: 45, dir: -1, eye: [-46.5, 3], angle: -3.3, contract: false, points: CAR },
+  // Slower, off-centre loops, seen from up to 260 m.
+  { c: 30, beta: 0.3, radius: 45, dir: -1, centre: [3, -2], eye: [-60, 250], angle: -5.5, points: CAR },
+  { c: 20, beta: 0.6, radius: 45, dir: 1, centre: [-5, 8], eye: [40, 60], angle: 0.7, points: CAR },
+  // Carousel lamps, from inside the ring, beside it and across town.
+  { c: 4, beta: 0.9, radius: 7, dir: -1, eye: [2.5, -1], angle: -1.2, points: LAMP },
+  { c: 6, beta: 0.9, radius: 7, dir: -1, eye: [0, 19], angle: -4.6, points: LAMP },
+  { c: 8, beta: 0.85, radius: 7, dir: -1, eye: [-180, 160], angle: -1.0, points: LAMP },
+  // Light delay switched off: drawn where it is now.
+  { c: 12, beta: 0.894, radius: 45, dir: 1, eye: [0, 100], angle: 4.0, delay: false, points: CAR },
+];
+const MW = Math.max(...MOVERS.map((m) => m.points.length)), MH = MOVERS.length;
+
+/** slow-moving.vert's pathPos, independently: where test point `local` of a mover is at town time s (now = 0). */
+function moverPath({ c, beta, radius, dir, angle, centre = [0, 0], contract = true }: Mover, local: Vec3) {
+  const omega = (dir * beta * c) / radius, squash = contract ? Math.sqrt(1 - beta * beta) : 1;
+  return (s: number): Vec3 => {
+    const a = angle + omega * s;
+    const radial: Vec3 = [Math.cos(a), 0, Math.sin(a)], forward: Vec3 = [-dir * Math.sin(a), 0, dir * Math.cos(a)];
+    return add(add([centre[0], local[1], centre[1]], scale(radial, radius + local[2])), scale(forward, local[0] * squash));
+  };
+}
+
+/** Run the real slow-moving.vert on every test point, each drawn as a GL point on its own pixel, and read back where it put them. */
+function runMovers(renderer: THREE.WebGLRenderer) {
+  const scene = new THREE.Scene();
+  MOVERS.forEach(({ c, beta, radius, dir, eye, angle, centre = [0, 0], contract = true, delay = true, points }, j) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+    geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(points.flatMap((_, i) => [((i + 0.5) / MW) * 2 - 1, ((j + 0.5) / MH) * 2 - 1]), 2));
+    const material = new THREE.ShaderMaterial({
+      vertexShader: movingVert,
+      fragmentShader: 'varying vec3 vWorld; varying float vTau; void main() { gl_FragColor = vec4(vWorld, vTau); }',
+      defines: { PROOF: '' },
+      uniforms: {
+        uObs: { value: new THREE.Vector3(eye[0], 1.7, eye[1]) },
+        uC: { value: c },
+        uPhase: { value: angle },
+        uOmega: { value: (dir * beta * c) / radius },
+        uRadius: { value: radius },
+        uCenter: { value: new THREE.Vector3(centre[0], 0, centre[1]) },
+        uGamma: { value: lorentzFactor(beta) },
+        uBeta: { value: beta },
+        uRetard: { value: delay ? 1 : 0 },
+        uContract: { value: contract ? 1 : 0 },
+        uTauNow: { value: 0 },
+      },
+    });
+    const cloud = new THREE.Points(geometry, material);
+    cloud.frustumCulled = false;
+    scene.add(cloud);
+  });
+  const target = new THREE.WebGLRenderTarget(MW, MH, { type: THREE.FloatType, depthBuffer: false });
+  const pixels = new Float32Array(MW * MH * 4);
+  const previous = renderer.getRenderTarget();
+  try {
+    renderer.setRenderTarget(target);
+    renderer.render(scene, new THREE.Camera());
+    renderer.readRenderTargetPixels(target, 0, 0, MW, MH, pixels);
+  } finally {
+    renderer.setRenderTarget(previous);
+    target.dispose();
+    scene.traverse((o) => {
+      if (o instanceof THREE.Points) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
+  }
+  return pixels;
+}
+
 export const PROOFS: Proof[] = [
   {
     id: 'lorentz',
@@ -115,7 +215,7 @@ export const PROOFS: Proof[] = [
     world: 'I',
     gpu: false,
     title: 'Light-delay solver',
-    claim: 'The retarded-time solver used for moving objects matches the closed-form light-cone solution for straight-line motion.',
+    claim: 'The CPU light-cone solver, which times the carousel bells and is the reference for the GPU light-delay check, matches the closed-form solution for straight-line motion.',
     run: () => {
       const c = 10, x0: Vec3 = [-30, 0, 5], u: Vec3 = [8, 0, 0], obs: Vec3 = [0, 1.7, 0], t = 4;
       const tr = retardedTime((s) => add(x0, scale(u, s)), () => u, obs, t, c);
@@ -171,6 +271,34 @@ export const PROOFS: Proof[] = [
           for (let k = 0; k < 3; k++) errors.push(Math.abs(srgbToLinear(px[o + k]) - cpu[k]));
         }
       return within(errors, 0.01);
+    },
+  },
+  {
+    id: 'gpu-retarded',
+    world: 'I',
+    gpu: true,
+    title: 'GPU light-delay shader',
+    claim: 'The vertex shader that draws trams and lamps where they were when their light left puts every vertex where the CPU light-cone solver does, from inside the loop to 260 m away, at up to 0.95 c.',
+    run: (r) => {
+      const px = runMovers(r);
+      const offBy: number[] = [], late: number[] = [];
+      MOVERS.forEach((m, j) =>
+        m.points.forEach((local, i) => {
+          const path = moverPath(m, local);
+          const vel = (s: number) => scale(sub(path(s + 1e-4), path(s - 1e-4)), 5e3);
+          const tr = m.delay === false ? 0 : retardedTime(path, vel, [m.eye[0], 1.7, m.eye[1]], 0, m.c, 40);
+          const o = (j * MW + i) * 4;
+          offBy.push(len(sub([px[o], px[o + 1], px[o + 2]], path(tr))));
+          // The shader's clock reading (uTauNow = 0) is the emission time in the object's own time.
+          late.push(Math.abs(px[o + 3] * lorentzFactor(m.beta) - tr));
+        }),
+      );
+      const pos = Math.max(...offBy), time = Math.max(...late);
+      return {
+        pass: pos <= 1e-3 && time <= 1e-4,
+        measured: `${offBy.length} vertices at most ${fmt(pos * 1e3)} mm from the CPU, emission times within ${fmt(time * 1e3)} ms`,
+        expected: '≤ 1 mm and ≤ 0.1 ms (float32 rounding at up to 260 m, amplified near head-on approach)',
+      };
     },
   },
   {

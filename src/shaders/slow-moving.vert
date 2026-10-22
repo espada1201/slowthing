@@ -3,6 +3,9 @@
 // root (as physics/relativity.ts does): unguarded, Newton overshoots and cycles for a fast object seen from afar.
 attribute vec3 aColor;
 attribute float aPattern;
+#ifdef PROOF
+attribute vec2 aReadout;  // proofs.ts: this vertex's readout pixel, in clip space
+#endif
 uniform vec3 uObs;
 uniform float uC;
 uniform float uPhase;     // path angle at the observer's current world time
@@ -106,4 +109,9 @@ void main() {
   vColor = aColor;
   vPattern = aPattern;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+#ifdef PROOF
+  // proofs.ts reads the solve back: each vertex becomes a point on its own pixel.
+  gl_Position = vec4(aReadout, 0.0, 1.0);
+  gl_PointSize = 1.0;
+#endif
 }
