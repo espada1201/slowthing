@@ -22,6 +22,8 @@ test('inside a world, a first visit is told how to move until it moves, and is n
   await openWorld(page, 'slow-light');
   await expect(page.locator('.move-hint')).toBeVisible();
   await expect(page.locator('.move-hint')).toContainText('W A S D');
+  // A keyboard-only tester never found N, and paid eight Tabs to reach the tour's Next button.
+  await expect(page.locator('.move-hint')).toContainText('N next tour stop');
   await page.locator('#view').focus();
   await page.keyboard.down('KeyW');
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[0].value) > 0.5, null, { timeout: 30_000 });

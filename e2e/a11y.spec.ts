@@ -45,6 +45,9 @@ test('answering a prediction from the keyboard leaves focus on the answer, not a
   await page.locator('.choice[data-choice="0"]').focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('.predict-reveal')).toBeFocused();
+  // A keyboard-only tester ran out of time in the tour paying five Tabs (Cruise, Stop, Measured, Back) after each answer.
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-tour-next]')).toBeFocused();
 });
 
 test('Next pressed from the keyboard onto a question puts focus on its first answer, and Dials opened from the keyboard puts it in the panel', async ({ page }) => {

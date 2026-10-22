@@ -221,7 +221,7 @@ export function worldChrome(
   const hint = h(
     'aside',
     { class: 'move-hint', 'aria-label': 'How to move', hidden: remembered(MOVED) },
-    matchMedia('(pointer: coarse)').matches ? 'Drag on the left of the screen to walk, on the right to look around.' : 'Click the view to look around · W A S D to walk, ← → to turn, Shift to run · ? lists every key',
+    matchMedia('(pointer: coarse)').matches ? 'Drag on the left of the screen to walk, on the right to look around.' : 'Click the view to look around · W A S D to walk, ← → to turn, Shift to run · N next tour stop · ? lists every key',
   );
 
   const top = h(
@@ -279,9 +279,16 @@ export function worldChrome(
       // The instruments would give the answer away, so they wait until the visitor has committed.
       root.classList.toggle('predicting', !!p);
       given = m?.given ?? null;
+      // The answer takes focus so it is read out; Tab from it goes on to Next, not through the stop's actions first.
+      const toNext = (e: Event) => {
+        const { key, shiftKey } = e as KeyboardEvent;
+        if (key !== 'Tab' || shiftKey || next.disabled) return;
+        e.preventDefault();
+        next.focus();
+      };
       if (p) {
         // Answering disables the button that had focus, so focus moves on to the answer.
-        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1 });
+        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1, onkeydown: toNext });
         const choose = (k: number | null) => {
           for (const [j, b] of buttons.entries()) {
             b.disabled = true;
@@ -306,7 +313,7 @@ export function worldChrome(
       if (m) {
         const inputs = m.asks.map((a) => h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-label': `${a.symbol} in ${a.unit}`, 'data-ask': a.symbol, oninput: (e: Event) => (e.target as HTMLInputElement).setCustomValidity('') }));
         const check = h('button', { class: 'btn', 'data-check': true }, 'Check');
-        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1 });
+        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1, onkeydown: toNext });
         const commit = (mine: number[] | null) => {
           const { values, reveal: text } = m.answer(world.measureState?.());
           const yours = mine?.map((v, k) => {
