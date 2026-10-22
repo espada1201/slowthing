@@ -139,6 +139,7 @@ export class BigGLesson {
         answer: 2,
         reveal: 'rs = 2GM/c² = 1.3×10⁻²² m. Gravity is so weak that a whole boulder would need squeezing six million times smaller than a proton to become a black hole.',
       },
+      lesson: { minutes: 2 },
     },
     {
       title: 'Gravity you can see',
@@ -157,6 +158,10 @@ export class BigGLesson {
         options: ['Exactly the size of the horizon', 'About 2.6 times wider', 'Smaller than the horizon'],
         answer: 1,
         reveal: 'Any light aimed within b = 3√3/2 rs ≈ 2.6 rs of the centre spirals in, so the shadow is about 2.6 times wider than the horizon. The dashed circle marks its edge.',
+      },
+      lesson: {
+        minutes: 3,
+        misconceptions: ['“A black hole’s shadow is the size of its horizon.” Light aimed within about 2.6 horizon radii spirals in, so the shadow is about 2.6 times wider.'],
       },
     },
     {
@@ -186,6 +191,7 @@ export class BigGLesson {
           };
         },
       },
+      lesson: { minutes: 4 },
     },
     {
       title: 'Einstein ring',
@@ -206,6 +212,11 @@ export class BigGLesson {
       pose: facing([0, 0.8, 9], [10, 0.8, 9]),
       constants: { G: gFor(4.5) },
       toggles: { guide: true },
+      lesson: {
+        minutes: 3,
+        misconceptions: ['“Gravity only bends the paths of things with mass.” Light bends too, into arcs and rings.'],
+        explain: [{ toggle: 'lensing', prompt: 'Turn Light bending off. Where did the arcs and the ring go, and why?' }],
+      },
     },
     {
       title: 'Slow clocks, blue sky',
@@ -218,6 +229,10 @@ export class BigGLesson {
         options: ['Redder and dimmer', 'Unchanged', 'Bluer and brighter'],
         answer: 2,
         reveal: 'Light gains energy falling into the well: at 1.2 rs its frequency is 2.4 times higher, the same factor by which your clock runs slow.',
+      },
+      lesson: {
+        minutes: 3,
+        explain: [{ toggle: 'redshift', prompt: 'Hover near the hole with the shift on and off. Why does starlight look bluer down here?' }],
       },
     },
   ];

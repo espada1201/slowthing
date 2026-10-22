@@ -59,7 +59,7 @@ export interface TourStop<S = unknown> {
 export interface StopLesson {
   /** Minutes on the 15-minute lesson path, which takes the stops with minutes in tour order. */
   minutes?: number;
-  /** The wrong ideas this stop is built to surface, as a student would put them. */
+  /** The wrong ideas this stop is built to surface: each as a student would put it, in quotes, then what is true. */
   misconceptions?: string[];
   /** Observe-and-explain prompts for the student sheet, each tied to a switch of this world. */
   explain?: { toggle: string; prompt: string }[];

@@ -102,6 +102,7 @@ export class BigHbarLesson {
       constants: { hbar: REAL.hbar },
       toggles: { rapid: false, detector: true },
       action: 'clear+roll@2.625',
+      lesson: { minutes: 1 },
     },
     {
       title: 'Turn ħ up',
@@ -123,6 +124,10 @@ export class BigHbarLesson {
         answer: 1,
         reveal: 'The wave diffracts through the opening and spreads into a fan. Each ball still lands as one dot, somewhere inside that fan.',
       },
+      lesson: {
+        minutes: 3,
+        explain: [{ toggle: 'wave', prompt: 'Hide the wave and roll again. What can you still see, and what does that tell you about what the wave is?' }],
+      },
     },
     {
       title: 'Two openings',
@@ -136,6 +141,10 @@ export class BigHbarLesson {
         answer: 0,
         reveal: 'Stripe spacing is Lλ/d and λ = 2πħ/p, so a smaller ħ packs the stripes closer. Drag ħ up to about 0.4 and watch them spread apart.',
       },
+      lesson: {
+        minutes: 3,
+        explain: [{ toggle: 'detector', prompt: 'With Rapid fire on, how do single dots become stripes? What does each dot tell you about one ball?' }],
+      },
     },
     {
       title: 'A detector pins it down',
@@ -143,6 +152,13 @@ export class BigHbarLesson {
       pose: porch(0),
       toggles: { rapid: false },
       action: 'roll@0+measure@1.2',
+      lesson: {
+        minutes: 3,
+        misconceptions: [
+          '“Observing means looking.” Measurement is an interaction with a detector (Huseby & Bungum 2019).',
+          '“After a measurement the wave goes back to how it was.” It spreads again from the narrow lump the detector left (about a third of students in one survey, arXiv 1602.05440).',
+        ],
+      },
     },
     {
       title: 'Through glass',
@@ -157,6 +173,7 @@ export class BigHbarLesson {
         answer: 1,
         reveal: `The wave leaks through a barrier it cannot classically cross. Theory gives ${percent(GLASS.planeWave)} for a wave with exactly the ball’s energy, and the count settles near it.`,
       },
+      lesson: { minutes: 3 },
     },
     {
       title: 'Fainter, not slower',
@@ -170,6 +187,10 @@ export class BigHbarLesson {
         options: ['Slower: getting through cost it energy', 'Just as fast as it went in'],
         answer: 1,
         reveal: `No energy is lost in the glass: what gets through averages ${speed(GLASS.speedThrough)}, a touch over the ${BALL.speed} m/s it rolled in at, because faster parts of the wave tunnel more easily. The wave past the glass is fainter because fewer balls get there, not because they are slower.`,
+      },
+      lesson: {
+        minutes: 2,
+        misconceptions: ['“A ball that tunnels comes out slower, having lost energy.” Fewer balls get through; those that do keep their speed (Wittmann, Morgan & Bao; McKagan & Wieman).'],
       },
     },
     {
