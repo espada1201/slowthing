@@ -78,6 +78,19 @@ test('after the dials are turned, the tour card says the stop may not look as de
   await expect(page.locator('.tour-turned')).toBeHidden();
 });
 
+test('Real universe switches the effects back on, and leaves the Measured map as it was', async ({ page }) => {
+  // In user testing, most testers who pressed Real universe then switched the effects back on by hand to be sure.
+  await page.goto('./?world=slow-light&c=6&off=aberration,delay,adapt&on=measured&quality=low&e2e');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
+  await expect(page.locator('[data-toggle="aberration"]')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Dials' }).click();
+  await page.locator('[data-reset="real"]').click();
+  expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
+  for (const id of ['aberration', 'doppler', 'beaming', 'delay', 'contraction', 'adapt']) await expect(page.locator(`[data-toggle="${id}"]`)).toBeChecked();
+  await expect(page.locator('.measured-view')).toBeVisible();
+  await expect(page.locator('.toast')).toContainText('every effect back on');
+});
+
 test('the tour advances and resetting to the real universe restores c', async ({ page }) => {
   await openWorld(page, 'slow-light');
   const titles: string[] = [];

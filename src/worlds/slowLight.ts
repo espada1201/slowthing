@@ -77,12 +77,12 @@ export class SlowLightLesson {
     { id: 'tram', label: 'Tram', key: 'KeyT' },
   ];
   readonly toggles: Toggle[] = [
-    { id: 'aberration', label: 'Aberration', hint: 'Light from the side arrives from ahead when you move', value: true },
-    { id: 'doppler', label: 'Doppler colour', hint: 'Spectral shift, including infrared and ultraviolet', value: true },
-    { id: 'beaming', label: 'Searchlight', hint: 'Brightness piles up ahead (D⁵ beaming)', value: true },
-    { id: 'delay', label: 'Light delay', hint: 'See things as they were when their light left (off: as they are at your now)', value: true },
-    { id: 'contraction', label: 'Contraction', hint: 'Moving things are shorter along their motion', value: true },
-    { id: 'adapt', label: 'Eye adaptation', hint: 'Your eyes adjust to the glare, as real ones would', value: true },
+    { id: 'aberration', label: 'Aberration', hint: 'Light from the side arrives from ahead when you move', value: true, effect: true },
+    { id: 'doppler', label: 'Doppler colour', hint: 'Spectral shift, including infrared and ultraviolet', value: true, effect: true },
+    { id: 'beaming', label: 'Searchlight', hint: 'Brightness piles up ahead (D⁵ beaming)', value: true, effect: true },
+    { id: 'delay', label: 'Light delay', hint: 'See things as they were when their light left (off: as they are at your now)', value: true, effect: true },
+    { id: 'contraction', label: 'Contraction', hint: 'Moving things are shorter along their motion', value: true, effect: true },
+    { id: 'adapt', label: 'Eye adaptation', hint: 'Your eyes adjust to the glare, as real ones would', value: true, effect: true },
     { id: 'measured', label: 'Measured', hint: 'Beside what you see, a map of where everything is and what every clock reads at your now', value: false, view: true },
   ];
   readonly tour: TourStop[] = [

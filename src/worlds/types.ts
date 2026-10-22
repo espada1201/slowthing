@@ -13,6 +13,8 @@ export interface Toggle {
   value: boolean;
   /** A way of looking (World I's Measured map), shown as a button beside Sound rather than among the effects. */
   view?: boolean;
+  /** Part of the physics, so on in the real universe: Real universe switches it back on. */
+  effect?: boolean;
 }
 
 export interface Readout {

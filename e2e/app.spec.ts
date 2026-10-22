@@ -93,8 +93,7 @@ test('phone layout keeps the dials behind a toggle, on top of the instruments', 
   }
   await page.locator('[data-reset="real"]').click();
   expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
-  // Four of five testers doubted the world was back to normal while switches they had turned off stayed off.
-  await expect(page.locator('.toast')).toContainText('The effect switches stay as you set them');
+  await expect(page.locator('.toast')).toContainText('every effect back on');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
 });

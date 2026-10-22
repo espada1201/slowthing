@@ -117,8 +117,8 @@ export class BigGLesson {
   readonly actions = [{ id: 'face', label: 'Face the hole', key: 'KeyF' }];
   readonly help = [{ keys: ['Space', 'Q'], text: 'fly up and down.' }];
   readonly toggles: Toggle[] = [
-    { id: 'lensing', label: 'Light bending', hint: 'Off: draw light in straight lines, for comparison', value: true },
-    { id: 'redshift', label: 'Gravitational shift', hint: 'Light changes colour and brightness climbing in or out of the well', value: true },
+    { id: 'lensing', label: 'Light bending', hint: 'Off: draw light in straight lines, for comparison', value: true, effect: true },
+    { id: 'redshift', label: 'Gravitational shift', hint: 'Light changes colour and brightness climbing in or out of the well', value: true, effect: true },
     { id: 'guide', label: 'Shadow edge', hint: 'Dashed circle: where light just grazes the photon sphere at 1.5 rs', value: false },
   ];
   readonly tour: TourStop<HoleState>[] = [
