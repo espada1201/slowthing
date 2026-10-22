@@ -323,7 +323,7 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'Fainter, not slower',
-      text: 'The panel’s “Glass: speed through” is worked out from the wave past the glass, from the spacing of its crests. Tunnelling changes how many balls get through, not how fast they go.',
+      text: `The panel’s “Glass: speed through” is worked out from the wave past the glass, from the spacing of its crests. Compare it with the ball’s ${BALL.speed} m/s.`,
       pose: gallery(1),
       constants: { hbar: HBAR },
       toggles: { rapid: true },
@@ -332,7 +332,7 @@ export class BigHbarWorld implements World {
         question: 'A ball that tunnels through the glass comes out…',
         options: ['Slower: getting through cost it energy', 'Just as fast as it went in'],
         answer: 1,
-        reveal: `No energy is lost in the glass: what gets through averages ${speed(GLASS.speedThrough)}, if anything a touch over the ${BALL.speed} m/s it rolled in at, as faster parts of the wave tunnel more easily. The wave past the glass is fainter because fewer balls get there, not because they are slower.`,
+        reveal: `No energy is lost in the glass: what gets through averages ${speed(GLASS.speedThrough)}, a touch over the ${BALL.speed} m/s it rolled in at, because faster parts of the wave tunnel more easily. The wave past the glass is fainter because fewer balls get there, not because they are slower.`,
       },
     },
     {
