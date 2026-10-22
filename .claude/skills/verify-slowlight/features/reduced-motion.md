@@ -5,7 +5,7 @@ When the visitor's system asks for reduced motion, a world opens standing still:
 ## Sub-features
 
 - `rm-still` a world opens still: the view and the clocks hold until a key press, tap or click, and the status line reads `Reduced motion: nothing moves until you tap or press a key.`
-- `rm-start` a stop whose action moves things shows `Start`; the action waits for it, and `Start` hides once pressed.
+- `rm-start` a stop whose action moves things shows `Start`; the action waits for it, the world holds still until the next tap, click or key press, and `Start` hides once pressed.
 - `rm-calm` an action that only brings things to rest (World I's `Stop`) still runs on arrival, with no `Start`.
 - `rm-off` without the preference, stops run their actions on arrival and no `Start` shows.
 
@@ -31,4 +31,4 @@ Preconditions:
 
 - The first N both releases the world and moves the tour on, because it is a key press like any other.
 - The printed `status` is the world's own; the reduced-motion notice shows only in the status line on screen, so read it with `ctl text '.status'`.
-- Arriving at a stop that waits for `Start` first runs the world's calm actions, so World I stops a cruise. World II has none, so a roll already under way runs on until `Start`.
+- Arriving at a stop that waits for `Start` first runs the world's calm actions, so World I stops a cruise. World II has none, so a roll already under way holds still with the rest of the world until the next tap, click or key press.

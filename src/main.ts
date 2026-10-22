@@ -65,7 +65,7 @@ let chrome: Chrome | null = null;
 let ruler: Ruler | null = null;
 let tourIndex = 0;
 let frames = 0;
-/** Under reduced motion a world holds still until the visitor first taps, clicks or presses a key in it. */
+/** Under reduced motion a world holds still until the visitor taps, clicks or presses a key: on arrival, and at each tour stop that waits for Start. */
 let still = false;
 for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, () => (still = false), true);
 /** The action of the current tour stop, waiting for its Start button under reduced motion. */
@@ -252,8 +252,9 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
     if (!reduceMotion.matches || calm.includes(stop.action)) world.runAction(stop.action, ctx());
     else {
       pending = stop.action;
-      // shortcut: World II has no calm action, so a roll still going from the previous stop runs on until Start; add one when that matters.
       for (const id of calm) world.runAction(id, ctx());
+      // What the last stop set going and no calm action ends, like World II's roll, holds too.
+      still = true;
     }
   }
   // Marks made at the last stop would point at nothing in particular here.

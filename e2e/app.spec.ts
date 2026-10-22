@@ -80,7 +80,7 @@ test('a tour prediction can be answered and then explains itself', async ({ page
   await expect(page.locator('.tour-text')).toBeVisible();
 });
 
-test('with reduced motion, a world holds still until a key press, and a cruise waits for its Start button', async ({ page }) => {
+test('with reduced motion, a world holds still until a key press, and holds again while a cruise waits for its Start button', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openWorld(page, 'slow-light');
   await expect(page.locator('.status')).toHaveText(/nothing moves until you tap/);
@@ -96,8 +96,10 @@ test('with reduced motion, a world holds still until a key press, and a cruise w
   await expect(page.locator('.tour-title')).toHaveText('Aberration');
   const start = page.getByRole('button', { name: 'Start', exact: true });
   await expect(start).toBeVisible();
+  const held = await clockSeconds(page, 'Town clock t');
   await frames(page, 10);
   expect(await readout(page, 'β = v/c')).toBe('0.000');
+  expect(await clockSeconds(page, 'Town clock t')).toBe(held);
   await start.click();
   await expect(start).toBeHidden();
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
