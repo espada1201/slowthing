@@ -108,7 +108,8 @@ test('measuring fires a floor detector, which flashes and leaves a lump no wider
   for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
   await expect(page.locator('.tour-title')).toHaveText('A detector pins it down');
   const resolution = parseFloat(/([\d.]+) m resolution/.exec((await page.locator('.tour-text').textContent()) ?? '')![1]);
-  // The stop measures 1.2 s into the roll, when the packet is about 1.3 m across. Freeze the moment the detector fires.
+  // The stop measures 1.2 s into the roll, when the packet is about 1.3 m across. Frozen as the detector fires, the
+  // flash and the spread belong to the same moment.
   await page.waitForFunction(() => (window as any).slowlight.status().includes('Detector fired at'), null, { timeout: 150_000, polling: 50 });
   await page.evaluate(() => (window as any).slowlight.pause(true));
   const spread = parseFloat(await readout(page, 'Spread Δx'));
@@ -146,7 +147,7 @@ test('rapid fire at the glass: once every outcome is arriving, about as many get
   const through = (t2 - t1) / (n2 - n1);
   expect(through).toBeGreaterThan(0.15);
   expect(through).toBeLessThan(0.42);
-  // The speed of what got through, read from ψ, is no lower than the ball's, and is what the next stop says it is.
+  // Faster parts of the packet tunnel more easily, so what gets through is a touch faster than the ball, never slower.
   const rolled = parseFloat((await readout(page, 'Ball')).split(' at ')[1]);
   const speedThrough = parseFloat(await readout(page, 'Glass: speed through'));
   expect(speedThrough).toBeGreaterThan(rolled);

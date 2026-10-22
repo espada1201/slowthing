@@ -36,7 +36,7 @@ describe('courtyard floor plan', () => {
       const i0 = Math.round(40 / f.dx), past = i0 + profile.length;
       profile.forEach((u, q) => (sim.potential[i0 + q] = sim.potential[grid.nx + i0 + q] = u));
       sim.setGaussian(20, 0, GLASS_SIGMA, k0, 0);
-      // Speed from the mean momentum of ψ (Im ψ taken midway between its two half steps), over the cells asked for.
+      // ħk/m read from ψ, with Im ψ taken midway between its half steps so that it matches Re ψ in time.
       const speed = (inside: (i: number) => boolean) =>
         (p.hbar * Math.hypot(...meanWavevector(grid, (k) => sim.re[k], (k) => 0.5 * (sim.im[k] + sim.imPrev[k]), inside))) / BALL.mass;
       expect(speed(() => true)).toBeCloseTo(BALL.speed, 9);

@@ -67,7 +67,7 @@ const READ_INTERVAL = 0.2;
 const SUN_DIR = new THREE.Vector3(-0.45, 0.78, 0.43).normalize();
 const INK = 0x15171c;
 const VERMILION = new THREE.Color(0xd2442b);
-/** The floor detector's flash: a cold cyan, unlike anything the wave or the courtyard shows; how long it lasts; its beam's height. */
+/** The detector's flash is a cold cyan, which nothing else in the courtyard shows. */
 const DETECTOR_GLOW = new THREE.Color(0.2, 0.9, 1);
 const FLASH_TIME = 1.5;
 const BEAM_H = 2.4;
@@ -183,8 +183,8 @@ function glowTexture() {
 }
 
 /**
- * The floor detector's response, white with the strength in alpha, spanning ±3σ of it: the Gaussian it multiplies
- * |ψ|² by, as a round spot for the floor or, for a beam standing over it, across and fading with height.
+ * The detector's response, the Gaussian it multiplies |ψ|² by, as alpha over ±3σ: a round spot for the floor or, for
+ * the beam standing over it, across and fading with height.
  */
 function detectorTexture(beam: boolean) {
   const data = new Uint8Array(64 * 64 * 4).fill(255);
@@ -211,7 +211,6 @@ const wavelength = (hbar: number) => `${formatSI(deBroglieWavelength({ mass: BAL
 const percent = (share: number) => `${(100 * share).toPrecision(2)}%`;
 const speed = (v: number) => `${v.toFixed(2)} m/s`;
 const joules = (e: number) => `${formatSI(e)} J`;
-/** The glass experiment at the courtyard's ħ, as theory has it. */
 const GLASS = glassTheory(HBAR);
 
 /** Text cut into the floor. */
@@ -766,7 +765,6 @@ export class BigHbarWorld implements World {
     this.stats = null;
     this.measureAt = null;
     this.held = null;
-    this.crossing = null;
     this.gpu.clear(this.renderer);
   }
 
@@ -812,6 +810,8 @@ export class BigHbarWorld implements World {
     cpu.open.set(this.field.open);
     // A packet several wavelengths long, so the ball has a well-defined momentum to begin with; down the glass lane
     // a longer one, whose energy lies almost all below the glass.
+    // shortcut: that σ is sized for the tour's ħ; at ħ ≈ 1 only 68% of the packet is below the glass and the speed
+    // through reads 4.07 m/s against 4.03 in theory. Scale σ with ħ, and lengthen the lane, to tour the glass there.
     const glass = laneOf(x) === 'glass';
     const sigma = glass ? GLASS_SIGMA : THREE.MathUtils.clamp(0.8 * this.lambda, 0.8, 2);
     const k = (BALL.mass * BALL.speed) / this.hbar;
@@ -1050,7 +1050,6 @@ export class BigHbarWorld implements World {
     click(Math.min(1, 6 / (1 + p.distanceTo(this.pos))), to.dot(rightFlat(this.yaw)));
   }
 
-  /** The floor detector fires at (x, z): it flashes and clicks there, and leaves a mark on the floor. */
   private fire(x: number, z: number) {
     this.flashAge = 0;
     this.flashSpot.position.set(x, 0.03, z);
@@ -1309,7 +1308,7 @@ export class BigHbarWorld implements World {
     this.flashAge += dt;
     this.flashSpot.visible = this.flashBeam.visible = this.flashAge < FLASH_TIME;
     if (this.flashSpot.visible) {
-      // The beam turns to face the eye; both hold their width (the detector's response) and fade.
+      // The flash keeps the detector's width while it fades: the tour compares the lump with it.
       this.flashBeam.rotation.y = this.yaw;
       this.flashSpot.material.opacity = this.flashBeam.material.opacity = 1 - this.flashAge / FLASH_TIME;
     }
