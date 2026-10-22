@@ -20,7 +20,7 @@ export interface Answered extends Question {
 }
 
 /** A measurement as a student sees it: what to find, and the quantities to work out. Only the app has its answer. */
-export interface Measure {
+interface Measure {
   readonly question: string;
   readonly asks: readonly { readonly symbol: string; readonly unit: string }[];
 }

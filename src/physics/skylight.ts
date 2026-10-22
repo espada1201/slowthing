@@ -72,7 +72,7 @@ const SUN_FINE = Float64Array.from({ length: FINE * (SKY_LAMBDAS - 1) + 2 * FINE
  * Σ share · sun(λ_n·D), with intensity exponent `power` (as skyLight). The shares are eachSkySample's spread linearly
  * onto a grid of ln D FINE times finer than SKY_STEP, which makes the sum a convolution with SUN_FINE.
  */
-export function skySpectrum(x: number, eta: number, power: number): Float64Array {
+function skySpectrum(x: number, eta: number, power: number): Float64Array {
   const share = new Float64Array(2 * FINE_REACH + 1);
   eachSkySample(x, eta, power, 256, (lnD, w) => {
     const p = Math.min(2 * FINE_REACH, Math.max(0, lnD / SKY_FINE + FINE_REACH));

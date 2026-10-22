@@ -234,7 +234,7 @@ export class GpuSchrodinger {
  * Run the GPU solver (the very shaders the courtyard uses) and the CPU reference side by side on a
  * small box with a two-cell wall, an opening and a finite barrier, and compare them value by value.
  */
-export function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
+function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
   const n = 64, dx = 0.25, p = { mass: 1, hbar: 1 };
   const field: Field = { n, dx, potential: new Float32Array(n * n), open: new Float32Array(n * n).fill(1), sponge: new Float32Array(n * n) };
   for (let j = 0; j < n; j++) {

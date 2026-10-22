@@ -65,7 +65,7 @@ const logistic = (lambda: number, mid: number, width: number) => 1 / (1 + Math.e
  * Reflectance basis for the red, green and blue channels: smooth windows that sum to 1 at every
  * wavelength, so a white surface reflects a flat spectrum that extends into the ultraviolet and infrared.
  */
-export function basisSpectra(lambda: number): Vec3 {
+function basisSpectra(lambda: number): Vec3 {
   const r = logistic(lambda, 585, 12);
   const b = 1 - logistic(lambda, 495, 12);
   return [r, Math.max(0, 1 - r - b), b];
@@ -92,14 +92,14 @@ function sum(surface: Vec3[], light: number[]): number[] {
   return a;
 }
 
-export function invert3(m: number[]): number[] {
+function invert3(m: number[]): number[] {
   const [a, b, c, d, e, f, g, h, i] = m;
   const A = e * i - f * h, B = -(d * i - f * g), Cc = d * h - e * g;
   const det = a * A + b * B + c * Cc;
   return [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), Cc, -(a * h - b * g), a * e - b * d].map((v) => v / det);
 }
 
-export function mul3(m: number[], n: number[]): number[] {
+function mul3(m: number[], n: number[]): number[] {
   const r = new Array(9).fill(0);
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) r[i * 3 + j] += m[i * 3 + k] * n[k * 3 + j];
   return r;
@@ -143,7 +143,7 @@ function thermalGlow(D: number): Vec3 {
  * Colour transform for a Doppler factor D = ν_observed / ν_emitted (no intensity beaming).
  * Observed linear RGB = matrix · rgb + thermal. `matrix` is row-major 3×3.
  */
-export function dopplerColorTransform(D: number): { matrix: number[]; thermal: Vec3 } {
+function dopplerColorTransform(D: number): { matrix: number[]; thermal: Vec3 } {
   return { matrix: reflectionTransform(D, D), thermal: thermalGlow(D) };
 }
 
@@ -153,7 +153,7 @@ export function applyDoppler(rgb: Vec3, D: number): Vec3 {
 }
 
 /** Writes a colour matrix as three RGBA texels: texel k holds column k (surface channel k's R, G, B) and alpha[k]. */
-export function packColumns(data: Float32Array, texel: (k: number) => number, m: ArrayLike<number>, alpha: readonly number[] = [1, 1, 1]) {
+function packColumns(data: Float32Array, texel: (k: number) => number, m: ArrayLike<number>, alpha: readonly number[] = [1, 1, 1]) {
   for (let k = 0; k < 3; k++) data.set([m[k], m[3 + k], m[6 + k], alpha[k]], texel(k) * 4);
 }
 
@@ -162,7 +162,7 @@ export const LUT_LOG_D_RANGE = Math.log(60);
  * the reflectance windows. */
 export const LUT_SIZE = 1024;
 /** Entry i of a table of `size` entries on that grid, spaced evenly in ln D (common.glsl lutCell finds D on it). */
-export const lutD = (i: number, size: number) => Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1));
+const lutD = (i: number, size: number) => Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1));
 
 /**
  * Lookup table over ln D ∈ [−LUT_LOG_D_RANGE, +LUT_LOG_D_RANGE], 3 rows of RGBA texels.

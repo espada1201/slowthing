@@ -4,7 +4,7 @@
 import type { Page } from '@playwright/test';
 
 /** Relative luminance of the WebGL canvas, averaged in linear light over block × block pixels. */
-export const grabLuminance = (block: number) => {
+const grabLuminance = (block: number) => {
   const src = document.querySelector<HTMLCanvasElement>('#view')!;
   const c = document.createElement('canvas');
   c.width = src.width;
