@@ -51,10 +51,10 @@ export function glassTheory(hbar: number) {
 }
 
 export type Lane = 'doorway' | 'slits' | 'glass';
-export const LANES: { id: Lane; name: string; x0: number; x1: number }[] = [
-  { id: 'doorway', name: 'The doorway', x0: -HALF, x1: -8.25 },
-  { id: 'slits', name: 'Two openings', x0: -7.875, x1: 7.875 },
-  { id: 'glass', name: 'The glass', x0: 8.25, x1: HALF },
+export const LANES: { id: Lane; x0: number; x1: number }[] = [
+  { id: 'doorway', x0: -HALF, x1: -8.25 },
+  { id: 'slits', x0: -7.875, x1: 7.875 },
+  { id: 'glass', x0: 8.25, x1: HALF },
 ];
 
 export interface Block {

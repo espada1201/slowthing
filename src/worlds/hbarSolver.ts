@@ -37,7 +37,7 @@ export class GpuSchrodinger {
   private pbo: WebGLBuffer | null = null;
   private fence: WebGLSync | null = null;
 
-  constructor(readonly field: Field) {
+  constructor(field: Field) {
     const n = (this.n = field.n);
     this.dx = field.dx;
     this.targets = [floatTarget(n), floatTarget(n)];
@@ -263,7 +263,7 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
       }
       gpuNorm += out[k * 4] ** 2 + out[k * 4 + 1] * out[k * 4 + 2];
     }
-    return { steps, relative: maxDiff / maxAmp, normBefore, cpuNorm: cpu.norm(), gpuNorm: gpuNorm * dx * dx };
+    return { steps, relative: maxDiff / maxAmp, normBefore, gpuNorm: gpuNorm * dx * dx };
   } finally {
     gpu.dispose(r);
     r.setRenderTarget(previous);
