@@ -36,9 +36,22 @@ vec3 aberrate(vec3 n, vec3 beta) {
   return normalize(bh * (par + b) / den + (n - bh * par) * sqrt(1.0 - b * b) / den);
 }
 
+// sin and cos to float32 accuracy (π/2 reduction in three parts, then the Cephes polynomials). Some GPUs'
+// built-ins are good only to 1e-4, a centimetre on the tram's loop, which the light-cone solve can magnify.
+vec2 sinCos(float a) {
+  float q = floor(a * 0.63661977 + 0.5);
+  float r = ((a - q * 1.5703125) - q * 4.8375129699707031e-4) - q * 7.5497899548918821e-8;
+  float z = r * r;
+  float s = r + r * z * (-1.6666654611e-1 + z * (8.3321608736e-3 - z * 1.9515295891e-4));
+  float c = 1.0 - 0.5 * z + z * z * (4.1666645683e-2 + z * (-1.3887316255e-3 + z * 2.4433157118e-5));
+  int k = int(q - 4.0 * floor(0.25 * q));
+  return k == 0 ? vec2(s, c) : k == 1 ? vec2(c, -s) : k == 2 ? vec2(-s, -c) : vec2(-c, s);
+}
+
 vec3 pathPos(float a, vec3 local) {
-  vec3 radial = vec3(cos(a), 0.0, sin(a));
-  vec3 forward = vec3(-sin(a), 0.0, cos(a)) * sign(uOmega);
+  vec2 sc = sinCos(a);
+  vec3 radial = vec3(sc.y, 0.0, sc.x);
+  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
   float k = uContract > 0.5 ? 1.0 / uGamma : 1.0;
   return uCenter + uRadius * radial + forward * local.x * k + vec3(0.0, local.y, 0.0) + radial * local.z;
 }
@@ -46,8 +59,9 @@ vec3 pathPos(float a, vec3 local) {
 // That point's velocity, d pathPos / dt: the object turns as it goes round, so its outer and leading
 // points move faster than the track's centre line.
 vec3 pathVel(float a, vec3 local) {
-  vec3 radial = vec3(cos(a), 0.0, sin(a));
-  vec3 forward = vec3(-sin(a), 0.0, cos(a)) * sign(uOmega);
+  vec2 sc = sinCos(a);
+  vec3 radial = vec3(sc.y, 0.0, sc.x);
+  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
   float k = uContract > 0.5 ? 1.0 / uGamma : 1.0;
   return abs(uOmega) * ((uRadius + local.z) * forward - radial * local.x * k);
 }
