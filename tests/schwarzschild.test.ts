@@ -5,6 +5,7 @@ import {
   einsteinRingRadius,
   exactDeflection,
   gravitationalShift,
+  rsFromShadow,
   schwarzschildRadius,
   shadowAngularRadius,
   timeDilation,
@@ -74,6 +75,21 @@ describe('black hole shadow seen by a hovering observer', () => {
       expect(traceRay([r, 0, 0], look(alpha * 0.99), 1, opts).captured).toBe(true);
       expect(traceRay([r, 0, 0], look(alpha * 1.01), 1, opts).captured).toBe(false);
     }
+  });
+});
+
+describe('weighing a hole by its shadow, the way the tour teaches', () => {
+  it('turns a ruler reading of 7.27° at 20 rs into rs to within 2%', () => {
+    // World III's weighing stop: 80 m from a hole with rs = 4 m.
+    const r = 80, rs = 4;
+    expect(shadowAngularRadius(r, rs) / deg).toBeCloseTo(7.27, 2);
+    expect(Math.abs(rsFromShadow(7.27 * deg, r) / rs - 1)).toBeLessThan(0.02);
+    // Leaving the square root out altogether would not be close enough.
+    expect(rsFromShadow(7.27 * deg, r, 1) / rs - 1).toBeLessThan(-0.02);
+  });
+
+  it('solves the shadow formula for rs anywhere outside the photon sphere, given enough rounds', () => {
+    for (const r of [2, 3, 20, 1000]) expect(rsFromShadow(shadowAngularRadius(r, 1), r, 60)).toBeCloseTo(1, 9);
   });
 });
 

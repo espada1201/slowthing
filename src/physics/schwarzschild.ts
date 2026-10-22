@@ -134,6 +134,17 @@ export function shadowAngularRadius(r: number, rs: number): number {
 }
 
 /**
+ * The hole's rs from its shadow's angular radius α seen at r, solved the way the tour teaches: leave the square root
+ * out of sin α = (b_c / r)·√(1 − rs/r) at first, then put each answer back into it (`rounds` answers in all).
+ * Outside the photon sphere this homes in on rs, each round cutting the error by a factor of about 2(r − rs)/rs.
+ */
+export function rsFromShadow(alpha: number, r: number, rounds = 2): number {
+  let rs = 0;
+  for (let i = 0; i < rounds; i++) rs = (r * Math.sin(alpha)) / (CRITICAL_IMPACT * Math.sqrt(1 - rs / r));
+  return rs;
+}
+
+/**
  * Direction in which an outgoing ray at pos (moving along vel) finally leaves for infinity: the
  * weak-field bending still to come, Δ = (3/2)(rs/b)(2/3 − sin φ + sin³φ/3) with sin φ = r̂·v̂ and b the
  * distance of the ray's line from the hole, turned toward the hole. Lets the shader stop marching early.
