@@ -18,6 +18,7 @@ import staticVert from '../shaders/slow-static.vert?raw';
 import surfaceFrag from '../shaders/slow-surface.frag?raw';
 import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
+import { type Rider, ride } from './measured';
 import { compositeFragment, movingFragment, movingVertex } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
@@ -424,12 +425,12 @@ export class SlowLightWorld implements World {
 
     // Movers: analytic circular paths in town time.
     for (const m of this.movers) {
-      const { v, beta, gamma: g } = motion(m.properSpeed, c);
-      const omega = (m.direction * v) / m.radius;
+      const { beta, gamma: g } = motion(m.properSpeed, c);
+      const { phase, omega } = this.rider(m, c);
       const u = m.mesh.material.uniforms;
       u.uC.value = c;
       u.uOmega.value = omega;
-      u.uPhase.value = (m.phase0 + omega * this.t + (m.tram ? this.tramOffset : 0)) % (Math.PI * 2);
+      u.uPhase.value = (phase + omega * this.t) % (Math.PI * 2);
       u.uGamma.value = g;
       u.uBeta.value = beta;
       u.uTauNow.value = (this.t / g) % (BLINK_PERIOD * 1000);
@@ -466,6 +467,12 @@ export class SlowLightWorld implements World {
     r.render(this.composite.scene, this.composite.camera);
   }
 
+  /** A mover's path as slow-moving.vert draws it. */
+  private rider(m: Mover, c: number): Rider {
+    const { v, gamma } = motion(m.properSpeed, c);
+    return { radius: m.radius, phase: m.phase0 + (m.tram ? this.tramOffset : 0), omega: (m.direction * v) / m.radius, squash: this.toggle('contraction') ? 1 / gamma : 1 };
+  }
+
   /**
    * Each lamp rings when its flash *reaches you*: the flash happens on the lamp's own (dilated) clock at the
    * retarded time, and the bell is pitched by the same Doppler factor that shifts the lamp's colour.
@@ -476,10 +483,8 @@ export class SlowLightWorld implements World {
     let lamp = 0;
     for (const m of this.movers) {
       if (m.tram) continue;
-      const { v, gamma } = motion(m.properSpeed, c);
-      const omega = (m.direction * v) / m.radius;
-      const path = (t: number): Vec3 => [m.radius * Math.cos(m.phase0 + omega * t), 3, m.radius * Math.sin(m.phase0 + omega * t)];
-      const vel = (t: number): Vec3 => [-m.radius * omega * Math.sin(m.phase0 + omega * t), 0, m.radius * omega * Math.cos(m.phase0 + omega * t)];
+      const { gamma } = motion(m.properSpeed, c);
+      const { path, velocity: vel } = ride(this.rider(m, c), [0, 3, 0]);
       const tr = this.toggle('delay') ? retardedTime(path, vel, obs, this.t, c, 8) : simultaneousTime(path, vel, { x: obs, t: this.t, beta: betaObs }, c);
       const flash = Math.floor(tr / gamma / BLINK_PERIOD);
       const note = LAMP_NOTES[lamp++ % LAMP_NOTES.length];
