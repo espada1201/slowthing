@@ -13,12 +13,27 @@ uniform float uBeta;      // object's speed / c
 uniform float uRetard;    // 1 = finite light speed, 0 = instantaneous
 uniform float uContract;  // 1 = Lorentz contraction
 uniform float uTauNow;    // object's proper time at the observer's current world time
+uniform vec3 uSun;
+uniform float uAberrationOn;
 varying vec3 vColor;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying float vPattern;
 varying float vDsrc;
 varying float vTau;
+varying float vDin;       // Doppler factor of the sunlight the object receives, in its own frame
+varying vec3 vSunLocal;   // direction of the sun as seen from the moving object
+varying vec3 vVelocity;   // object velocity / c
+
+// Where something moving with velocity β sees a source that lies along n in the town (aberration).
+vec3 aberrate(vec3 n, vec3 beta) {
+  float b = length(beta);
+  if (b < 1e-6) return n;
+  vec3 bh = beta / b;
+  float par = dot(n, bh);
+  float den = 1.0 + dot(beta, n);
+  return normalize(bh * (par + b) / den + (n - bh * par) * sqrt(1.0 - b * b) / den);
+}
 
 vec3 pathPos(float a, vec3 local) {
   vec3 radial = vec3(cos(a), 0.0, sin(a));
@@ -48,6 +63,9 @@ void main() {
   vNormal = normalize(forward * normal.x + vec3(0.0, normal.y, 0.0) + radial * normal.z);
   vec3 k = normalize(uObs - wp);
   vDsrc = 1.0 / (uGamma * (1.0 - dot(forward * uBeta, k)));
+  vVelocity = forward * uBeta;
+  vDin = uGamma * (1.0 + dot(vVelocity, uSun));
+  vSunLocal = uAberrationOn > 0.5 ? aberrate(uSun, vVelocity) : uSun;
   vTau = uTauNow + delta / uGamma;
   vWorld = wp;
   vColor = aColor;

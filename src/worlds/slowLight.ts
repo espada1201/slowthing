@@ -16,6 +16,7 @@ import movingVert from '../shaders/slow-moving.vert?raw';
 import skyFrag from '../shaders/slow-sky.frag?raw';
 import staticVert from '../shaders/slow-static.vert?raw';
 import surfaceFrag from '../shaders/slow-surface.frag?raw';
+import { illuminationUniforms } from '../lut';
 import { SUN, cameraRotation, clockString, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
@@ -30,8 +31,11 @@ const BOUND = 260;
 const CLOCK_TOWER = new THREE.Vector3(0, 0, -26);
 const CLOCK_START = 10 * 3600 + 8 * 60;
 /** Tour cruises start out of town and run straight through it. */
-const CRUISE_NORTH: Pose = { position: [4, EYE, 200], yaw: 0, pitch: 0 };
-const CRUISE_WEST: Pose = { position: [200, EYE, -4], yaw: Math.PI / 2, pitch: 0 };
+const CRUISE_NORTH: Pose = { position: [4, EYE, 130], yaw: 0, pitch: 0 };
+const CRUISE_WEST: Pose = { position: [130, EYE, -4], yaw: Math.PI / 2, pitch: 0 };
+/** 20 m inside the loop, facing the stretch where the tram passes with its sunlit side toward you. */
+const TERRELL_BEARING = (170 * Math.PI) / 180;
+const TERRELL: Pose = { position: [25 * Math.cos(TERRELL_BEARING), EYE, 25 * Math.sin(TERRELL_BEARING)], yaw: Math.atan2(-Math.cos(TERRELL_BEARING), -Math.sin(TERRELL_BEARING)), pitch: -0.1 };
 const CUBE_SIZE: Record<Quality, number> = { low: 256, medium: 512, high: 1024 };
 
 interface Mover {
@@ -75,11 +79,11 @@ export class SlowLightWorld implements World {
   readonly tour: TourStop[] = [
     { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
     { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop', predict: { question: 'The clock face is 65 m away and light moves at 12 m/s. Compared with your watch, it reads…', options: ['the same time', 'about 5 s behind', 'about 5 s ahead'], answer: 1, reveal: 'Its light needed 65 m ÷ 12 m/s ≈ 5.4 s to reach you, so you see the clock as it was 5.4 s ago.' } },
-    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: CRUISE_NORTH, action: 'cruise', predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
-    { title: 'Colours you cannot normally see', text: 'Ahead, blues slide into ultraviolet and vanish while infrared sunlight climbs into view; behind you everything reddens and fades. Sprint past 0.98 c (hold Shift) and even the 300 K warmth of the stone begins to glow.', pose: CRUISE_WEST, action: 'cruise' },
-    { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', pose: CRUISE_NORTH, action: 'cruise' },
-    { title: 'Terrell rotation', text: 'The tram is Lorentz-contracted, yet you see it turned rather than squashed, because light from its far side set off earlier than light from its near side. It comes round every half minute; press T to call it now.', pose: { position: [25, EYE, 0], yaw: -Math.PI / 2, pitch: 0.02 }, action: 'tram', predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
-    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.73 c its clock runs at two-thirds speed, and light delay bunches or spreads the flashes you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop' },
+    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: CRUISE_NORTH, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: true }, predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
+    { title: 'Colours you cannot normally see', text: 'With the searchlight off, look ahead: blues slide into ultraviolet and vanish, infrared sunlight climbs into view, and a rainbow rings the way forward. Sprint past 0.98 c (hold Shift) and even the 300 K warmth of the stone begins to glow.', pose: CRUISE_WEST, action: 'cruise', toggles: { beaming: false } },
+    { title: 'Searchlight', text: 'With the searchlight back on, brightness ahead rises as D⁵ and the same colours drown in glare. Flip the Searchlight switch to compare.', pose: CRUISE_NORTH, action: 'cruise', toggles: { beaming: true } },
+    { title: 'Terrell rotation', text: 'Colour and searchlight are off, so watch only the shape: the tram is Lorentz-contracted, yet it looks turned, not squashed, because light from its far side left earlier. Press T to call it, then switch them back on to see it blaze as it comes and fade as it goes.', pose: TERRELL, action: 'tram', toggles: { doppler: false, beaming: false }, predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
+    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.73 c its clock runs at two-thirds speed, and light delay bunches or spreads the flashes you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop', toggles: { doppler: true, beaming: true } },
     { title: 'You are younger', text: 'Compare the town clock with your watch: every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];
@@ -340,6 +344,10 @@ export class SlowLightWorld implements World {
         uRetard: { value: 1 },
         uContract: { value: 1 },
         uTauNow: { value: 0 },
+        uAberrationOn: { value: 1 },
+        uDopplerOn: { value: 1 },
+        uBeamingOn: { value: 1 },
+        ...illuminationUniforms(),
       },
       THREE.FrontSide,
       { MOVING: '' },
@@ -415,6 +423,9 @@ export class SlowLightWorld implements World {
       u.uTauNow.value = (this.t / g) % (BLINK_PERIOD * 1000);
       u.uRetard.value = this.toggle('delay') ? 1 : 0;
       u.uContract.value = this.toggle('contraction') ? 1 : 0;
+      u.uAberrationOn.value = this.toggle('aberration') ? 1 : 0;
+      u.uDopplerOn.value = this.toggle('doppler') ? 1 : 0;
+      u.uBeamingOn.value = this.toggle('beaming') ? 1 : 0;
     }
     this.ringLamps(c);
     const clock = this.clockMaterial.uniforms;
