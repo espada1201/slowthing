@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { click } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
-import { Schrodinger2D, barrierTransmission, cumulative, deBroglieWavelength, meanWavevector, sampleIndex, stableTimeStep } from '../physics/schrodinger';
+import { Schrodinger2D, barrierTransmission, cumulative, deBroglieWavelength, sampleIndex, stableTimeStep } from '../physics/schrodinger';
 import {
   BALL,
   DETECTOR_RESOLUTION,
@@ -33,6 +33,7 @@ import { CourtyardScene, GALLERY_X, LAUNCH_Z, SOLIDS, TERRACE_H, TERRACE_Z1, flo
 import { GpuSchrodinger } from './hbarSolver';
 import { forwardFlat, rightFlat } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
+import { type WaveStats, analyse, collapsed, sampleCell, wavevector } from './waveAnalysis';
 
 export { proveSolver } from './hbarSolver';
 
@@ -56,21 +57,6 @@ interface Throw {
   z: number;
   dirX: number;
   dirZ: number;
-}
-
-interface WaveStats {
-  inField: number;
-  /** Probability the absorbing walls have taken so far. */
-  absorbed: number;
-  /** Highest |ψ|² on the floor (1/m²). */
-  peak: number;
-  x: number;
-  z: number;
-  spread: number;
-  /** Share of the ball past the obstacle, on the floor or already absorbed there. */
-  beyond: number;
-  /** Probability on the floor past the obstacle, not yet absorbed. */
-  beyondOnFloor: number;
 }
 
 /** What a stream of identical rolls lands on: a fixed point (classical), or the wave's absorbed distribution so far. */
@@ -503,56 +489,6 @@ export class BigHbarWorld implements World {
     this.courtyard.spreadRing.scale.setScalar(sigma * Math.SQRT2);
   }
 
-  /** Summarise the last read-back: probability left on the floor and absorbed, its mean and spread, and how much is past the obstacle. */
-  private analyse(): WaveStats {
-    const b = this.gpu.buffer;
-    const { n, dx } = this.field;
-    const cell = dx * dx;
-    let m = 0, mx = 0, mz = 0, mxx = 0, mzz = 0, ab = 0, beyond = 0, onFloor = 0, peak = 0;
-    for (let j = 0; j < n; j++) {
-      const z = cellCentre(j, dx);
-      for (let i = 0; i < n; i++) {
-        const k = (j * n + i) * 4;
-        const rho = Math.max(0, b[k] * b[k] + b[k + 1] * b[k + 2]);
-        ab += b[k + 3];
-        if (z < OBSTACLE_Z) {
-          beyond += rho * cell + b[k + 3];
-          onFloor += rho;
-        }
-        if (rho === 0) continue;
-        const x = cellCentre(i, dx);
-        if (rho > peak) peak = rho;
-        m += rho;
-        mx += rho * x;
-        mz += rho * z;
-        mxx += rho * x * x;
-        mzz += rho * z * z;
-      }
-    }
-    const inField = m * cell;
-    if (m <= 0) return (this.stats = { inField: 0, absorbed: ab, peak: 0, x: 0, z: 0, spread: 0, beyond: 1, beyondOnFloor: 0 });
-    const ex = mx / m, ez = mz / m;
-    this.stats = {
-      inField,
-      absorbed: ab,
-      peak,
-      x: ex,
-      z: ez,
-      spread: Math.sqrt(Math.max(0, mxx / m - ex * ex + mzz / m - ez * ez)),
-      beyond: beyond / Math.max(1e-9, inField + ab),
-      beyondOnFloor: onFloor * cell,
-    };
-    return this.stats;
-  }
-
-  /** Mean wavevector of the wave in the last read-back, over the cells `inside` picks (all of them by default). */
-  private wavevector(inside: (i: number, j: number) => boolean = () => true): [number, number] {
-    const b = this.gpu.buffer;
-    const { n, dx } = this.field;
-    // Im ψ is read back at the half steps either side of Re ψ: their mean is Im ψ at the same moment.
-    return meanWavevector({ nx: n, ny: n, dx }, (k) => b[k * 4], (k) => 0.5 * (b[k * 4 + 1] + b[k * 4 + 2]), inside);
-  }
-
   /**
    * On a glass roll, whose wave can pass the obstacle only through the glass, read the mean speed ħk/m of what has
    * got through from ψ, each time the wave past the glass is fuller than at the last read. Once it stops growing,
@@ -565,22 +501,12 @@ export class BigHbarWorld implements World {
     if (!c || st.beyondOnFloor < 0.01) return;
     if (st.beyondOnFloor > c.share) {
       const dx = this.field.dx;
-      const [kx, kz] = this.wavevector((_, j) => cellCentre(j, dx) < OBSTACLE_Z);
+      const [kx, kz] = wavevector(this.gpu, (_, j) => cellCentre(j, dx) < OBSTACLE_Z);
       this.crossing = { share: st.beyondOnFloor, speed: (this.hbar * Math.hypot(kx, kz)) / BALL.mass };
     } else {
       this.glassSpeed = c.speed;
       this.crossing = null;
     }
-  }
-
-  /** Draw a cell from the last read-back with probability |ψ|². */
-  private sampleCell(): [number, number, number] | null {
-    const b = this.gpu.buffer;
-    const { n, dx } = this.field;
-    const cdf = cumulative(n * n, (k) => b[k * 4] ** 2 + b[k * 4 + 1] * b[k * 4 + 2]);
-    if (cdf[n * n - 1] <= 1e-12) return null;
-    const k = sampleIndex(cdf, Math.random());
-    return [cellCentre(k % n, dx), cellCentre(Math.floor(k / n), dx), k];
   }
 
   /** Hold the wave still and read it back; once the read-back arrives, settle() does what it was held for. */
@@ -598,9 +524,9 @@ export class BigHbarWorld implements World {
   }
 
   private becomeBall() {
-    const pick = this.sampleCell();
+    const pick = sampleCell(this.gpu);
     if (!pick) return this.stopAll();
-    const [kx, kz] = this.wavevector();
+    const [kx, kz] = wavevector(this.gpu);
     const k = Math.hypot(kx, kz);
     const [dx, dz] = this.hbar * k > 0.2 * BALL.mass * BALL.speed ? [kx / k, kz / k] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
     this.startBall(pick[0], pick[1], dx, dz);
@@ -627,46 +553,25 @@ export class BigHbarWorld implements World {
    * local phase survives, so the lump keeps rolling while it spreads.
    */
   private collapse(r: THREE.WebGLRenderer) {
-    const pick = this.sampleCell();
+    const pick = sampleCell(this.gpu);
     if (!pick) return;
-    const b = this.gpu.buffer;
-    const { n, dx } = this.field;
+    const dx = this.field.dx;
     const fx = pick[0] + DETECTOR_SIGMA * gaussian(), fz = pick[1] + DETECTOR_SIGMA * gaussian();
     // The spot and the response in cells (cell i is centred on i).
     const ci = (fx + HALF) / dx - 0.5, cj = (fz + HALF) / dx - 0.5, sigma = DETECTOR_SIGMA / dx;
-    // What survives is |ψ|² times the response: its total sets the rescaling, its moments the new summary.
-    let kept = 0, mx = 0, mz = 0, mrr = 0, peak = 0, beyond = 0;
-    const reach = 6 * sigma;
-    for (let j = Math.max(0, Math.ceil(cj - reach)); j <= Math.min(n - 1, cj + reach); j++) {
-      const z = cellCentre(j, dx);
-      for (let i = Math.max(0, Math.ceil(ci - reach)); i <= Math.min(n - 1, ci + reach); i++) {
-        const k = (j * n + i) * 4;
-        const x = cellCentre(i, dx);
-        const d2 = (i - ci) ** 2 + (j - cj) ** 2;
-        const rho = Math.exp(-d2 / (2 * sigma * sigma)) * Math.max(0, b[k] ** 2 + b[k + 1] * b[k + 2]);
-        kept += rho;
-        mx += rho * x;
-        mz += rho * z;
-        mrr += rho * (x * x + z * z);
-        if (rho > peak) peak = rho;
-        if (z < OBSTACLE_Z) beyond += rho;
-      }
-    }
-    const norm = kept * dx * dx;
-    if (norm <= 1e-12) return;
-    this.gpu.collapse(r, ci, cj, sigma, 1 / Math.sqrt(norm));
+    const lump = collapsed(this.gpu, ci, cj, sigma);
+    if (!lump) return;
+    this.gpu.collapse(r, ci, cj, sigma, 1 / Math.sqrt(lump.norm));
     // The collapse empties the absorbed tally, so the detectors start counting again from nothing.
     this.seen.fill(0);
     this.seenTotal = 0;
     // What lies past the glass from now on was put there by the detector, not by tunnelling.
     this.crossing = null;
-    const ex = mx / kept, ez = mz / kept;
-    const spread = Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez));
-    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread, beyond: beyond / kept, beyondOnFloor: beyond / kept };
+    const st = (this.stats = lump.stats);
     this.fire(fx, fz);
     this.lastEvent = `Detector fired at x ${fix1(fx)}, z ${fix1(fz)} m`;
-    this.courtyard.ghost.position.set(ex, BALL.radius + 0.02, ez);
-    this.courtyard.spreadRing.scale.setScalar(spread);
+    this.courtyard.ghost.position.set(st.x, BALL.radius + 0.02, st.z);
+    this.courtyard.spreadRing.scale.setScalar(st.spread);
   }
 
   /** A ball has been absorbed somewhere: record where, and draw its dot. */
@@ -875,7 +780,7 @@ export class BigHbarWorld implements World {
 
   /** A read-back has arrived: summarise the wave, read the glass, and give the detector walls their chance to catch it. */
   private detect() {
-    const st = this.analyse();
+    const st = (this.stats = analyse(this.gpu));
     this.readGlass(st);
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
@@ -898,7 +803,7 @@ export class BigHbarWorld implements World {
       if (caught || finished) {
         const seen = this.seen;
         const fresh = caught ? cumulative(n * n, (k) => b[k * 4 + 3] - seen[k]) : null;
-        const pick = fresh && fresh[n * n - 1] > 0 ? sampleIndex(fresh, Math.random()) : this.sampleCell()?.[2];
+        const pick = fresh && fresh[n * n - 1] > 0 ? sampleIndex(fresh, Math.random()) : sampleCell(this.gpu)?.[2];
         this.stopAll();
         if (pick !== undefined) this.land(cellCentre(pick % n, dx), cellCentre(Math.floor(pick / n), dx));
         return;
