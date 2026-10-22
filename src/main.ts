@@ -179,7 +179,7 @@ async function enter(id: string) {
     onReal: () => {
       Object.assign(constants, REAL);
       chrome?.syncDials(constants);
-      chrome?.flash('Real universe: every constant at its measured value');
+      chrome?.flash('Real universe: every constant at its measured value. The effect switches stay as you set them.');
     },
     onPreset: () => {
       Object.assign(constants, REAL, w.preset);

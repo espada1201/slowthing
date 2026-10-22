@@ -14,7 +14,7 @@ export function titleScreen(onEnter: (id: string) => void, onProofs: () => void,
       h('span', { class: 'plate-no' }, c.plate),
       h('span', { class: 'plate-art', html: c.art }),
       h('span', { class: 'plate-title' }, c.title),
-      h('span', { class: 'plate-dial' }, c.dial),
+      h('span', { class: 'plate-dial' }, c.dial, h('span', { class: 'plate-gloss' }, `, ${c.gloss}`)),
       h('span', { class: 'plate-blurb' }, c.blurb),
     ),
   );

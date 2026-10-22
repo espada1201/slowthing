@@ -32,7 +32,7 @@ Preconditions:
 
 - **Enter.** Choose the plate. Run `ctl click '.plate[data-world="slow-light"]'` and `ctl frames 8`. World is `slow-light`, `constants.c` is 12, and all seven toggles (six effects and `reticle`) are true.
 - **Dial down.** Move the c slider to its minimum. Run `ctl press Home '[data-dial="c"]'` and `ctl text '.dial-value'`. `constants.c` is 4 and the value reads `4 m/s`.
-- **Real universe.** Choose `Real universe`. Run `ctl click '[data-reset="real"]'`. `constants.c` is 299792458 and the toast reads `Real universe: every constant at its measured value`.
+- **Real universe.** Choose `Real universe`. Run `ctl click '[data-reset="real"]'`. `constants.c` is 299792458 and the toast reads `Real universe: every constant at its measured value. The effect switches stay as you set them.`
 - **World preset.** Choose `World preset`. Run `ctl click '[data-reset="preset"]'`. `constants.c` is 12.
 - **Run.** Hold Shift and W. Run `ctl hold Shift+KeyW 4000`. Speed is above 0, `β = v/c` above 0.3, `γ` above 1.05, and `You are younger by` above `0.00 s`.
 - **Cruise.** Cruise from the tour's open street, then stop and cruise by key. Run `ctl press KeyN` twice and `ctl frames 40`: the title is `Aberration` and `β = v/c` approaches 0.900. Run `ctl press KeyX` and `ctl frames 40`: `β` falls back to 0 and `ctl text '.reticle'` prints `[]`. Run `ctl press KeyF` and `ctl frames 40`: `β` approaches 0.900 again and `ctl text '.reticle'` prints `[""]` (shown, no text). Take `ctl shot sl-cruise`; it has the level mark at the centre.
