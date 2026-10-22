@@ -98,9 +98,11 @@ export class SlowLightWorld implements World {
   private scene = new THREE.Scene();
   private cubeTarget!: THREE.WebGLCubeRenderTarget;
   private cubeCamera!: THREE.CubeCamera;
+  /** Your velocity / c, set once a frame and shared, like pos, with every shader that needs it. */
+  private beta = new THREE.Vector3();
   private composite = fullscreenPass(compositeFragment, {
     uCube: { value: null },
-    uBeta: { value: new THREE.Vector3() },
+    uBeta: { value: this.beta },
     uCamRot: { value: new THREE.Matrix3() },
     uTan: { value: new THREE.Vector2(1, 1) },
     uAberration: { value: 1 },
@@ -192,7 +194,7 @@ export class SlowLightWorld implements World {
         col = mix(col, vec3(0.4, 0.3, 0.15), smoothstep(0.96, 0.98, r));
         gl_FragColor = vec4(col * 1.05, 1.0);
       }`,
-      { uTownTime: { value: CLOCK_START }, uObs: { value: this.pos }, uObsBeta: { value: this.composite.material.uniforms.uBeta.value }, uC: { value: 12 }, uDelay: { value: 1 } },
+      { uTownTime: { value: CLOCK_START }, uObs: { value: this.pos }, uObsBeta: { value: this.beta }, uC: { value: 12 }, uDelay: { value: 1 } },
     );
   }
 
@@ -360,7 +362,7 @@ export class SlowLightWorld implements World {
         uAberrationOn: { value: 1 },
         uDopplerOn: { value: 1 },
         uBeamingOn: { value: 1 },
-        uObsBeta: { value: this.composite.material.uniforms.uBeta.value },
+        uObsBeta: { value: this.beta },
         ...movingUniforms(),
       },
     );
@@ -421,6 +423,8 @@ export class SlowLightWorld implements World {
     const gamma = Math.sqrt(1 + this.properVel.lengthSq() / (c * c));
     this.pos.addScaledVector(this.properVel, dt);
     this.collide();
+    // After collide(), which can slow or stop you.
+    this.beta.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
     this.tau += dt;
     this.t += gamma * dt;
 
@@ -448,9 +452,7 @@ export class SlowLightWorld implements World {
     clock.uDelay.value = this.toggle('delay') ? 1 : 0;
     this.sky.position.copy(this.pos);
 
-    // The movers shade with the observer's velocity too (uObsBeta is the same vector), so set it before drawing them.
     const u = this.composite.material.uniforms;
-    u.uBeta.value.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
     const r = ctx.renderer;
     this.cubeCamera.position.copy(this.pos);
     this.cubeCamera.update(r, this.scene);
@@ -462,7 +464,7 @@ export class SlowLightWorld implements World {
     u.uAberration.value = this.toggle('aberration') ? 1 : 0;
     u.uDoppler.value = this.toggle('doppler') ? 1 : 0;
     u.uBeaming.value = this.toggle('beaming') ? 1 : 0;
-    this.adaptEyes(dt, u.uCamRot.value, u.uBeta.value, u.uTan.value);
+    this.adaptEyes(dt, u.uCamRot.value, this.beta, u.uTan.value);
     u.uExposure.value = this.toggle('adapt') ? Math.exp(this.logExposure) : 1;
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
@@ -496,7 +498,7 @@ export class SlowLightWorld implements World {
    * retarded time, and the bell is pitched by the same Doppler factor that shifts the lamp's colour.
    */
   private ringLamps(c: number) {
-    const betaObs = scale(velocityFromProper(this.properVel.toArray(), c), 1 / c);
+    const betaObs: Vec3 = [this.beta.x, this.beta.y, this.beta.z];
     const obs: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
     let lamp = 0;
     for (const m of this.movers) {
