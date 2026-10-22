@@ -2,7 +2,7 @@
 
 Walk through three universes where one constant of nature has been turned so far that you can see what it does.
 
-- **I. Slow Light.** In this town, light travels at 12 m/s. Run and the world folds into a bright tunnel ahead of you. Colours shift into ultraviolet and infrared, and even the 300 K warmth of stone becomes visible. The passing tram looks rotated rather than squashed (Terrell rotation), and your watch falls behind the town clock.
+- **I. Slow Light.** In this town, light travels at 12 m/s. Run and the world folds into a bright tunnel ahead of you. Colours shift into ultraviolet and infrared, and at a full sprint even the 300 K warmth of stone becomes visible. The passing tram looks rotated rather than squashed (Terrell rotation), and your watch falls behind the town clock.
 - **II. Big ħ.** In this courtyard, a rolled ball is a quantum wave. It spreads through a doorway, makes interference fringes through two openings, and tunnels through a glass wall. Pressing *Measure* collapses the wave to a single spot.
 - **III. Big G.** Turn gravity up until a 90-tonne boulder collapses into a black hole. Then fly around it while starlight bends into arcs, an Einstein ring and a photon ring.
 
@@ -16,7 +16,7 @@ Each world has a guided tour, effect switches, live instruments and a **Real uni
 4. In Terminal, type `cd `, drag the unzipped folder into the window, and press Return.
 5. Run `npm install && npm start`, then open the link it prints (http://localhost:4173).
 
-Controls: click the view to look around, use WASD to move, hold Shift to run, press N for the next tour stop. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to your exact dial settings.
+Controls: click the view to look around, use WASD to move and the arrow keys to turn, hold Shift to run, press N for the next tour stop. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to your exact dial settings.
 
 ## How the physics is computed
 
@@ -35,6 +35,6 @@ npm run e2e        # Playwright end-to-end tests in Chromium
 npm run typecheck
 ```
 
-GitHub Pages deploys from the default branch through `.github/workflows/pages.yml`. On a free plan, Pages only works if the repository is public.
+To publish it as a website, open the repository's **Settings → Pages** and set **Source** to **GitHub Actions**. From then on, `.github/workflows/pages.yml` deploys the default branch on every push. Until then that workflow skips itself. On a free plan, Pages needs a public repository.
 
 MIT licensed.

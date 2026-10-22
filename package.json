@@ -6,7 +6,7 @@
   "description": "A playable universe with dials for the speed of light, Planck's constant and gravity.",
   "license": "MIT",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "vite",
