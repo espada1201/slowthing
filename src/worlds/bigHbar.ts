@@ -175,6 +175,8 @@ const gaussian = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 
 /** One decimal place, without a stray "-0.0". */
 const fix1 = (v: number) => (Math.round(v * 10) / 10 || 0).toFixed(1);
 const spot = (x: number, z: number) => `${fix1(x)}, ${fix1(z)} m`;
+/** The ball's wavelength at a given ħ, written as the HUD writes it. */
+const wavelength = (hbar: number) => `${formatSI(deBroglieWavelength({ mass: BALL.mass, hbar }, BALL.speed))} m`;
 
 /** Text cut into the floor. */
 function engraving(lines: string[], width: number) {
@@ -223,7 +225,7 @@ export class BigHbarWorld implements World {
   readonly tour: TourStop[] = [
     {
       title: 'A real ball',
-      text: 'With the real ħ, this 0.4 kg ball rolled at 4 m/s has a wavelength of 10⁻³⁴ m. It rolls straight through the opening and leaves one dot, like every ball you have ever thrown.',
+      text: `With the real ħ, this ${BALL.mass} kg ball rolled at ${BALL.speed} m/s has a wavelength of ${wavelength(REAL.hbar)}. It rolls straight through the opening and leaves one dot, like every ball you have ever thrown.`,
       pose: terrace(0),
       constants: { hbar: REAL.hbar },
       toggles: { rapid: false, detector: true },
@@ -231,7 +233,7 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'Turn ħ up',
-      text: 'At ħ = 0.25 J·s the same roll has a wavelength of about a metre. The ball leaves the mark as a wave, and you can watch it spread as it goes.',
+      text: `At ħ = 0.25 J·s the same roll has a wavelength of ${wavelength(0.25)}, about a metre. The ball leaves the mark as a wave, and you can watch it spread as it goes.`,
       pose: porch(0),
       constants: { hbar: 0.25 },
       toggles: { rapid: false },
@@ -280,12 +282,12 @@ export class BigHbarWorld implements World {
         question: 'The ball has 3.2 J and the glass needs 3.68 J. How many balls get through?',
         options: ['None of them', 'About a quarter', 'All of them'],
         answer: 1,
-        reveal: 'The wave leaks through a barrier it cannot classically cross. For a plane wave the theory gives 28%; watch the count settle near it.',
+        reveal: 'The wave leaks through a barrier it cannot classically cross: for a plane wave the theory gives 28%. The ball is a packet with a spread of speeds, and its fast part gains more than its slow part loses, so the count settles a little higher.',
       },
     },
     {
       title: 'A ball as wide as a room',
-      text: 'At ħ = 1 the wavelength is 4 m. The ball is a ripple that fills the whole lane and pours through both openings at once.',
+      text: `At ħ = 1 J·s the wavelength is ${wavelength(1)}. The ball is a ripple that fills the whole lane and pours through both openings at once.`,
       pose: terrace(0),
       constants: { hbar: 1 },
       toggles: { rapid: false },
@@ -1227,7 +1229,7 @@ export class BigHbarWorld implements World {
   readouts(ctx: WorldContext): Readout[] {
     const h = ctx.constants.hbar;
     const out: Readout[] = [
-      { label: 'Wavelength λ', value: `${formatSI(deBroglieWavelength({ mass: BALL.mass, hbar: h }, BALL.speed))} m` },
+      { label: 'Wavelength λ', value: wavelength(h) },
       { label: 'Ball', value: `${BALL.mass} kg at ${BALL.speed} m/s` },
     ];
     const st = this.stats;
