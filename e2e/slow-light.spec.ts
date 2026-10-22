@@ -51,6 +51,22 @@ test('keys keep driving after a click on a switch or a dial', async ({ page }) =
   await expect(page.locator('.tour-title')).toHaveText('The late clock');
 });
 
+test('Cruise from where the world opens carries you round the kiosk and the clock tower, not into them', async ({ page }) => {
+  // Five of five testers pressed Cruise at the first stop and stopped dead against the kiosk or the tower.
+  test.setTimeout(120_000);
+  await openWorld(page, 'slow-light');
+  await page.locator('[data-action="cruise"]:visible').first().click();
+  await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
+  // The tower stands 66 m ahead: at 0.9 c (10.8 m/s) 10 s of town time takes you well past it.
+  const t0 = await clockSeconds(page, 'Town clock t');
+  let slowest = 1;
+  while ((await clockSeconds(page, 'Town clock t')) < t0 + 10) {
+    slowest = Math.min(slowest, parseFloat(await readout(page, 'β = v/c')));
+    await frames(page, 2);
+  }
+  expect(slowest).toBeGreaterThan(0.85);
+});
+
 test('the tour advances and resetting to the real universe restores c', async ({ page }) => {
   await openWorld(page, 'slow-light');
   const titles: string[] = [];

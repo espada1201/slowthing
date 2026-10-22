@@ -26,6 +26,10 @@ const BLINK_PERIOD = 0.6;
 const EYE = 1.7;
 /** How far from the centre you can go: room for a cruise through town at 0.9 c. */
 const BOUND = 260;
+/** How far ahead, and with what clearance, Cruise looks for something to steer round. The tour's cruise lanes clear
+ * everything by at least 1 m, so only a cruise you start yourself is ever steered. */
+const STEER_AHEAD = 15;
+const STEER_MARGIN = 0.5;
 const SUN = new THREE.Vector3(0.45, 0.62, -0.64).normalize();
 const CLOCK_TOWER = new THREE.Vector3(0, 0, -26);
 const CLOCK_START = 10 * 3600 + 8 * 60;
@@ -127,6 +131,8 @@ export class SlowLightWorld extends SlowLightLesson implements World {
   private properVel = new THREE.Vector3();
   private cruise: THREE.Vector3 | null = null;
   private atEdge = false;
+  /** Your watch reading when a wall last stopped you, for the status line. */
+  private bumpedAt = -Infinity;
   private yaw = this.start.yaw;
   private pitch = this.start.pitch;
   /** World (town) coordinate time and the player's proper time, seconds. */
@@ -422,6 +428,7 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     }
     const gamma = Math.sqrt(1 + this.properVel.lengthSq() / (c * c));
     this.pos.addScaledVector(this.properVel, dt);
+    this.steer(dt);
     this.collide();
     // After collide(), which can slow or stop you.
     this.beta.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
@@ -551,10 +558,34 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     this.logExposure += (target - this.logExposure) * (1 - Math.exp(-3 * dt));
   }
 
+  /**
+   * Cruise is an autopilot: when a kiosk, tower or house stands on its line within STEER_AHEAD, it sidesteps round it
+   * (to the side away from the obstacle's centre, the right when head-on) instead of running into it. The sidestep
+   * moves you, it adds nothing to your velocity, so the readouts stay those of the straight cruise.
+   */
+  private steer(dt: number) {
+    if (!this.cruise) return;
+    const p = new THREE.Vector2(this.pos.x, this.pos.z);
+    const d = new THREE.Vector2(this.cruise.x, this.cruise.z).normalize();
+    let nearest: THREE.Box2 | null = null;
+    let tNear = STEER_AHEAD;
+    for (const b of this.obstacles) {
+      const t = rayHitsBox(p, d, b.clone().expandByScalar(STEER_MARGIN));
+      if (t !== null && t < tNear) [nearest, tNear] = [b, t];
+    }
+    if (!nearest) return;
+    const centre = nearest.getCenter(new THREE.Vector2()).sub(p);
+    const away = d.x * centre.y - d.y * centre.x > 0 ? -1 : 1;
+    const side = new THREE.Vector2(-d.y, d.x).multiplyScalar(away);
+    this.pos.x += side.x * 0.6 * this.properVel.length() * dt;
+    this.pos.z += side.y * 0.6 * this.properVel.length() * dt;
+  }
+
   private collide() {
     const p2 = new THREE.Vector2(this.pos.x, this.pos.z);
     for (const b of this.obstacles) {
       if (!b.containsPoint(p2)) continue;
+      if (this.properVel.lengthSq() > 4) this.bumpedAt = this.tau;
       const dx = Math.min(p2.x - b.min.x, b.max.x - p2.x);
       const dz = Math.min(p2.y - b.min.y, b.max.y - p2.y);
       if (dx < dz) p2.x = p2.x - b.min.x < b.max.x - p2.x ? b.min.x : b.max.x;
@@ -598,6 +629,7 @@ export class SlowLightWorld extends SlowLightLesson implements World {
 
   status(ctx: WorldContext) {
     if (this.atEdge) return 'Edge of town. Turn round and cruise back through it (F).';
+    if (this.tau - this.bumpedAt < 5) return 'You walked into a wall. Turn round (← → or drag the view), then walk or cruise on.';
     const tram = motion(TRAM_PROPER_SPEED, ctx.constants.c);
     return `Tram ${tram.beta.toFixed(2)} c · carousel ${motion(CAROUSEL_PROPER_SPEED, ctx.constants.c).beta.toFixed(2)} c`;
   }
@@ -614,4 +646,21 @@ export class SlowLightWorld extends SlowLightLesson implements World {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
     });
   }
+}
+
+/** Distance along the ray p + t·d (d a unit vector) to where it enters box b, or null if it misses (slab test). */
+function rayHitsBox(p: THREE.Vector2, d: THREE.Vector2, b: THREE.Box2): number | null {
+  let t0 = 0;
+  let t1 = Infinity;
+  for (const [o, v, lo, hi] of [[p.x, d.x, b.min.x, b.max.x], [p.y, d.y, b.min.y, b.max.y]]) {
+    if (Math.abs(v) < 1e-9) {
+      if (o < lo || o > hi) return null;
+      continue;
+    }
+    const a = (lo - o) / v;
+    const c = (hi - o) / v;
+    t0 = Math.max(t0, Math.min(a, c));
+    t1 = Math.min(t1, Math.max(a, c));
+  }
+  return t0 <= t1 ? t0 : null;
 }
