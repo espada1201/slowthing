@@ -211,12 +211,13 @@ async function enter(id: string) {
   document.body.dataset.mode = 'world';
   ui.replaceChildren(chrome.root);
   chrome.syncDials(constants);
-  input.setKeyHandler((code) => {
+  input.setKeyHandler((code, key) => {
     if (code === 'KeyN' || code === 'KeyB') {
       const next = tourIndex + (code === 'KeyN' ? 1 : -1);
       // Past either end the Back and Next buttons are disabled, and the keys do nothing either.
       if (next >= 0 && next < w.tour.length) goTour(next);
     } else if (code === 'KeyR') ruler?.toggle();
+    else if (key === '?') chrome?.toggleHelp();
     else if (code === 'Escape') {
       chrome?.closeHelp();
       ruler?.toggle(false);

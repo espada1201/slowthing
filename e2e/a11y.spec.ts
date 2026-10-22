@@ -69,6 +69,20 @@ test('Esc closes the controls help, and the help button no longer says it is ope
   await expect(button).toHaveAttribute('aria-expanded', 'false');
 });
 
+test('the ? key opens and closes the controls help, as the how-to-move hint says', async ({ page }) => {
+  // Two testers read "? lists every key" in the hint, pressed ?, and nothing happened.
+  await openWorld(page, 'slow-light');
+  await expect(page.locator('.move-hint')).toContainText('? lists every key');
+  const button = page.getByRole('button', { name: 'Controls help' });
+  await page.locator('#view').focus();
+  await page.keyboard.press('Shift+Slash');
+  await expect(page.locator('.help')).toBeVisible();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Shift+Slash');
+  await expect(page.locator('.help')).toBeHidden();
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+});
+
 test('the proofs page passes axe once every proof has run', async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto('./?proofs&e2e');

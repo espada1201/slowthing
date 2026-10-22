@@ -65,6 +65,8 @@ export interface Chrome {
   showReticle(warping: boolean): void;
   /** Hide the controls help, as Esc does. */
   closeHelp(): void;
+  /** Show or hide the controls help, as its ? button and the ? key do. */
+  toggleHelp(): void;
   /** Say on the tour card that the dials have been turned since the stop set them, so it may not look as described. */
   showTurned(turned: boolean): void;
   /** The visitor has walked or looked: drop the how-to-move hint, for this and later visits. */
@@ -207,6 +209,7 @@ export function worldChrome(
     ...world.actions.map((a) => h('p', {}, h('kbd', {}, a.key.replace('Key', '')), ` ${a.label.toLowerCase()}.`)),
     ruler ? h('p', {}, h('kbd', {}, 'R'), ' ruler: click two points to measure the angle between them, or move with the arrows and mark with Enter.') : null,
     h('p', {}, h('kbd', {}, 'N'), ' next tour stop, ', h('kbd', {}, 'B'), ' previous.'),
+    h('p', {}, h('kbd', {}, '?'), ' shows or hides this list.'),
     h('p', {}, 'On a phone: drag the left side to walk, the right side to look.'),
   );
   helpBtn.addEventListener('click', () => {
@@ -348,6 +351,9 @@ export function worldChrome(
     closeHelp() {
       help.hidden = true;
       helpBtn.setAttribute('aria-expanded', 'false');
+    },
+    toggleHelp() {
+      helpBtn.click();
     },
     flash(msg) {
       toast.textContent = msg;

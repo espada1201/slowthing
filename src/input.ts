@@ -8,7 +8,7 @@ export interface InputState {
   pitch: number;
 }
 
-type KeyHandler = (key: string) => void;
+type KeyHandler = (code: string, key: string) => void;
 
 const MOVE_KEYS: Record<string, [number, number, number]> = {
   KeyW: [0, 0, 1], ArrowUp: [0, 0, 1],
@@ -47,7 +47,7 @@ export class Input {
         this.held.add(e.code);
         if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
       }
-      if (!e.repeat) this.onKey(e.code);
+      if (!e.repeat) this.onKey(e.code, e.key);
     });
     window.addEventListener('keyup', (e: KeyboardEvent) => this.held.delete(e.code));
     window.addEventListener('blur', () => this.held.clear());
