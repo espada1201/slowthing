@@ -7,7 +7,7 @@ import { tick } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
 import { knotUniforms } from '../lut';
-import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
+import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift, rsFromShadow, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
@@ -88,7 +88,15 @@ function rayUniforms(): Record<string, THREE.IUniform> {
 }
 
 const START = facing([0, 6, 38]);
+/**
+ * Weighing the hole: 80 m (20 rs) from a 4 m hole, high above the deck so that none of it hides the shadow's edge,
+ * looking a little below the hole so that on a phone the shadow sits clear of the tour card.
+ */
+const WEIGH_RS = 4;
+const WEIGH = facing([0, 76.8, 22.4], [0, 0, 15]);
 const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-200).toArray() as [number, number, number]);
+
+const degrees = (radians: number, digits = 1) => `${THREE.MathUtils.radToDeg(radians).toFixed(digits)}°`;
 
 export class BigGWorld implements World {
   readonly id = 'big-g';
@@ -139,6 +147,35 @@ export class BigGWorld implements World {
         options: ['Exactly the size of the horizon', 'About 2.6 times wider', 'Smaller than the horizon'],
         answer: 1,
         reveal: 'Any light aimed within b = 3√3/2 rs ≈ 2.6 rs of the centre spirals in, so the shadow is about 2.6 times wider than the horizon. The dashed circle marks its edge.',
+      },
+    },
+    {
+      title: 'Weigh the hole',
+      text: 'Astronomers weigh real black holes like this. In 2019 the Event Horizon Telescope imaged the shadow of the black hole in the galaxy M87; its size and distance gave a mass of 6.5 billion Suns.',
+      pose: WEIGH,
+      constants: { G: gFor(WEIGH_RS) },
+      toggles: { guide: false },
+      measure: {
+        question: 'How heavy is this black hole?',
+        steps: [
+          'Turn on the Ruler and mark opposite edges of the shadow, the black disc with no stars in it. Half the angle between the marks is its radius α.',
+          'Solve sin α = (3√3/2)(rs/r)√(1 − rs/r) for rs, with your distance r from the instruments. Leave the square root out at first, then put that rs into the square root and solve again.',
+          // shortcut: prints the G this stop sets, which is stale once the visitor turns the G dial here; build this step from the live G if it should follow the dial.
+          `Then M = rs c²/(2G), with c = 3.00×10⁸ m/s and G = ${formatSI(gFor(WEIGH_RS))} m³/kg·s².`,
+        ],
+        given: ['Your distance r'],
+        asks: [
+          { symbol: 'rs', unit: 'm' },
+          { symbol: 'M', unit: 'kg' },
+        ],
+        answer: () => {
+          const r = this.pos.length();
+          const alpha = shadowAngularRadius(r, this.rs);
+          return {
+            values: [this.rs, MASS],
+            reveal: `The hole has rs = ${formatSI(this.rs)} m and M = rs c²/(2G) = ${formatSI(MASS)} kg: the 90-tonne boulder you started with. At ${formatSI(r)} m its shadow’s radius is ${degrees(alpha, 2)}, which gives rs = ${formatSI(rsFromShadow(alpha, r, 1))} m with the square root left out and ${formatSI(rsFromShadow(alpha, r))} m with it put back.`,
+          };
+        },
       },
     },
     {
@@ -286,7 +323,7 @@ export class BigGWorld implements World {
     const alpha = shadowAngularRadius(r, rs);
     const pct = (100 * (1 - Math.cos(alpha))) / 2;
     const sky = pct >= 10 ? pct.toFixed(0) : pct >= 0.1 ? pct.toFixed(1) : '<0.1';
-    const shadow = !this.collapsed ? 'no horizon' : alpha < Math.PI / 2 ? `${THREE.MathUtils.radToDeg(2 * alpha).toFixed(1)}° · ${sky}% of sky` : `${sky}% of sky`;
+    const shadow = !this.collapsed ? 'no horizon' : alpha < Math.PI / 2 ? `${degrees(2 * alpha)} · ${sky}% of sky` : `${sky}% of sky`;
     return [
       { label: 'Schwarzschild radius', value: `${formatSI(rs)} m` },
       { label: 'Your distance r', value: `${formatSI(r)} m` },

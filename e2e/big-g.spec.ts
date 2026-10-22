@@ -53,7 +53,7 @@ test('the readouts follow you toward the hole', async ({ page }) => {
   expect(parseFloat(await readout(page, 'Your clock rate'))).toBeLessThan(0.9397);
 
   // The last tour stop hovers at 1.2 rs.
-  for (let i = 0; i < 7; i++) await page.keyboard.press('KeyN');
+  for (let i = 0; i < 8; i++) await page.keyboard.press('KeyN');
   await frames(page, 2);
   expect(parseFloat(await readout(page, 'Your clock rate'))).toBeCloseTo(0.414, 2);
   expect(await readout(page, 'Shadow')).toBe('73% of sky');
@@ -133,6 +133,85 @@ test('the sky ruler reads the angle between two clicked points, and works from t
   expect(errors).toEqual([]);
 });
 
+/**
+ * The shadow's extent on the page, and points on its left and right edges on the row through its middle, found the way
+ * a careful eye would: the shadow is the only pure black in the view (the sky round it is not quite black).
+ */
+function shadowEdges(page: Page) {
+  return page.evaluate(() => {
+    const view = document.querySelector<HTMLCanvasElement>('#view')!;
+    const c = document.createElement('canvas');
+    [c.width, c.height] = [view.width, view.height];
+    const g = c.getContext('2d')!;
+    g.drawImage(view, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const black = (i: number, j: number) => d[4 * (j * c.width + i)] + d[4 * (j * c.width + i) + 1] + d[4 * (j * c.width + i) + 2] === 0;
+    let [x0, x1, y0, y1] = [c.width, 0, c.height, 0];
+    for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) if (black(i, j)) [x0, x1, y0, y1] = [Math.min(x0, i), Math.max(x1, i), Math.min(y0, j), Math.max(y1, j)];
+    const row = Math.round((y0 + y1) / 2);
+    let [a, b] = [Math.round((x0 + x1) / 2), Math.round((x0 + x1) / 2)];
+    while (black(a - 1, row)) a--;
+    while (black(b + 1, row)) b++;
+    const box = view.getBoundingClientRect();
+    const [sx, sy] = [box.width / c.width, box.height / c.height];
+    return { y: Math.round(box.top + (row + 0.5) * sy), left: Math.round(box.left + a * sx), right: Math.round(box.left + (b + 1) * sx), top: box.top + y0 * sy, bottom: box.top + (y1 + 1) * sy };
+  });
+}
+
+/** rs and M from a ruler reading across the shadow, by the stop's steps: sin α = (3√3/2)(rs/r)√(1 − rs/r), M = rs c²/(2G). */
+async function weigh(page: Page) {
+  const alpha = ((await rulerReading(page)) / 2) * (Math.PI / 180);
+  const r = parseFloat(await readout(page, 'Your distance r'));
+  // Without the square root, then with that rs put into it; c and G as the steps give them.
+  const first = (r * Math.sin(alpha)) / ((3 * Math.sqrt(3)) / 2);
+  const rs = first / Math.sqrt(1 - first / r);
+  return { rs, M: (rs * 3e8 ** 2) / (2 * 2e12) };
+}
+
+/** How far off the reveal says each typed answer was, in per cent. */
+const offs = async (page: Page) => [...(await page.locator('.predict-reveal').innerText()).matchAll(/([\d.]+)% (?:low|high)/g)].map((m) => parseFloat(m[1]));
+
+test('weighing the hole: its shadow, measured with the ruler, gives rs and M to 2%, and the answer waits for yours', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openWorld(page, 'big-g');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Weigh the hole');
+  // Until you answer, the instruments show only your distance: rs, the clock rate and the rest would give it away.
+  await expect(page.locator('.readouts dt')).toHaveText(['Your distance r']);
+  await expect(page.locator('.status')).toBeHidden();
+  await expect(page.locator('.tour-text')).toBeHidden();
+  await frames(page, 2);
+
+  const { y, left, right } = await shadowEdges(page);
+  await page.locator('.panel [data-ruler]').click();
+  await page.mouse.click(left, y);
+  await page.mouse.click(right, y);
+  const { rs, M } = await weigh(page);
+
+  // Typed as a visitor types; a slip of the keyboard is caught before anything is given away.
+  const rsBox = page.locator('[data-ask="rs"]');
+  await rsBox.click();
+  await page.keyboard.type('4.0.1');
+  await page.locator('[data-check]').click();
+  await expect(rsBox).toBeFocused();
+  expect(await rsBox.evaluate((el: HTMLInputElement) => el.validationMessage)).toContain('Type a number');
+  await expect(page.locator('.predict-reveal')).toBeHidden();
+
+  await rsBox.click({ clickCount: 3 });
+  await page.keyboard.type(rs.toFixed(2));
+  await page.locator('[data-ask="M"]').click();
+  await page.keyboard.type(`${(M / 1e4).toFixed(2)}×10^4`);
+  await page.keyboard.press('Enter');
+  const reveal = page.locator('.predict-reveal');
+  await expect(reveal).toContainText('rs = 4 m');
+  await expect(reveal).toContainText('= 90,000 kg');
+  expect(await offs(page)).toHaveLength(2);
+  for (const off of await offs(page)) expect(off).toBeLessThan(2);
+  await expect(page.locator('.tour-text')).toBeVisible();
+  await expect(page.locator('.readouts dt').first()).toHaveText('Schwarzschild radius');
+  expect(errors).toEqual([]);
+});
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 
@@ -159,6 +238,30 @@ test.describe('on a phone', () => {
     await frames(page, 2);
     expect(meanDiff(view, await sample(page)), 'the view should not have turned').toBeLessThan(0.5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  test('weighing the hole by touch: the shadow sits clear of the tour card, and the answer boxes take typing', async ({ page }) => {
+    const errors = watchErrors(page);
+    await openWorld(page, 'big-g');
+    for (let i = 0; i < 4; i++) await page.locator('[data-tour-next]').tap();
+    await expect(page.locator('.tour-title')).toHaveText('Weigh the hole');
+    await frames(page, 2);
+    const shadow = await shadowEdges(page);
+    expect(shadow.bottom).toBeLessThan((await page.locator('.tour').boundingBox())!.y);
+
+    await page.locator('.quick [data-ruler]').tap();
+    await page.touchscreen.tap(shadow.left, shadow.y);
+    await page.touchscreen.tap(shadow.right, shadow.y);
+    const { rs, M } = await weigh(page);
+    await page.locator('[data-ask="rs"]').tap();
+    await page.keyboard.type(rs.toFixed(2));
+    await page.locator('[data-ask="M"]').tap();
+    await page.keyboard.type(String(Math.round(M)));
+    await page.locator('[data-check]').tap();
+    await expect(page.locator('.predict-reveal')).toContainText('rs = 4 m');
+    expect(await offs(page)).toHaveLength(2);
+    for (const off of await offs(page)) expect(off).toBeLessThan(2);
     expect(errors).toEqual([]);
   });
 });
