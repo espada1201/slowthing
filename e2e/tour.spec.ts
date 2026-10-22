@@ -16,6 +16,8 @@ for (const world of ['slow-light', 'big-hbar', 'big-g']) {
       const text = (await page.locator('.tour-text').textContent()) ?? '';
       expect(sentences(text), `"${title}": ${text}`).toBeGreaterThanOrEqual(1);
       expect(sentences(text), `"${title}": ${text}`).toBeLessThanOrEqual(2);
+      // Following the tour never counts as turning the dials yourself.
+      await expect(page.locator('.tour-turned'), `"${title}"`).toBeHidden();
       if (await page.locator('.predict').isVisible()) {
         await page.getByRole('button', { name: 'Just show me' }).click();
         const reveal = (await page.locator('.predict-reveal').textContent()) ?? '';

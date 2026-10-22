@@ -66,6 +66,8 @@ let world: World | null = null;
 let chrome: Chrome | null = null;
 let ruler: Ruler | null = null;
 let tourIndex = 0;
+/** The dials as the current tour stop set them, so the card can say when the visitor has turned them since. */
+let stopDials: Constants | null = null;
 let frames = 0;
 /** Under reduced motion a world holds still until the visitor taps, clicks or presses a key: on arrival, and at each tour stop that waits for Start. */
 let still = false;
@@ -195,6 +197,10 @@ async function enter(id: string) {
     },
     onAction: (a) => w.runAction(a, ctx()),
     onTour: goTour,
+    onStopDials: () => {
+      if (stopDials) Object.assign(constants, stopDials);
+      chrome?.syncDials(constants);
+    },
     onStart: () => {
       if (pending) w.runAction(pending, ctx());
       pending = null;
@@ -261,6 +267,7 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   }
   // Marks made at the last stop would point at nothing in particular here.
   ruler?.clear();
+  stopDials = { ...constants };
   chrome.setTour(tourIndex, pending !== null);
   chrome.syncDials(constants);
   chrome.syncToggles();
@@ -296,6 +303,7 @@ function loop(now: number) {
     hudTimer = 0.1;
     chrome.setReadouts(world.readouts(ctx()), still ? 'Reduced motion: nothing moves until you tap or press a key.' : world.status(ctx()));
     chrome.showReticle(world.warping?.(ctx()) ?? false);
+    chrome.showTurned(!!stopDials && world.dials.some((k) => constants[k] !== stopDials![k]));
   }
 }
 

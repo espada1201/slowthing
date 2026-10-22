@@ -67,6 +67,17 @@ test('Cruise from where the world opens carries you round the kiosk and the cloc
   expect(slowest).toBeGreaterThan(0.85);
 });
 
+test('after the dials are turned, the tour card says the stop may not look as described, and puts them back', async ({ page }) => {
+  // Testers read "A town at 12 m/s: light here crawls" beside a dial reading 299 792 458 m/s.
+  await openWorld(page, 'slow-light');
+  await expect(page.locator('.tour-turned')).toBeHidden();
+  await page.locator('[data-reset="real"]').click();
+  await expect(page.locator('.tour-turned')).toBeVisible();
+  await page.getByRole('button', { name: 'Use this stop’s dials' }).click();
+  expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(12);
+  await expect(page.locator('.tour-turned')).toBeHidden();
+});
+
 test('the tour advances and resetting to the real universe restores c', async ({ page }) => {
   await openWorld(page, 'slow-light');
   const titles: string[] = [];

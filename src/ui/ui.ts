@@ -65,6 +65,8 @@ export interface Chrome {
   showReticle(warping: boolean): void;
   /** Hide the controls help, as Esc does. */
   closeHelp(): void;
+  /** Say on the tour card that the dials have been turned since the stop set them, so it may not look as described. */
+  showTurned(turned: boolean): void;
   /** The visitor has walked or looked: drop the how-to-move hint, for this and later visits. */
   controlsUsed(): void;
   flash(msg: string): void;
@@ -83,6 +85,8 @@ export function worldChrome(
     onShare: () => void;
     onAction: (id: string) => void;
     onTour: (i: number) => void;
+    /** Put the dials back as the current tour stop set them. */
+    onStopDials: () => void;
     onStart: () => void;
     onQuality: (q: QualitySetting) => void;
     /** The sky ruler, for a world that reports its view. */
@@ -175,7 +179,8 @@ export function worldChrome(
     start.hidden = true;
     opts.onStart();
   });
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, quick, start, prev, next));
+  const turned = h('p', { class: 'tour-turned', hidden: true }, 'You have turned the dials since this stop began, so it may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, turned, h('div', { class: 'row' }, quick, start, prev, next));
   let current = 0;
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
@@ -331,6 +336,9 @@ export function worldChrome(
     },
     showReticle(warping) {
       reticle.hidden = !(warping && level.value);
+    },
+    showTurned(on) {
+      if (turned.hidden === on) turned.hidden = !on;
     },
     controlsUsed() {
       if (hint.hidden) return;
