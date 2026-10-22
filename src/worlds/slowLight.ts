@@ -477,7 +477,8 @@ export class SlowLightWorld implements World {
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
 
-    this.overlay.hidden = !this.toggle('measured');
+    // Touch the DOM only when the switch changes, not every frame.
+    if (this.overlay.hidden === this.toggle('measured')) this.overlay.hidden = !this.toggle('measured');
     if (!this.overlay.hidden) this.measuredView.update(this.measured(c), c);
   }
 
