@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Schrodinger2D,
   barrierTransmission,
+  cumulative,
   freeSpreadWidth,
   sampleIndex,
   stableTimeStep,
@@ -124,11 +125,41 @@ describe('fourth-order stencil (used by the GPU courtyard)', () => {
   });
 });
 
-describe('measurement sampling', () => {
-  it('draws indices in proportion to the density', () => {
-    const density = [0, 1, 3, 0];
-    expect(sampleIndex(density, 0.1)).toBe(1);
-    expect(sampleIndex(density, 0.5)).toBe(2);
-    expect(sampleIndex(density, 0.999)).toBe(2);
+/** A seeded uniform generator (mulberry32), so the sampling statistics are repeatable. */
+function seeded(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe('Born-rule sampling', () => {
+  it('draws each cell as often as its weight says', () => {
+    const weights = [0, 1, 3, 0, 2, 0.5, 0, 1.5];
+    const cdf = cumulative(weights.length, (k) => weights[k]);
+    const rand = seeded(7);
+    const draws = 200_000;
+    const counts = weights.map(() => 0);
+    for (let s = 0; s < draws; s++) counts[sampleIndex(cdf, rand())]++;
+    weights.forEach((w, k) => {
+      const p = w / 8;
+      // Within 4.5 standard deviations of the binomial expectation, which for a weightless cell means never.
+      expect(Math.abs(counts[k] - draws * p)).toBeLessThanOrEqual(4.5 * Math.sqrt(draws * p * (1 - p)));
+    });
+  });
+
+  it('never draws a weightless cell, at either end of the unit interval', () => {
+    const cdf = cumulative(5, (k) => [0, 1, -2, 3, 0][k]);
+    expect(Array.from(cdf)).toEqual([0, 1, 1, 4, 4]);
+    expect(sampleIndex(cdf, 0)).toBe(1);
+    expect(sampleIndex(cdf, 0.25 - 1e-12)).toBe(1);
+    expect(sampleIndex(cdf, 0.25)).toBe(3);
+    expect(sampleIndex(cdf, 1 - Number.EPSILON / 2)).toBe(3);
+    expect(sampleIndex(cdf, 1)).toBe(3);
+    expect(sampleIndex(cumulative(1, () => 2), 0.6)).toBe(0);
   });
 });

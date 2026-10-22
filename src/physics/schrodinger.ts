@@ -184,15 +184,27 @@ export function freeSpreadWidth(sigma0: number, t: number, p: Particle): number 
   return sigma0 * Math.sqrt(1 + ((p.hbar * t) / (2 * p.mass * sigma0 * sigma0)) ** 2);
 }
 
-/** Draw a grid cell index from a probability density (inverse-CDF sampling). */
-export function sampleIndex(density: ArrayLike<number>, u: number): number {
-  let total = 0;
-  for (let k = 0; k < density.length; k++) total += Math.max(0, density[k]);
+/** Running totals of a weight over cells, negative weights counting as zero: the distribution sampleIndex draws from. */
+export function cumulative(cells: number, weight: (k: number) => number): Float64Array {
+  const cdf = new Float64Array(cells);
   let acc = 0;
-  const target = u * total;
-  for (let k = 0; k < density.length; k++) {
-    acc += Math.max(0, density[k]);
-    if (acc >= target) return k;
+  for (let k = 0; k < cells; k++) cdf[k] = acc += Math.max(0, weight(k));
+  return cdf;
+}
+
+/**
+ * Draw a cell from running totals (inverse-CDF sampling, by bisection): for u uniform on [0, 1), cell k comes
+ * up with probability weight/total, so a cell of zero weight never does. The total must be positive.
+ */
+export function sampleIndex(cdf: ArrayLike<number>, u: number): number {
+  const target = u * cdf[cdf.length - 1];
+  let lo = 0, hi = cdf.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cdf[mid] > target) hi = mid;
+    else lo = mid + 1;
   }
-  return density.length - 1;
+  // u = 1 lands past the end: step back onto the last cell that has weight.
+  while (lo > 0 && cdf[lo] === cdf[lo - 1]) lo--;
+  return lo;
 }

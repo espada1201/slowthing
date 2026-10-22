@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { click } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
-import { Schrodinger2D, barrierTransmission, deBroglieWavelength, stableTimeStep } from '../physics/schrodinger';
+import { Schrodinger2D, barrierTransmission, cumulative, deBroglieWavelength, sampleIndex, stableTimeStep } from '../physics/schrodinger';
 import floorGlsl from '../shaders/hbar-floor.glsl?raw';
 import paletteGlsl from '../shaders/hbar-palette.glsl?raw';
 import skyFrag from '../shaders/hbar-sky.frag?raw';
@@ -92,25 +92,6 @@ interface WaveStats {
 type Source = { cdf: Float64Array; n: number; complete: boolean } | { point: [number, number] };
 type Counts = Record<Lane, { through: number; back: number; dots: number }>;
 const emptyCounts = (): Counts => ({ doorway: { through: 0, back: 0, dots: 0 }, slits: { through: 0, back: 0, dots: 0 }, glass: { through: 0, back: 0, dots: 0 } });
-
-/** Cumulative distribution over cells of weight(k), for drawing samples. */
-function cdfOf(cells: number, weight: (k: number) => number) {
-  const cdf = new Float64Array(cells);
-  let acc = 0;
-  for (let k = 0; k < cells; k++) cdf[k] = acc += Math.max(0, weight(k));
-  return cdf;
-}
-
-function drawFrom(cdf: Float64Array, u: number) {
-  const target = u * cdf[cdf.length - 1];
-  let lo = 0, hi = cdf.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (cdf[mid] < target) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
 
 /** Box whose UVs are in units of 2 m, so one stone texture tiles at the same scale on every face. */
 function stoneBox(w: number, h: number, d: number) {
@@ -835,9 +816,9 @@ export class BigHbarWorld implements World {
   private sampleCell(): [number, number, number] | null {
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    const cdf = cdfOf(n * n, (k) => b[k * 4] ** 2 + b[k * 4 + 1] * b[k * 4 + 2]);
+    const cdf = cumulative(n * n, (k) => b[k * 4] ** 2 + b[k * 4 + 1] * b[k * 4 + 2]);
     if (cdf[n * n - 1] <= 1e-12) return null;
-    const k = drawFrom(cdf, Math.random());
+    const k = sampleIndex(cdf, Math.random());
     return [cellCentre(k % n, dx), cellCentre(Math.floor(k / n), dx), k];
   }
 
@@ -956,7 +937,7 @@ export class BigHbarWorld implements World {
       this.rapidAcc--;
       if ('point' in src) this.land(...src.point);
       else {
-        const k = drawFrom(src.cdf, Math.random());
+        const k = sampleIndex(src.cdf, Math.random());
         this.land(cellCentre(k % src.n, this.field.dx), cellCentre(Math.floor(k / src.n), this.field.dx));
       }
     }
@@ -1094,7 +1075,7 @@ export class BigHbarWorld implements World {
     if (!st) return;
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    const absorbed = cdfOf(n * n, (k) => b[k * 4 + 3]);
+    const absorbed = cumulative(n * n, (k) => b[k * 4 + 3]);
     const total = absorbed[n * n - 1];
     const finished = st.inField < 0.03 || this.age > 60;
     if (this.toggle('rapid')) {
@@ -1113,8 +1094,8 @@ export class BigHbarWorld implements World {
       const caught = gained > 0 && Math.random() * Math.max(1e-9, 1 - this.seenTotal) < gained;
       if (caught || finished) {
         const seen = this.seen;
-        const fresh = cdfOf(n * n, (k) => b[k * 4 + 3] - seen[k]);
-        const pick = caught && fresh[n * n - 1] > 0 ? drawFrom(fresh, Math.random()) : this.sampleCell()?.[2];
+        const fresh = cumulative(n * n, (k) => b[k * 4 + 3] - seen[k]);
+        const pick = caught && fresh[n * n - 1] > 0 ? sampleIndex(fresh, Math.random()) : this.sampleCell()?.[2];
         this.stopAll();
         if (pick !== undefined) this.land(cellCentre(pick % n, dx), cellCentre(Math.floor(pick / n), dx));
         return;
