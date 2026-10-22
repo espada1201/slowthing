@@ -2,7 +2,7 @@
 
 import { setSound, soundOn } from '../audio';
 import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
-import type { Quality, Readout, World } from '../worlds/types';
+import type { Quality, QualitySetting, Readout, World } from '../worlds/types';
 import type { Ruler } from './ruler';
 
 type Attrs = Record<string, string | boolean | number | ((e: Event) => void)>;
@@ -56,7 +56,7 @@ export const WORLD_CARDS: WorldCard[] = [
   },
 ];
 
-export function titleScreen(onEnter: (id: string) => void, onProofs: () => void, quality: Quality, onQuality: (q: Quality) => void, error: string | null) {
+export function titleScreen(onEnter: (id: string) => void, onProofs: () => void, quality: QualitySetting, onQuality: (q: QualitySetting) => void, error: string | null) {
   const plates = WORLD_CARDS.map((c) =>
     h(
       'button',
@@ -91,9 +91,11 @@ export function titleScreen(onEnter: (id: string) => void, onProofs: () => void,
   );
 }
 
-function qualitySelect(q: Quality, onChange: (q: Quality) => void) {
-  const s = h('select', { 'aria-label': 'Rendering quality', onchange: (e: Event) => onChange((e.target as HTMLSelectElement).value as Quality) });
-  for (const v of ['low', 'medium', 'high'] as Quality[]) s.append(h('option', { value: v, ...(v === q ? { selected: true } : {}) }, v[0].toUpperCase() + v.slice(1)));
+const capital = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+function qualitySelect(q: QualitySetting, onChange: (q: QualitySetting) => void) {
+  const s = h('select', { 'aria-label': 'Rendering quality', onchange: (e: Event) => onChange((e.target as HTMLSelectElement).value as QualitySetting) });
+  for (const v of ['auto', 'low', 'medium', 'high'] as QualitySetting[]) s.append(h('option', { value: v, ...(v === q ? { selected: true } : {}) }, capital(v)));
   return s;
 }
 
@@ -103,6 +105,8 @@ export interface Chrome {
   syncDials(c: Constants): void;
   syncToggles(): void;
   setTour(i: number): void;
+  /** Name the preset Auto is running (null when a preset was chosen by hand). */
+  showQuality(q: Quality | null): void;
   flash(msg: string): void;
 }
 
@@ -111,7 +115,7 @@ export function worldChrome(
   card: WorldCard,
   constants: Constants,
   opts: {
-    quality: Quality;
+    quality: QualitySetting;
     onBack: () => void;
     onDial: (k: ConstantKey, v: number) => void;
     onReal: () => void;
@@ -119,7 +123,7 @@ export function worldChrome(
     onShare: () => void;
     onAction: (id: string) => void;
     onTour: (i: number) => void;
-    onQuality: (q: Quality) => void;
+    onQuality: (q: QualitySetting) => void;
     /** The sky ruler, for a world that reports its view. */
     ruler: Ruler | null;
   },
@@ -303,6 +307,9 @@ export function worldChrome(
       }
       prev.disabled = i === 0;
       next.disabled = i === world.tour.length - 1;
+    },
+    showQuality(q) {
+      for (const s of selects) s.options[0].textContent = q ? `Auto (${q})` : 'Auto';
     },
     flash(msg) {
       toast.textContent = msg;

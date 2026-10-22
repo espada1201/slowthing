@@ -4,12 +4,13 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import './ui/style.css';
 import * as THREE from 'three';
+import { AutoQuality } from './autoQuality';
 import { type ConstantKey, type Constants, DIALS, REAL } from './constants';
 import { Input } from './input';
 import { proofsView } from './ui/proofsView';
 import { type Ruler, skyRuler } from './ui/ruler';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
-import type { Quality, World, WorldContext } from './worlds/types';
+import type { Quality, QualitySetting, World, WorldContext } from './worlds/types';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
@@ -28,8 +29,10 @@ const storedQuality = (() => {
     return null;
   }
 })();
-let quality: Quality = (params.get('quality') ?? storedQuality ?? (matchMedia('(pointer: coarse)').matches ? 'low' : 'medium')) as Quality;
-if (!['low', 'medium', 'high'].includes(quality)) quality = 'medium';
+let setting = (params.get('quality') ?? storedQuality ?? 'auto') as QualitySetting;
+if (!['auto', 'low', 'medium', 'high'].includes(setting)) setting = 'auto';
+/** Where Auto starts in each world: low on phones, high on Apple Silicon (it handles it comfortably), else medium. */
+let autoStart: Quality = matchMedia('(pointer: coarse)').matches ? 'low' : 'medium';
 
 const constants: Constants = { ...REAL };
 let renderer: THREE.WebGLRenderer | null = null;
@@ -37,11 +40,10 @@ let startupError: string | null = null;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: params.has('e2e') });
   if (!renderer.extensions.has('EXT_color_buffer_float')) startupError = 'This browser cannot render to floating-point textures (EXT_color_buffer_float), which the physics needs. Try an up-to-date Chrome, Safari or Firefox.';
-  // Apple Silicon handles the high preset comfortably; default to it unless the visitor chose otherwise.
   const gl = renderer.getContext();
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   const gpu = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
-  if (!params.has('quality') && !storedQuality && /Apple M\d/.test(gpu) && !matchMedia('(pointer: coarse)').matches) quality = 'high';
+  if (/Apple M\d/.test(gpu) && autoStart === 'medium') autoStart = 'high';
 } catch {
   startupError = 'WebGL2 is not available here, so the worlds cannot be drawn. Try an up-to-date Chrome, Safari or Firefox, with hardware acceleration on.';
 }
@@ -52,33 +54,26 @@ let chrome: Chrome | null = null;
 let ruler: Ruler | null = null;
 let tourIndex = 0;
 let frames = 0;
+/** Presets Auto found too slow, per world, for the rest of the visit. */
+const tooSlow: Record<string, Set<Quality>> = {};
+let auto = new AutoQuality(setting === 'auto' ? autoStart : setting, setting === 'auto');
+let quality = auto.preset;
 
 function pixelRatio() {
   const dpr = window.devicePixelRatio || 1;
-  return (quality === 'low' ? Math.min(dpr, 1) * 0.7 : quality === 'medium' ? Math.min(dpr, 1.5) : Math.min(dpr, 2)) * autoRes.scale;
+  return (quality === 'low' ? Math.min(dpr, 1) * 0.7 : quality === 'medium' ? Math.min(dpr, 1.5) : Math.min(dpr, 2)) * auto.scale;
 }
 
-/**
- * Dynamic resolution: when frames run long, draw fewer pixels; when there is headroom again, creep back up,
- * but not past a level that was just too slow. Off in end-to-end runs, which compare pixels.
- */
-const autoRes = { scale: 1, ceiling: 1, avg: 1000 / 60, clock: 0, settle: 2000 };
-function adaptResolution(ms: number) {
-  if (params.has('e2e') || ms > 250) return;
-  autoRes.avg += (ms - autoRes.avg) * 0.05;
-  autoRes.clock += ms;
-  if ((autoRes.settle -= ms) > 0 || autoRes.clock < 1000) return;
-  autoRes.clock = 0;
-  autoRes.ceiling = Math.min(1, autoRes.ceiling * 1.01);
-  let next = autoRes.scale;
-  if (autoRes.avg > 21) {
-    autoRes.ceiling = autoRes.scale * 0.95;
-    next = Math.max(0.5, autoRes.scale * 0.85);
-  } else if (autoRes.avg < 17.5) next = Math.min(autoRes.ceiling, autoRes.scale * 1.06);
-  if (Math.abs(next - autoRes.scale) > 0.01) {
-    autoRes.scale = next;
-    resize();
+/** Let Auto quality judge the frame and apply what it changes. Off in end-to-end runs, which compare pixels. */
+function adapt(ms: number) {
+  if (params.has('e2e')) return;
+  const change = auto.frame(ms);
+  if (change === 'preset') {
+    quality = auto.preset;
+    world?.setQuality(quality, ctx());
+    chrome?.showQuality(quality);
   }
+  if (change) resize();
 }
 
 function resize() {
@@ -90,16 +85,24 @@ window.addEventListener('resize', resize);
 
 const ctx = (): WorldContext => ({ renderer: renderer!, constants, quality });
 
-function setQuality(q: Quality) {
-  quality = q;
-  Object.assign(autoRes, { scale: 1, ceiling: 1, settle: 2000 });
+/** A fresh Auto quality for the world: on Auto it starts from `start`, below any preset already too slow there. */
+function startAuto(id: string, start: Quality) {
+  auto = new AutoQuality(setting === 'auto' ? start : setting, setting === 'auto', (tooSlow[id] ??= new Set()));
+  quality = auto.preset;
+}
+
+function setQuality(q: QualitySetting) {
+  setting = q;
   try {
     localStorage.setItem('slowlight-quality', q);
   } catch {
     /* private mode: the choice just isn't remembered */
   }
+  if (!world) return;
+  startAuto(world.id, quality);
   resize();
-  world?.setQuality(q, ctx());
+  world.setQuality(quality, ctx());
+  chrome?.showQuality(auto.auto ? quality : null);
 }
 
 function showTitle() {
@@ -110,8 +113,8 @@ function showTitle() {
   ruler = null;
   document.body.dataset.mode = 'title';
   if (document.pointerLockElement) document.exitPointerLock();
-  ui.replaceChildren(titleScreen(enter, showProofs, quality, setQuality, startupError));
-  history.replaceState(null, '', location.pathname + (params.has('quality') ? `?quality=${quality}` : ''));
+  ui.replaceChildren(titleScreen(enter, showProofs, setting, setQuality, startupError));
+  history.replaceState(null, '', location.pathname + (params.has('quality') ? `?quality=${setting}` : ''));
   // Coming back from a world, keep keyboard users on the plates; on first load, nothing looks pre-selected.
   if (returning) document.querySelector<HTMLButtonElement>('.plate')?.focus({ preventScroll: true });
 }
@@ -134,6 +137,8 @@ async function enter(id: string) {
     const W = await loaders[id]();
     await new Promise((r) => requestAnimationFrame(r));
     world?.dispose();
+    startAuto(id, autoStart);
+    resize();
     world = new W(ctx());
   } catch (err) {
     console.warn(err);
@@ -143,12 +148,11 @@ async function enter(id: string) {
   }
   const w = world;
   const card = WORLD_CARDS.find((c) => c.id === id)!;
-  autoRes.settle = 2000;
   Object.assign(constants, REAL, w.preset);
   const view = w.view?.bind(w);
   ruler = view ? skyRuler(canvas, view, (on) => on && chrome?.flash('Ruler: tap or click two points to measure the angle between them')) : null;
   chrome = worldChrome(w, card, constants, {
-    quality,
+    quality: setting,
     onBack: showTitle,
     onDial: (k, v) => {
       constants[k] = v;
@@ -190,7 +194,8 @@ async function enter(id: string) {
     const a = w.actions.find((x) => x.key === code);
     if (a) w.runAction(a.id, ctx());
   });
-  history.replaceState(null, '', `?world=${id}${params.has('quality') ? `&quality=${quality}` : ''}`);
+  history.replaceState(null, '', `?world=${id}${params.has('quality') ? `&quality=${setting}` : ''}`);
+  chrome.showQuality(auto.auto ? quality : null);
   goTour(0, true);
   if (pendingShare && params.get('world') === id) {
     for (const k of w.dials) if (pendingShare[k] !== undefined) constants[k] = pendingShare[k];
@@ -241,12 +246,17 @@ let last = performance.now();
 let hudTimer = 0;
 /** End-to-end tests freeze time to compare a switch on and off on the very same moment. */
 let paused = false;
+/** The first frame after the tab was hidden spans the whole absence, which says nothing about speed. */
+let resumed = false;
+document.addEventListener('visibilitychange', () => (resumed = true));
 function loop(now: number) {
   requestAnimationFrame(loop);
   const dt = paused ? 0 : Math.min(0.05, (now - last) / 1000);
-  adaptResolution(now - last);
+  const ms = now - last;
   last = now;
   if (!world || !renderer) return;
+  if (!resumed) adapt(ms);
+  resumed = false;
   input.poll(dt);
   world.frame(dt, input.state, ctx());
   ruler?.update();

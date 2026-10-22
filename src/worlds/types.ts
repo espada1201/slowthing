@@ -3,6 +3,8 @@ import type { ConstantKey, Constants } from '../constants';
 import type { InputState } from '../input';
 
 export type Quality = 'low' | 'medium' | 'high';
+/** What the visitor picked: a preset, or Auto to follow the frame rate. */
+export type QualitySetting = Quality | 'auto';
 
 export interface Toggle {
   id: string;
