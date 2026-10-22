@@ -138,10 +138,6 @@ function showTitle() {
 }
 
 function showProofs() {
-  world?.dispose();
-  world = null;
-  chrome = null;
-  ruler = null;
   document.body.dataset.mode = 'title';
   ui.replaceChildren(proofsView(startupError ? null : renderer, showTitle));
   history.replaceState(null, '', '?proofs');
