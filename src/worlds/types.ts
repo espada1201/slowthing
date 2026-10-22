@@ -40,6 +40,8 @@ export interface TourStop {
   action?: string;
   /** Predict-observe-explain: ask before showing, then reveal. */
   predict?: Prediction;
+  /** Measure something and work numbers out from it; the true values show once the visitor has answered. */
+  measure?: Measurement;
 }
 
 interface Prediction {
@@ -47,6 +49,18 @@ interface Prediction {
   options: string[];
   answer: number;
   reveal: string;
+}
+
+interface Measurement {
+  question: string;
+  /** How to get there, one step to a line. */
+  steps: string[];
+  /** Readouts that stay up while the visitor works: the others would give the answer away. */
+  given: string[];
+  /** What to work out, in order, e.g. { symbol: 'rs', unit: 'm' }. */
+  asks: { symbol: string; unit: string }[];
+  /** The true values, in the order asked, and one or two sentences giving them and how they follow; read on answering. */
+  answer(): { values: number[]; reveal: string };
 }
 
 interface WorldAction {

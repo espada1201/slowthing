@@ -1,7 +1,7 @@
 // DOM for the title screen and the in-world instruments. Plain elements, no framework.
 
 import { setSound, soundOn } from '../audio';
-import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, ratioLabel, toSlider } from '../constants';
+import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
 import type { Quality, Readout, World } from '../worlds/types';
 import type { Ruler } from './ruler';
 
@@ -174,6 +174,8 @@ export function worldChrome(
   const next = h('button', { class: 'btn', 'data-tour-next': true, 'aria-label': 'Next tour stop', onclick: () => opts.onTour(current + 1) }, 'Next →');
   const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, quick, prev, next));
   let current = 0;
+  /** The readouts left up while a measurement waits for its answer. */
+  let given: string[] | null = null;
 
   const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials');
   panelToggle.addEventListener('click', () => {
@@ -215,7 +217,7 @@ export function worldChrome(
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {
-    const el = (e.target as Element).closest('input, button');
+    const el = (e.target as Element).closest('button, input[type="checkbox"], input[type="range"]');
     if (el instanceof HTMLElement) setTimeout(() => el.blur());
   });
 
@@ -224,13 +226,13 @@ export function worldChrome(
     root,
     setReadouts(rs, status) {
       readoutList.replaceChildren(
-        ...rs.flatMap((r) => {
+        ...rs.filter((r) => !given || given.includes(r.label)).flatMap((r) => {
           const dd = h('dd', {}, r.value);
           if (r.gauge !== undefined) dd.append(h('span', { class: 'gauge', style: `--g:${Math.max(0, Math.min(1, r.gauge))}` }));
           return [h('dt', {}, r.label), dd];
         }),
       );
-      statusLine.textContent = status;
+      statusLine.textContent = given ? '' : status;
     },
     syncDials(c) {
       for (const d of dialRows) {
@@ -248,11 +250,12 @@ export function worldChrome(
       tourNo.textContent = `${i + 1} / ${world.tour.length}`;
       tourTitle.textContent = stop.title;
       tourText.textContent = stop.text;
-      const p = stop.predict;
-      predictBox.hidden = !p;
-      tourText.hidden = !!p;
+      const { predict: p, measure: m } = stop;
+      predictBox.hidden = !p && !m;
+      tourText.hidden = !!(p || m);
       // The instruments would give the answer away, so they wait until the visitor has committed.
       root.classList.toggle('predicting', !!p);
+      given = m?.given ?? null;
       if (p) {
         const reveal = h('p', { class: 'predict-reveal', hidden: true });
         const choose = (k: number | null) => {
@@ -270,6 +273,33 @@ export function worldChrome(
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
         predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, reveal);
+      }
+      if (m) {
+        const inputs = m.asks.map((a) => h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-label': `${a.symbol} in ${a.unit}`, 'data-ask': a.symbol }));
+        const check = h('button', { class: 'btn', 'data-check': true }, 'Check');
+        const reveal = h('p', { class: 'predict-reveal', hidden: true });
+        const commit = (mine: number[] | null) => {
+          const { values, reveal: text } = m.answer();
+          const yours = mine?.map((v, k) => {
+            const off = (100 * (v - values[k])) / values[k];
+            return `${m.asks[k].symbol} = ${formatSI(v)} ${m.asks[k].unit} (${Math.abs(off).toFixed(1)}% ${off < 0 ? 'low' : 'high'})`;
+          });
+          reveal.textContent = (yours ? `Yours: ${yours.join(', ')}. ` : '') + text;
+          for (const el of [...inputs, check]) el.disabled = true;
+          reveal.hidden = false;
+          tourText.hidden = false;
+          skip.hidden = true;
+          given = null;
+        };
+        const skip = h('button', { class: 'linkish', onclick: () => commit(null) }, 'Just show me');
+        const onsubmit = (e: Event) => {
+          e.preventDefault();
+          const mine = inputs.map((el) => parseNumber(el.value));
+          for (const [k, el] of inputs.entries()) el.setCustomValidity(mine[k] === null ? 'Type a number, such as 4.1 or 9×10^4' : '');
+          if ((e.target as HTMLFormElement).reportValidity()) commit(mine as number[]);
+        };
+        const form = h('form', { class: 'row answers', novalidate: true, onsubmit }, ...m.asks.map((a, k) => h('label', { class: 'answer' }, a.symbol, inputs[k], a.unit)), check);
+        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Measure'), m.question), h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, reveal);
       }
       prev.disabled = i === 0;
       next.disabled = i === world.tour.length - 1;
