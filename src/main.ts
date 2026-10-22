@@ -334,4 +334,5 @@ else showTitle();
   },
   readouts: () => (world ? world.readouts(ctx()) : []),
   status: () => (world ? world.status(ctx()) : ''),
+  probe: () => world?.probe?.(ctx()),
 };

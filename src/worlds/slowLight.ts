@@ -11,6 +11,7 @@ import { simultaneousTime } from '../physics/simultaneity';
 import { whiteLuminance } from '../physics/spectrum';
 import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
+import { MeasuredView } from '../ui/measuredView';
 import noise from '../shaders/noise.glsl?raw';
 import groundFrag from '../shaders/slow-ground.frag?raw';
 import skyFrag from '../shaders/slow-sky.frag?raw';
@@ -18,7 +19,7 @@ import staticVert from '../shaders/slow-static.vert?raw';
 import surfaceFrag from '../shaders/slow-surface.frag?raw';
 import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
-import { type Rider, ride } from './measured';
+import { type Rider, type Town, measure, ride } from './measured';
 import { compositeFragment, movingFragment, movingVertex } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
@@ -80,6 +81,7 @@ export class SlowLightWorld implements World {
     { id: 'delay', label: 'Light delay', hint: 'See things as they were when their light left (off: as they are at your now)', value: true },
     { id: 'contraction', label: 'Contraction', hint: 'Moving things are shorter along their motion', value: true },
     { id: 'adapt', label: 'Eye adaptation', hint: 'Your eyes adjust to the glare, as real ones would', value: true },
+    { id: 'measured', label: 'Measured', hint: 'Beside what you see, a map of where everything is and what every clock reads at your now', value: false, view: true },
   ];
   readonly tour: TourStop[] = [
     { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
@@ -113,6 +115,8 @@ export class SlowLightWorld implements World {
   private movers: Mover[] = [];
   private obstacles: THREE.Box2[] = [];
   private materials: THREE.ShaderMaterial[] = [];
+  private measuredView = new MeasuredView(CLOCK_START);
+  readonly overlay = this.measuredView.root;
 
   private pos = new THREE.Vector3(...this.start.position);
   private properVel = new THREE.Vector3();
@@ -465,12 +469,28 @@ export class SlowLightWorld implements World {
     u.uExposure.value = this.toggle('adapt') ? Math.exp(this.logExposure) : 1;
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
+
+    this.overlay.hidden = !this.toggle('measured');
+    if (!this.overlay.hidden) this.measuredView.update(this.measured(c), c);
   }
 
   /** A mover's path as slow-moving.vert draws it. */
   private rider(m: Mover, c: number): Rider {
     const { v, gamma } = motion(m.properSpeed, c);
     return { radius: m.radius, phase: m.phase0 + (m.tram ? this.tramOffset : 0), omega: (m.direction * v) / m.radius, squash: this.toggle('contraction') ? 1 / gamma : 1 };
+  }
+
+  /** The Measured view's model: the town at your now, in your frame. */
+  private measured(c: number) {
+    const town: Town = {
+      blocks: this.obstacles.map((b) => [b.min.x, b.min.y, b.max.x, b.max.y]),
+      clocks: [{ id: 'tower', at: [CLOCK_TOWER.x, 14.5, CLOCK_TOWER.z + 2.52] }, ...STREET_CLOCKS.map((p, i) => ({ id: `street-${i}`, at: p.toArray() }))],
+      trams: this.movers.filter((m) => m.tram).map((m) => this.rider(m, c)),
+      lamps: this.movers.filter((m) => !m.tram).map((m) => this.rider(m, c)),
+      lampGamma: motion(CAROUSEL_PROPER_SPEED, c).gamma,
+      blink: BLINK_PERIOD,
+    };
+    return measure(town, { x: this.pos.toArray(), t: this.t, beta: scale(velocityFromProper(this.properVel.toArray(), c), 1 / c) }, this.yaw, c);
   }
 
   /**
@@ -570,6 +590,10 @@ export class SlowLightWorld implements World {
   /** Walking tops out at 0.45 c; sprinting and cruising go past half c, where the whole view warps. */
   warping(ctx: WorldContext) {
     return len(velocityFromProper(this.properVel.toArray(), ctx.constants.c)) >= 0.5 * ctx.constants.c;
+  }
+
+  probe(ctx: WorldContext) {
+    return this.measured(ctx.constants.c);
   }
 
   status(ctx: WorldContext) {

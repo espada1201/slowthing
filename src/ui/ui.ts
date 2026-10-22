@@ -146,7 +146,7 @@ export function worldChrome(
     });
     return { t, box, el: h('label', { class: 'switch', title: t.hint }, box, h('span', { class: 'track' }), h('span', { class: 'switch-label' }, t.label)) };
   };
-  const toggles = world.toggles.map(switchFor);
+  const toggles = world.toggles.filter((t) => !t.view).map(switchFor);
   // On by default: it only shows at speed, which is where a visitor reported feeling dizzy.
   const level: Toggle = { id: 'reticle', label: 'Level reticle', hint: 'A fixed level mark at the centre while you move near light speed, to steady your eyes', value: true };
   try {
@@ -169,8 +169,18 @@ export function worldChrome(
   });
   const actions = world.actions.map((a) => h('button', { class: 'btn', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label, h('kbd', {}, a.key.replace('Key', ''))));
   if (ruler) actions.push(ruler.button('btn', h('kbd', {}, 'R')));
+  // A view toggle has a button in the top bar and, for phones, one on the tour card.
+  const viewButton = (t: Toggle) => {
+    const flip = () => {
+      t.value = !t.value;
+      syncViews();
+    };
+    return h('button', { class: 'btn ghost', 'data-view': t.id, 'aria-pressed': String(t.value), title: t.hint, onclick: flip }, t.label);
+  };
+  const views = world.toggles.filter((t) => t.view).map((t) => ({ t, top: viewButton(t), quick: viewButton(t) }));
+  const syncViews = () => views.forEach(({ t, top, quick }) => [top, quick].forEach((b) => b.setAttribute('aria-pressed', String(t.value))));
   // On a phone the panel hides behind a toggle, so the main actions also sit on the tour card.
-  const quick = h('div', { class: 'quick' }, ...world.actions.slice(0, 2).map((a) => h('button', { class: 'btn ghost', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label)), ruler?.button('btn ghost') ?? null);
+  const quick = h('div', { class: 'quick' }, ...world.actions.slice(0, 2).map((a) => h('button', { class: 'btn ghost', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label)), ruler?.button('btn ghost') ?? null, ...views.map((v) => v.quick));
   const selects = [0, 1].map(() =>
     qualitySelect(opts.quality, (q) => {
       for (const s of selects) s.value = q;
@@ -244,10 +254,10 @@ export function worldChrome(
     { class: 'topbar' },
     h('button', { class: 'btn ghost', 'data-back': true, onclick: opts.onBack }, '←', h('span', { class: 'wide-only' }, ' Worlds')),
     h('div', { class: 'world-name' }, h('span', { class: 'plate-no' }, card.plate), h('span', {}, world.title)),
-    h('div', { class: 'top-right' }, panelToggle, soundBtn, selects[0], helpBtn),
+    h('div', { class: 'top-right' }, panelToggle, ...views.map((v) => v.top), soundBtn, selects[0], helpBtn),
   );
   // The ruler goes first so that it lies under the panels: they stay usable while it is on.
-  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, top, help, panel, hud, tour, toast);
+  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, top, help, panel, hud, tour, toast, world.overlay ?? null);
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {
@@ -277,6 +287,7 @@ export function worldChrome(
     },
     syncToggles() {
       for (const t of toggles) t.box.checked = t.t.value;
+      syncViews();
     },
     setTour(i, waiting = false) {
       current = i;

@@ -11,6 +11,8 @@ export interface Toggle {
   label: string;
   hint: string;
   value: boolean;
+  /** A way of looking (World I's Measured map), shown as a button beside Sound rather than among the effects. */
+  view?: boolean;
 }
 
 export interface Readout {
@@ -103,5 +105,9 @@ export interface World {
   view?(): View;
   /** Whether your own speed is warping the whole view, when a fixed level reticle gives the eye a steady reference. */
   warping?(ctx: WorldContext): boolean;
+  /** Instruments the world draws itself, added to the chrome. */
+  readonly overlay?: HTMLElement;
+  /** What the end-to-end tests read beyond the readouts. */
+  probe?(ctx: WorldContext): unknown;
   dispose(): void;
 }
