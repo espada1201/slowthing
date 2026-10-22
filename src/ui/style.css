@@ -223,6 +223,11 @@ body[data-mode='world'] #touch { display: block; }
 @media (orientation: landscape) and (max-height: 500px) {
   .tour:has(> .predict:not([hidden]) .answers) { max-height: calc(50vh - 26px - var(--safe-b)); overflow-y: auto; }
 }
+/* Narrow and short (200% zoom on a laptop, a phone held sideways): 52vh would show the c dial alone, so the open
+   Dials panel takes the height below the top bar, over the tour card, until it is closed. */
+@media (max-width: 760px) and (max-height: 500px) {
+  .panel { max-height: calc(100dvh - 76px); }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* Proofs */

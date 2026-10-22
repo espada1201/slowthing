@@ -94,7 +94,10 @@ test('Real universe switches the effects back on, and leaves the Measured map as
   await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
   await expect(page.locator('[data-toggle="aberration"]')).not.toBeChecked();
   await page.getByRole('button', { name: 'Dials', exact: true }).click();
+  // Two testers took the filled button for one already chosen; it is pressed only while the universe is real.
+  await expect(page.locator('[data-reset="real"]')).toHaveAttribute('aria-pressed', 'false');
   await page.locator('[data-reset="real"]').click();
+  await expect(page.locator('[data-reset="real"]')).toHaveAttribute('aria-pressed', 'true');
   expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
   for (const id of ['aberration', 'doppler', 'beaming', 'delay', 'contraction', 'adapt']) await expect(page.locator(`[data-toggle="${id}"]`)).toBeChecked();
   await expect(page.locator('.measured-view')).toBeVisible();

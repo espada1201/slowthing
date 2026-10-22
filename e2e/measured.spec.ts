@@ -272,4 +272,11 @@ test.describe('at 200% browser zoom', () => {
       expect(onTop, `${sel} should be visible, not covered`).toBe(true);
     }
   });
+
+  test('the Dials panel opens tall enough to show the effect switches', async ({ page }) => {
+    // At 52% of a 400 px window the keyboard-only tester saw only the c slider, and had to Tab blind to the switches.
+    await openWorld(page, 'slow-light');
+    await page.getByRole('button', { name: 'Dials', exact: true }).click();
+    await expect(page.locator('.switch:has([data-toggle="aberration"])')).toBeInViewport({ ratio: 1 });
+  });
 });

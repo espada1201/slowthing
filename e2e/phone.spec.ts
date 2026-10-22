@@ -50,3 +50,18 @@ test('a thumb drag on the left walks, and lifting it stops; the hint saying so g
   expect(await speed()).toBeLessThan(0.5);
   await expect(page.locator('.move-hint')).toBeHidden();
 });
+
+test('walking into a wall on a phone says how to turn round with a thumb, not with arrow keys', async ({ page }) => {
+  // A phone tester walked into the kiosk and read "← → or drag the view", and strafed instead of turning.
+  test.setTimeout(120_000);
+  await page.goto('./?world=slow-light&quality=low&e2e');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 1, null, { timeout: 60_000 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 80, y: 600 }] });
+  for (let y = 590; y >= 480; y -= 10) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 80, y }] });
+  const wall = page.getByText(/walked into a wall/);
+  await expect(wall).toBeVisible({ timeout: 90_000 });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(wall).toContainText('right of the screen');
+  await expect(wall).not.toContainText('←');
+});

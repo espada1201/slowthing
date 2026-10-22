@@ -629,7 +629,10 @@ export class SlowLightWorld extends SlowLightLesson implements World {
 
   status(ctx: WorldContext) {
     if (this.atEdge) return 'Edge of town. Turn round and cruise back through it (F).';
-    if (this.tau - this.bumpedAt < 5) return 'You walked into a wall. Turn round (← → or drag the view), then walk or cruise on.';
+    if (this.tau - this.bumpedAt < 5) {
+      const turn = matchMedia('(pointer: coarse)').matches ? 'drag on the right of the screen' : '← →, or drag the view';
+      return `You walked into a wall. Turn round (${turn}), then walk or cruise on.`;
+    }
     const tram = motion(TRAM_PROPER_SPEED, ctx.constants.c);
     return `Tram ${tram.beta.toFixed(2)} c · carousel ${motion(CAROUSEL_PROPER_SPEED, ctx.constants.c).beta.toFixed(2)} c`;
   }

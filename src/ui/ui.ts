@@ -1,7 +1,7 @@
 // DOM for the title screen and the in-world instruments. Plain elements, no framework.
 
 import { setSound, soundOn } from '../audio';
-import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
+import { type ConstantKey, type Constants, DIALS, REAL, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
 import type { Quality, QualitySetting, Readout, Toggle, World } from '../worlds/types';
 import { WORLD_CARDS, type WorldCard, h } from './dom';
 import type { Ruler } from './ruler';
@@ -153,12 +153,14 @@ export function worldChrome(
     }),
   );
 
+  // An action, outlined like its neighbours; it shows pressed only while the world's dials are at their real values.
+  const realBtn = h('button', { class: 'btn ghost', 'data-reset': 'real', 'aria-pressed': 'false', onclick: opts.onReal }, 'Real universe');
   const panel = h(
     'aside',
     { class: 'panel', id: 'panel', 'aria-label': 'Constants and effects' },
     h('h2', { class: 'panel-h' }, 'Dials'),
     ...dialRows.map((d) => d.el),
-    h('div', { class: 'row' }, h('button', { class: 'btn', 'data-reset': 'real', onclick: opts.onReal }, 'Real universe'), h('button', { class: 'btn ghost', 'data-reset': 'preset', onclick: opts.onPreset }, 'World preset'), h('button', { class: 'btn ghost', 'data-share': true, title: 'Copy a link to this universe', onclick: opts.onShare }, 'Share')),
+    h('div', { class: 'row' }, realBtn, h('button', { class: 'btn ghost', 'data-reset': 'preset', onclick: opts.onPreset }, 'World preset'), h('button', { class: 'btn ghost', 'data-share': true, title: 'Copy a link to this universe', onclick: opts.onShare }, 'Share')),
     toggles.length ? h('h2', { class: 'panel-h' }, 'Effects') : null,
     toggles.length ? h('div', { class: 'switches' }, ...toggles.map((t) => t.el)) : null,
     actions.length ? h('div', { class: 'row actions' }, ...actions) : null,
@@ -221,7 +223,9 @@ export function worldChrome(
   const hint = h(
     'aside',
     { class: 'move-hint', 'aria-label': 'How to move', hidden: remembered(MOVED) },
-    matchMedia('(pointer: coarse)').matches ? 'Drag on the left of the screen to walk, on the right to look around.' : 'Click the view to look around · W A S D to walk, ← → to turn, Shift to run · N next tour stop · ? lists every key',
+    matchMedia('(pointer: coarse)').matches
+      ? 'Drag on the left of the screen to walk, on the right to look around.'
+      : `Click the view to look around · W A S D to walk, ← → to turn, Shift to run · ${world.actions.slice(0, 1).map((a) => `${a.key.replace('Key', '')} ${a.label.toLowerCase()} · `).join('')}N next tour stop · ? lists every key`,
   );
 
   const top = h(
@@ -254,6 +258,7 @@ export function worldChrome(
       statusLine.textContent = given ? '' : status;
     },
     syncDials(c) {
+      realBtn.setAttribute('aria-pressed', String(world.dials.every((k) => c[k] === REAL[k])));
       for (const d of dialRows) {
         if (document.activeElement !== d.input) d.input.value = String(toSlider(DIALS[d.k], c[d.k]));
         d.val.textContent = `${formatSI(c[d.k])} ${DIALS[d.k].unit}`;
