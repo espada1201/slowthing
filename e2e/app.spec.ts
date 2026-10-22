@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clockSeconds, frames, meanDiff, openWorld, readout, sample, watchErrors } from './helpers';
+import { clockSeconds, expectRendered, frames, meanDiff, openWorld, readout, sample, spread, watchErrors } from './helpers';
 
 test('title screen lists the three worlds and enters one from the keyboard', async ({ page }) => {
   const errors = watchErrors(page);
@@ -122,4 +122,44 @@ test('Auto quality drops to the low preset at half resolution on a slow GPU, and
   await expect.poll(width, { timeout: 60_000 }).toBeCloseTo(1280 * 0.5, -1);
   await page.reload();
   await expect(page.locator('.top-right select')).toHaveValue('high');
+});
+
+test('a graphics card reset is explained until the view comes back, and a reload suggested if it never does', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openWorld(page, 'slow-light');
+  // A lost context hands out no extensions, so keep the one that restores it.
+  const gpu = (call: 'loseContext' | 'restoreContext') =>
+    page.evaluate((c) => {
+      const w = window as any;
+      w.loseContext ??= document.querySelector<HTMLCanvasElement>('#view')!.getContext('webgl2')!.getExtension('WEBGL_lose_context');
+      w.loseContext[c]();
+    }, call);
+  const notice = page.locator('#gpu-reset');
+  await expect(notice).toHaveRole('status');
+  await expect(notice).toBeHidden();
+
+  await gpu('loseContext');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText('The graphics card was reset. Restoring the view…');
+  expect(spread(await sample(page)), 'the view is gone while the context is lost').toBe(0);
+  await gpu('restoreContext');
+  await expect(notice).toBeEmpty();
+  await expect(notice).toBeHidden();
+  await frames(page, 10);
+  await expectRendered(page);
+
+  await gpu('loseContext');
+  await expect(notice).toHaveText('The graphics card was reset and the view did not come back. Reload the page to bring the world back.', { timeout: 15_000 });
+  expect(errors).toEqual([]);
+});
+
+test('Auto quality does not judge the empty frames drawn while the graphics context is lost', async ({ page }) => {
+  await page.goto('./?world=slow-light');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 0);
+  await page.evaluate(() => document.querySelector<HTMLCanvasElement>('#view')!.getContext('webgl2')!.getExtension('WEBGL_lose_context')!.loseContext());
+  const before = await page.evaluate(() => (window as any).slowlight.frames);
+  // Judged, these quick empty frames lift Auto to the high preset within 5 s.
+  await page.waitForTimeout(8000);
+  expect(await page.evaluate(() => (window as any).slowlight.frames)).toBeGreaterThan(before + 100);
+  await expect(page.locator('.top-right select option[value="auto"]')).toHaveText('Auto (medium)');
 });

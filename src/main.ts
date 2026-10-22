@@ -48,6 +48,17 @@ try {
 } catch {
   startupError = 'WebGL2 is not available here, so the worlds cannot be drawn. Try an up-to-date Chrome, Safari or Firefox, with hardware acceleration on.';
 }
+// three.js asks the browser to restore a lost context and rebuilds itself; the visitor only needs telling.
+const gpuReset = document.querySelector<HTMLElement>('#gpu-reset')!;
+let gpuTimer = 0;
+canvas.addEventListener('webglcontextlost', () => {
+  gpuReset.textContent = 'The graphics card was reset. Restoring the view…';
+  gpuTimer = window.setTimeout(() => (gpuReset.textContent = 'The graphics card was reset and the view did not come back. Reload the page to bring the world back.'), 5000);
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  clearTimeout(gpuTimer);
+  gpuReset.textContent = '';
+});
 const input = new Input(canvas, document.querySelector('#touch')!);
 
 let world: World | null = null;
@@ -278,7 +289,8 @@ function loop(now: number) {
   const ms = now - last;
   last = now;
   if (!world || !renderer) return;
-  if (!resumed) adapt(ms);
+  // Nor do frames while the context is lost, which draw nothing.
+  if (!resumed && !renderer.getContext().isContextLost()) adapt(ms);
   resumed = false;
   input.poll(dt);
   world.frame(dt, input.state, ctx());
