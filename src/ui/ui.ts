@@ -194,7 +194,7 @@ export function worldChrome(
     { class: 'help', hidden: true, role: 'dialog', 'aria-label': 'Controls' },
     h('p', {}, h('kbd', {}, 'Click'), ' the view to look around (Esc releases the mouse).'),
     h('p', {}, h('kbd', {}, 'W A S D'), ' move, ', h('kbd', {}, '← →'), ' turn, ', h('kbd', {}, 'Shift'), ' runs.'),
-    world.id === 'big-g' ? h('p', {}, h('kbd', {}, 'Space'), ' / ', h('kbd', {}, 'Q'), ' fly up and down.') : null,
+    ...(world.help ?? []).map((l) => h('p', {}, ...l.keys.flatMap((k, i) => [i ? ' / ' : null, h('kbd', {}, k)]), ` ${l.text}`)),
     ...world.actions.map((a) => h('p', {}, h('kbd', {}, a.key.replace('Key', '')), ` ${a.label.toLowerCase()}.`)),
     ruler ? h('p', {}, h('kbd', {}, 'R'), ' ruler: click two points to measure the angle between them, or move with the arrows and mark with Enter.') : null,
     h('p', {}, h('kbd', {}, 'N'), ' next tour stop, ', h('kbd', {}, 'B'), ' previous.'),

@@ -25,6 +25,12 @@ describe('the world list', () => {
     }).toThrow(TypeError);
   });
 
+  it('lets a world declare its own help lines, as World III does for flying', async () => {
+    const { lesson } = await WORLDS['big-g']();
+    expect(lesson.help).toEqual([{ keys: ['Space', 'Q'], text: 'fly up and down.' }]);
+    for (const id of ['slow-light', 'big-hbar'] as const) expect((await WORLDS[id]()).lesson.help).toBeUndefined();
+  });
+
   it('accepts only its own ids', () => {
     for (const id of ['slow-light', 'big-hbar', 'big-g']) expect(isWorldId(id)).toBe(true);
     for (const id of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', '', null, undefined]) expect(isWorldId(id)).toBe(false);

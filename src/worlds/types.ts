@@ -92,6 +92,12 @@ interface WorldAction {
   calm?: boolean;
 }
 
+/** A line of the controls help: keys that do the same thing, and what they do. */
+interface HelpLine {
+  keys: string[];
+  text: string;
+}
+
 export interface WorldContext {
   renderer: THREE.WebGLRenderer;
   constants: Constants;
@@ -112,6 +118,8 @@ export interface Lesson<S = unknown> {
   readonly tour: TourStop<S>[];
   readonly actions: WorldAction[];
   readonly start: Pose;
+  /** Controls this world has beyond walking, looking and its actions. */
+  readonly help?: HelpLine[];
 }
 
 declare const authored: unique symbol;

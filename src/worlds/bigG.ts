@@ -115,6 +115,7 @@ export class BigGLesson {
   readonly preset = { G: gFor(4.5) };
   readonly start = START;
   readonly actions = [{ id: 'face', label: 'Face the hole', key: 'KeyF' }];
+  readonly help = [{ keys: ['Space', 'Q'], text: 'fly up and down.' }];
   readonly toggles: Toggle[] = [
     { id: 'lensing', label: 'Light bending', hint: 'Off: draw light in straight lines, for comparison', value: true },
     { id: 'redshift', label: 'Gravitational shift', hint: 'Light changes colour and brightness climbing in or out of the well', value: true },
