@@ -209,6 +209,8 @@ interface TramFace {
   colour: Vec3;
   normal: Vec3;
   at: Vec3;
+  /** A head or tail lamp (pattern 2), which glows instead of reflecting. */
+  lamp?: boolean;
   velocity: Vec3;
   sun: Vec3;
   eye: Vec3;
@@ -219,8 +221,10 @@ interface TramFace {
 
 const TRAM_SUN = normalize([0.45, 0.62, -0.64]);
 const TRAM_PAINTS = [0xc8553d, 0xf0e6cf].map((h) => new THREE.Color(h).toArray() as Vec3);
+/** The colours of the tram's head and tail lamps. */
+const TRAM_LAMPS = [0xfff2c0, 0xff3b1f].map((h) => new THREE.Color(h).toArray() as Vec3);
 
-/** Tram faces at three speeds, seen from ahead, beside and behind, standing and cruising, under each pair of switches. */
+/** Tram faces and lamps at three speeds, seen from ahead, beside and behind, standing and cruising, under each pair of switches. */
 function tramFaces(): TramFace[][] {
   const draws: TramFace[][] = [];
   const a = 0.7;
@@ -234,6 +238,10 @@ function tramFaces(): TramFace[][] {
           for (const normal of [forward, scale(forward, -1), radial, scale(radial, -1), [0, 1, 0]] as Vec3[])
             for (const [k, colour] of TRAM_PAINTS.entries())
               faces.push({ colour, normal, at: add(add(centre, scale(normal, 1.3)), [0, k ? 3 : 1.2, 0]), velocity: scale(forward, beta), sun: TRAM_SUN, eye: [eye[0], 1.7, eye[2]], eyeBeta, colourOn, beamOn });
+          for (const [k, colour] of TRAM_LAMPS.entries()) {
+            const normal = scale(forward, k ? -1 : 1);
+            faces.push({ colour, normal, at: add(add(centre, scale(normal, 3.62)), [0, 1.3, 0]), lamp: true, velocity: scale(forward, beta), sun: TRAM_SUN, eye: [eye[0], 1.7, eye[2]], eyeBeta, colourOn, beamOn });
+          }
           draws.push(faces);
         }
   return draws;
@@ -260,10 +268,15 @@ const luminance = (c: Vec3) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
  * The colour a tram face sends to the eye, from the full spectral sums: sunlight aberrated into the tram's frame and
  * shifted by D_in, sky light integrated over the half of the sky the face sees, each reflected and shifted by D_out on
  * the way to the eye, plus the face's 300 K glow. The face's lighting (diffuse sun, tinted sky, ground shadow) is
- * slow-surface.frag's.
+ * slow-surface.frag's. A lamp glows at 2.4 times its colour, and only its own light is shifted, by D_out.
  */
 function exactTramColour(f: TramFace): Vec3 {
   const { sunLocal, dIn, dOut } = tramShifts(f);
+  const seen = (col: Vec3) => col.map((v) => Math.min(v * (f.beamOn ? dOut ** 5 : 1), 6e4)) as Vec3;
+  if (f.lamp) {
+    const glow = scale(f.colour, 2.4);
+    return seen(f.colourOn ? (applyDoppler(glow, dOut).map((v) => Math.max(v, 0)) as Vec3) : glow);
+  }
   const ao = 0.72 + 0.28 * smoothstep(0, 2.5, f.at[1]);
   const hemi = 0.5 + 0.5 * f.normal[1];
   const sunlit = f.colour.map((c, k) => c * Math.max(dot(f.normal, sunLocal), 0) * [1, 0.95, 0.86][k] * 0.9 * ao) as Vec3;
@@ -280,7 +293,7 @@ function exactTramColour(f: TramFace): Vec3 {
     const beam = skyLight(x, eta, 5, () => [1], 128)[0];
     col = [0, 1, 2].map((k) => sunlit[k] * sunGain + skylit[k] * beam) as Vec3;
   }
-  return col.map((v) => Math.min(v * (f.beamOn ? dOut ** 5 : 1), 6e4)) as Vec3;
+  return seen(col);
 }
 
 /** Run the real slow-surface.frag (MOVING) on every face, each drawn as a GL point on its own pixel, and read back its colour. */
@@ -295,16 +308,17 @@ function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramFace[][]) {
     geometry.setAttribute('position', attr((f) => f.at));
     geometry.setAttribute('normal', attr((f) => f.normal));
     geometry.setAttribute('aColor', attr((f) => f.colour));
+    geometry.setAttribute('aPattern', attr((f) => [f.lamp ? 2 : 0]));
     geometry.setAttribute('aVelocity', attr((f) => f.velocity));
     geometry.setAttribute('aSunLocal', attr((f) => tramShifts(f).sunLocal));
     geometry.setAttribute('aShift', attr((f) => [tramShifts(f).dSrc, tramShifts(f).dIn]));
     geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(faces.flatMap((_, i) => [((i + 0.5) / fw) * 2 - 1, ((j + 0.5) / fh) * 2 - 1]), 2));
     const material = new THREE.ShaderMaterial({
-      vertexShader: `attribute vec3 aColor; attribute vec3 aVelocity; attribute vec3 aSunLocal; attribute vec2 aShift; attribute vec2 aReadout;
+      vertexShader: `attribute vec3 aColor; attribute float aPattern; attribute vec3 aVelocity; attribute vec3 aSunLocal; attribute vec2 aShift; attribute vec2 aReadout;
         varying vec3 vColor; varying vec3 vNormal; varying vec3 vWorld; varying float vPattern;
         varying float vDsrc; varying float vTau; varying float vDin; varying vec3 vSunLocal; varying vec3 vVelocity;
         void main() {
-          vColor = aColor; vNormal = normal; vWorld = position; vPattern = 0.0;
+          vColor = aColor; vNormal = normal; vWorld = position; vPattern = aPattern;
           vDsrc = aShift.x; vTau = 0.0; vDin = aShift.y; vSunLocal = aSunLocal; vVelocity = aVelocity;
           gl_Position = vec4(aReadout, 0.0, 1.0);
           gl_PointSize = 1.0;
@@ -464,7 +478,7 @@ export const PROOFS: Proof[] = [
     run: (r) => {
       const draws = tramFaces();
       const { pixels, width } = runTramFaces(r, draws);
-      let worst = 0, handOff = 0, checked = 0;
+      let worst = 0, worstLamp = 0, handOff = 0, checked = 0, lamps = 0;
       draws.forEach((faces, j) =>
         faces.forEach((f, i) => {
           const o = (j * width + i) * 4;
@@ -473,13 +487,19 @@ export const PROOFS: Proof[] = [
           const want = exactTramColour(f);
           // Faces too dark to see (under 2 % of a white wall in sunshine) are not held to a relative error.
           if (luminance(want) < 0.02) return;
-          worst = Math.max(worst, ...want.map((v, k) => Math.abs(pixels[o + k] - v) / luminance(want)));
-          checked++;
+          const error = Math.max(...want.map((v, k) => Math.abs(pixels[o + k] - v) / luminance(want)));
+          if (f.lamp) {
+            worstLamp = Math.max(worstLamp, error);
+            lamps++;
+          } else {
+            worst = Math.max(worst, error);
+            checked++;
+          }
         }),
       );
       return {
-        pass: worst <= 0.03 && handOff <= 1e-4 && checked > 100,
-        measured: `${checked} faces, worst colour error ${fmt(worst * 100)} % of the face's brightness, 1 / D_obs handed on within ${fmt(handOff)}`,
+        pass: Math.max(worst, worstLamp) <= 0.03 && handOff <= 1e-4 && checked > 100 && lamps > 30,
+        measured: `${checked} faces and ${lamps} lamps, worst colour error ${fmt(worst * 100)} % and ${fmt(worstLamp * 100)} % of their brightness, 1 / D_obs handed on within ${fmt(handOff)}`,
         expected: '≤ 3 % (the shader carries light at eight wavelengths and looks the sky up in tables) and ≤ 1e-4',
       };
     },
