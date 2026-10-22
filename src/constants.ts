@@ -12,7 +12,6 @@ export interface Constants {
 export const REAL: Readonly<Constants> = { c: 299792458, hbar: 1.054571817e-34, G: 6.6743e-11 };
 
 export interface Dial {
-  key: ConstantKey;
   symbol: string;
   name: string;
   unit: string;
@@ -21,9 +20,9 @@ export interface Dial {
 }
 
 export const DIALS: Record<ConstantKey, Dial> = {
-  c: { key: 'c', symbol: 'c', name: 'Speed of light', unit: 'm/s', min: 4, max: REAL.c },
-  hbar: { key: 'hbar', symbol: 'ħ', name: "Planck's constant", unit: 'J·s', min: REAL.hbar, max: 1.5 },
-  G: { key: 'G', symbol: 'G', name: 'Gravitational constant', unit: 'm³/kg·s²', min: REAL.G, max: 2e13 },
+  c: { symbol: 'c', name: 'Speed of light', unit: 'm/s', min: 4, max: REAL.c },
+  hbar: { symbol: 'ħ', name: "Planck's constant", unit: 'J·s', min: REAL.hbar, max: 1.5 },
+  G: { symbol: 'G', name: 'Gravitational constant', unit: 'm³/kg·s²', min: REAL.G, max: 2e13 },
 };
 
 export const SLIDER_STEPS = 1000;
