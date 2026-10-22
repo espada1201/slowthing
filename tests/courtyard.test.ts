@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCKS, GLASS_THICKNESS, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, rasterize, spongeRate } from '../src/worlds/courtyard';
+import { Schrodinger2D, barrierTransmission, correctSteps, stableTimeStep } from '../src/physics/schrodinger';
+import { BALL, BLOCKS, GLASS_THICKNESS, GLASS_V0, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, rasterize, spongeRate } from '../src/worlds/courtyard';
 
 describe('courtyard floor plan', () => {
   for (const n of [256, 384, 512]) {
@@ -21,6 +22,34 @@ describe('courtyard floor plan', () => {
       // Walls must be at least two cells thick or the nine-point stencil would leak through them.
       const divider = BLOCKS[0];
       expect((divider.x1 - divider.x0) / f.dx).toBeGreaterThanOrEqual(2);
+    });
+
+    it(`lets the ball tunnel through the glass at the analytic rate on a ${n}² grid`, () => {
+      // The potential across the glass as the solver sees it (steps corrected), laid along a long line.
+      const f = rasterize(n);
+      const v = correctSteps(f.potential, f.open, n, n);
+      const col = cellIndex(16, f.dx, n), j0 = cellIndex(OBSTACLE_Z, f.dx, n) - 4;
+      const profile = Array.from({ length: GLASS_THICKNESS / f.dx + 8 }, (_, q) => v[(j0 + q) * n + col]);
+      const p = { mass: BALL.mass, hbar: 0.25 }, k0 = (BALL.mass * BALL.speed) / p.hbar, sigma = 3;
+      const grid = { nx: Math.round(100 / f.dx), ny: 2, dx: f.dx, periodicY: true, stencil: 4 as const };
+      const sim = new Schrodinger2D(grid, p, stableTimeStep(grid, p, GLASS_V0));
+      const i0 = Math.round(40 / f.dx);
+      profile.forEach((u, q) => (sim.potential[i0 + q] = sim.potential[grid.nx + i0 + q] = u));
+      sim.setGaussian(20, 0, sigma, k0, 0);
+      sim.step(Math.round(11 / sim.dt));
+      const d = sim.density();
+      let through = 0, total = 0;
+      for (let i = 0; i < grid.nx; i++) {
+        total += d[i] + d[grid.nx + i];
+        if (i >= i0 + profile.length) through += d[i] + d[grid.nx + i];
+      }
+      let num = 0, den = 0;
+      for (let q = -5; q <= 5; q += 0.01) {
+        const w = Math.exp(-0.5 * q * q), k = k0 + q / (2 * sigma);
+        num += w * barrierTransmission((p.hbar * k) ** 2 / (2 * BALL.mass), GLASS_V0, GLASS_THICKNESS, p);
+        den += w;
+      }
+      expect(Math.abs(through / total / (num / den) - 1)).toBeLessThan(0.03);
     });
   }
 

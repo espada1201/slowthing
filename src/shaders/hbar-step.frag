@@ -1,6 +1,7 @@
 // One half of a Visscher leapfrog step for the courtyard wave (mirrors physics/schrodinger.ts, stencil 4).
 // State texel: r = Re ψ(t), g = Im ψ(t+½), b = Im ψ(t−½), a = probability absorbed here so far.
-// Potential texel: r = V (J), g = 1 if open floor / 0 inside a wall, b = sponge damping rate (1/s).
+// Potential texel: r = V (J) with its steps corrected for this stencil, g = 1 if open floor / 0 inside a wall,
+// b = sponge damping rate (1/s), a = V of the floor plan (for drawing only).
 uniform sampler2D uState;
 uniform sampler2D uPot;
 uniform int uN;

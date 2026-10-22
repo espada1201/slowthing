@@ -738,7 +738,7 @@ export class BigHbarWorld implements World {
   private startWave(r: THREE.WebGLRenderer, x: number, z: number, dirX: number, dirZ: number) {
     const { n, dx } = this.field;
     const cpu = new Schrodinger2D({ nx: n, ny: n, dx, stencil: 4 }, this.particle, this.waveDt());
-    cpu.potential.set(this.field.potential);
+    cpu.potential.set(this.gpu.v);
     cpu.open.set(this.field.open);
     // A packet several wavelengths long, so the ball has a well-defined momentum to begin with.
     const sigma = THREE.MathUtils.clamp(0.8 * this.lambda, 0.8, 2);

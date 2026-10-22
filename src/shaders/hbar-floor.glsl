@@ -23,7 +23,7 @@ void floorPattern(inout vec3 col) {
   ivec2 c = ivec2(floor((vFieldPos + 24.0) / 48.0 * float(uN)));
   vec4 pot = texelFetch(uPot, clamp(c, ivec2(0), ivec2(uN - 1)), 0);
   col = mix(col, vec3(0.045, 0.05, 0.06), clamp(sqrt(pot.b / 12.0), 0.0, 1.0) * 0.88);
-  col = mix(col, vec3(0.35, 0.62, 0.6), step(0.001, pot.r) * 0.5);
+  col = mix(col, vec3(0.35, 0.62, 0.6), step(0.001, pot.a) * 0.5);
 }
 
 // ψ at this point of the floor, bilinear between cells: xy = (Re, Im), z = brightness level.

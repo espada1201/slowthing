@@ -1,7 +1,7 @@
 // The courtyard wave on the GPU: Visscher leapfrog in fragment shaders, ping-ponging float textures.
 
 import * as THREE from 'three';
-import { Schrodinger2D, type Particle, stableTimeStep } from '../physics/schrodinger';
+import { Schrodinger2D, type Particle, correctSteps, stableTimeStep } from '../physics/schrodinger';
 import fullscreenVert from '../shaders/fullscreen.vert?raw';
 import copyFrag from '../shaders/hbar-copy.frag?raw';
 import stepFrag from '../shaders/hbar-step.frag?raw';
@@ -31,6 +31,8 @@ export class GpuSchrodinger {
   private camera = new THREE.Camera();
   /** The last state read back (or loaded). */
   readonly buffer: Float32Array;
+  /** V per cell as the stencil sees it: the floor plan's, with its steps corrected (physics/schrodinger.ts). */
+  readonly v: Float64Array;
   /** A read-back on its way: the GPU copies the state into `pbo` in its own time and signals `fence`. */
   private pbo: WebGLBuffer | null = null;
   private fence: WebGLSync | null = null;
@@ -39,11 +41,13 @@ export class GpuSchrodinger {
     const n = (this.n = field.n);
     this.dx = field.dx;
     this.targets = [floatTarget(n), floatTarget(n)];
+    this.v = correctSteps(field.potential, field.open, n, n);
     const pot = new Float32Array(n * n * 4);
     for (let k = 0; k < n * n; k++) {
-      pot[k * 4] = field.potential[k];
+      pot[k * 4] = this.v[k];
       pot[k * 4 + 1] = field.open[k];
       pot[k * 4 + 2] = field.sponge[k];
+      pot[k * 4 + 3] = field.potential[k];
     }
     this.potTex = new THREE.DataTexture(pot, n, n, THREE.RGBAFormat, THREE.FloatType);
     this.potTex.needsUpdate = true;
@@ -79,7 +83,7 @@ export class GpuSchrodinger {
     this.scene.add(this.quad);
   }
 
-  /** Potential texture: r = V, g = open floor (1) or wall (0), b = absorption rate. */
+  /** Potential texture: r = V the wave sees, g = open floor (1) or wall (0), b = absorption rate, a = V as drawn. */
   get potential() {
     return this.potTex;
   }
@@ -230,7 +234,7 @@ export function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
   }
   const grid = { nx: n, ny: n, dx, stencil: 4 as const };
   const cpu = new Schrodinger2D(grid, p, stableTimeStep(grid, p, 4));
-  cpu.potential.set(field.potential);
+  cpu.potential.set(correctSteps(field.potential, field.open, n, n));
   cpu.open.set(field.open);
   cpu.setGaussian(3, 8, 1, 3, 0.5);
   const normBefore = cpu.norm();

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Schrodinger2D,
   barrierTransmission,
+  correctSteps,
   cumulative,
   freeSpreadWidth,
   sampleIndex,
@@ -122,6 +123,46 @@ describe('fourth-order stencil (used by the GPU courtyard)', () => {
       den += w;
     }
     expect(Math.abs(trans / total / (num / den) - 1)).toBeLessThan(0.05);
+  });
+
+  it('tunnels through a two-cell barrier at k·dx = 1.2 at the analytic rate once its steps are corrected', () => {
+    const dx = 0.3, k0 = 4, sigma = 8, V0 = 10, a = 0.6;
+    const grid = { nx: Math.round(200 / dx), ny: 2, dx, periodicY: true, stencil: 4 as const };
+    const i1 = Math.round(80 / dx), cells = Math.round(a / dx);
+    const transmitted = (corrected: boolean) => {
+      const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, V0));
+      for (let i = i1; i < i1 + cells; i++) for (let j = 0; j < 2; j++) sim.potential[j * grid.nx + i] = V0;
+      if (corrected) sim.potential.set(correctSteps(sim.potential, sim.open, grid.nx, grid.ny));
+      sim.setGaussian(40, 0, sigma, k0, 0);
+      sim.step(Math.round(20 / sim.dt));
+      const d = sim.density();
+      let trans = 0, total = 0;
+      for (let i = 0; i < grid.nx; i++) {
+        total += d[i] + d[grid.nx + i];
+        if (i >= i1 + cells) trans += d[i] + d[grid.nx + i];
+      }
+      return trans / total;
+    };
+    let num = 0, den = 0;
+    for (let q = -5; q <= 5; q += 0.01) {
+      const w = Math.exp(-0.5 * q * q);
+      num += w * barrierTransmission(((k0 + q / (2 * sigma)) ** 2) / 2, V0, a, particle);
+      den += w;
+    }
+    // The raw steps let through a fifth too little; corrected, the grid agrees with the analytic value.
+    expect(transmitted(false) / (num / den) - 1).toBeLessThan(-0.15);
+    expect(Math.abs(transmitted(true) / (num / den) - 1)).toBeLessThan(0.05);
+  });
+
+  it('corrects only the open cells beside a step, and keeps the total potential', () => {
+    const v = Float64Array.from({ length: 12 }, (_, i) => (i === 5 || i === 6 ? 96 : 0));
+    const open = new Float64Array(12).fill(1);
+    const out = correctSteps(v, open, 12, 1);
+    [0, 0, 0, -1, 7, 90, 90, 7, -1, 0, 0, 0].forEach((x, i) => expect(out[i]).toBeCloseTo(x, 12));
+    expect(out.reduce((a, x) => a + x, 0)).toBeCloseTo(96 * 2, 12);
+    // A wall cell keeps its zero.
+    open[8] = 0;
+    expect(correctSteps(v, open, 12, 1)[8]).toBe(0);
   });
 });
 

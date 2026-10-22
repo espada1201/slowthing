@@ -208,3 +208,33 @@ export function sampleIndex(cdf: ArrayLike<number>, u: number): number {
   while (lo > 0 && cdf[lo] === cdf[lo - 1]) lo--;
   return lo;
 }
+
+/** e(s) for the cells s = −3/2, −1/2, 1/2, 3/2 cells from a face; see correctSteps. */
+const STEP_ERROR = [-1, 7, -7, 1].map((v) => v / 96);
+
+/**
+ * A potential with sharp steps, corrected for the fourth-order stencil. Across a step ΔV the true ψ″ jumps by
+ * (2m/ħ²)ΔVψ; the stencil smears that jump over the two cells either side of the face, as if they held an extra
+ * potential −e(s)ΔV. Its effect only falls as dx², and on a coarse grid it cuts tunnelling through a two-cell
+ * barrier by a fifth, so add e(s)ΔV back. Only faces between open cells count, and only open cells change.
+ */
+export function correctSteps(v: ArrayLike<number>, open: ArrayLike<number>, nx: number, ny: number): Float64Array {
+  const out = Float64Array.from(v);
+  const add = (i: number, j: number, dv: number) => {
+    if (i >= 0 && i < nx && j >= 0 && j < ny && open[j * nx + i]) out[j * nx + i] += dv;
+  };
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const k = j * nx + i;
+      if (!open[k]) continue;
+      // The steps up to the next cell along x and along y.
+      const sx = i + 1 < nx && open[k + 1] ? v[k + 1] - v[k] : 0;
+      const sy = j + 1 < ny && open[k + nx] ? v[k + nx] - v[k] : 0;
+      for (let q = 0; q < 4; q++) {
+        if (sx) add(i - 1 + q, j, STEP_ERROR[q] * sx);
+        if (sy) add(i, j - 1 + q, STEP_ERROR[q] * sy);
+      }
+    }
+  }
+  return out;
+}
