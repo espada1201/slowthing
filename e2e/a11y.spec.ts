@@ -40,6 +40,16 @@ test('answering a prediction from the keyboard leaves focus on the answer, not a
   await expect(page.locator('.predict-reveal')).toBeFocused();
 });
 
+test('Esc closes the controls help, and the help button no longer says it is open', async ({ page }) => {
+  await openWorld(page, 'slow-light');
+  const button = page.getByRole('button', { name: 'Controls help' });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.help')).toBeHidden();
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+});
+
 test('the proofs page passes axe once every proof has run', async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto('./?proofs&e2e');

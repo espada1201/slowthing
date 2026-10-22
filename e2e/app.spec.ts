@@ -15,6 +15,40 @@ test('title screen lists the three worlds and enters one from the keyboard', asy
   expect(errors).toEqual([]);
 });
 
+test('a world that fails to load says so, and the other worlds still open', async ({ page }) => {
+  await page.route(/\/assets\/bigG-[^/]+\.js$/, (route) => route.abort());
+  await page.goto('./?quality=low&e2e');
+  await page.locator('.plate[data-world="big-g"]').click();
+  await expect(page.getByRole('alert')).toContainText('failed to start');
+  await page.locator('.plate[data-world="slow-light"]').click();
+  await page.waitForFunction(() => (window as any).slowlight?.world === 'slow-light');
+});
+
+test('N on the last tour stop and B on the first leave the world as it is, like their disabled buttons', async ({ page }) => {
+  await openWorld(page, 'slow-light');
+  const c = () => page.evaluate(() => (window as any).slowlight.constants.c);
+  const turn = (v: number) =>
+    page.locator('[data-dial="c"]').evaluate((el: HTMLInputElement, v) => {
+      el.value = String(v);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, v);
+  await turn(600);
+  const first = await c();
+  await page.keyboard.press('KeyB');
+  await frames(page, 2);
+  expect(await c()).toBe(first);
+  await expect(page.locator('.tour-no')).toHaveText(/^1 \//);
+
+  const stops = Number((await page.locator('.tour-no').textContent())!.split('/')[1]);
+  for (let i = 1; i < stops; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-no')).toHaveText(`${stops} / ${stops}`);
+  await turn(300);
+  const last = await c();
+  await page.keyboard.press('KeyN');
+  await frames(page, 2);
+  expect(await c()).toBe(last);
+});
+
 test('a shared link restores the dial settings', async ({ page }) => {
   await page.goto('./?world=slow-light&quality=low&e2e&c=50');
   await page.waitForFunction(() => (window as any).slowlight?.world === 'slow-light');
@@ -65,6 +99,15 @@ test('every proof passes in the browser, including the GPU shader checks', async
   await expect(page.locator('.proof[data-state="fail"]')).toHaveCount(0);
   for (const id of ['gpu-aberration', 'gpu-doppler', 'gpu-retarded', 'gpu-tram-colour', 'gpu-schrodinger', 'gpu-geodesics']) await expect(page.locator(`.proof[data-proof="${id}"]`)).toHaveAttribute('data-state', 'pass');
   expect(errors).toEqual([]);
+});
+
+test('if the GPU checks cannot load, the proofs page says so instead of passing without them', async ({ page }) => {
+  await page.route(/\/assets\/bigG-[^/]+\.js$/, (route) => route.abort());
+  await page.goto('./?proofs&e2e');
+  await expect(page.locator('.proof[data-proof="gpu-load"]')).toHaveAttribute('data-state', 'fail', { timeout: 60_000 });
+  await expect(page.locator('.proofs-summary')).toHaveText(/^\d+ of \d+ passed$/, { timeout: 150_000 });
+  const [passed, total] = (await page.locator('.proofs-summary').textContent())!.match(/\d+/g)!.map(Number);
+  expect(passed).toBeLessThan(total);
 });
 
 test('a tour prediction can be answered and then explains itself', async ({ page }) => {

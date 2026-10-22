@@ -24,7 +24,11 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
 
   async function run() {
     again.disabled = true;
-    const proofs: Proof[] = [...PROOFS, ...(await worldProofs().catch(() => []))];
+    const gpu = await worldProofs().then(
+      (proofs) => ({ proofs, error: null }),
+      (error: Error) => ({ proofs: [], error }),
+    );
+    const proofs: Proof[] = [...PROOFS, ...gpu.proofs];
     proofs.sort((a, b) => a.world.localeCompare(b.world) || Number(a.gpu) - Number(b.gpu));
     const rows = proofs.map((p) => {
       const state = h('span', { class: 'proof-state' }, 'waiting');
@@ -37,12 +41,23 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
       );
       return { p, li, state, result };
     });
-    list.replaceChildren(...rows.map((r) => r.li));
+    // GPU checks that cannot load count as a failure, so the summary never passes without them.
+    const unloaded = gpu.error
+      ? h('li', { class: 'proof', 'data-proof': 'gpu-load', 'data-state': 'fail' },
+          h('div', { class: 'proof-head' }, h('span', { class: 'proof-state' }, 'error'), h('span', { class: 'proof-world' }, 'GPU')),
+          h('h2', {}, 'GPU checks'),
+          h('p', { class: 'proof-result' }, `They could not load: ${gpu.error.message}`),
+        )
+      : null;
+    const total = rows.length + (unloaded ? 1 : 0);
+    list.replaceChildren(...rows.map((r) => r.li), ...(unloaded ? [unloaded] : []));
     let passed = 0;
     for (const r of rows) {
       r.li.dataset.state = 'running';
       r.state.textContent = 'running';
       await new Promise((res) => setTimeout(res, 30));
+      // Left for a world: stop, rather than draw on the renderer the world now uses.
+      if (!root.isConnected) return;
       try {
         if (r.p.gpu && !renderer) throw new Error('WebGL2 is not available');
         const out = await r.p.run(renderer!);
@@ -55,7 +70,7 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
         r.state.textContent = 'error';
         r.result.textContent = (e as Error).message;
       }
-      summary.textContent = `${passed} of ${rows.length} passed`;
+      summary.textContent = `${passed} of ${total} passed`;
     }
     again.disabled = false;
   }

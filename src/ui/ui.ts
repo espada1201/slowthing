@@ -63,6 +63,8 @@ export interface Chrome {
   showQuality(q: Quality | null): void;
   /** Show the level reticle while the view warps, unless the visitor switched it off. */
   showReticle(warping: boolean): void;
+  /** Hide the controls help, as Esc does. */
+  closeHelp(): void;
   flash(msg: string): void;
 }
 
@@ -316,6 +318,10 @@ export function worldChrome(
     },
     showReticle(warping) {
       reticle.hidden = !(warping && level.value);
+    },
+    closeHelp() {
+      help.hidden = true;
+      helpBtn.setAttribute('aria-expanded', 'false');
     },
     flash(msg) {
       toast.textContent = msg;

@@ -196,9 +196,7 @@ export async function worldProofs(): Promise<Proof[]> {
       run: l.proveTramColour,
     },
   ];
-  const solver = (h as Record<string, unknown>).proveSolver as Proof['run'] | undefined;
-  const rays = (g as Record<string, unknown>).proveRays as Proof['run'] | undefined;
-  if (solver) out.push({ id: 'gpu-schrodinger', world: 'II', gpu: true, title: 'GPU Schrödinger solver', claim: 'The courtyard’s fragment-shader solver produces the same wavefunction as the CPU reference, step for step.', run: solver });
-  if (rays) out.push({ id: 'gpu-geodesics', world: 'III', gpu: true, title: 'GPU black-hole ray-marcher', claim: 'Every pixel’s light path through the shader ends where the CPU geodesic integrator says it should.', run: rays });
+  out.push({ id: 'gpu-schrodinger', world: 'II', gpu: true, title: 'GPU Schrödinger solver', claim: 'The courtyard’s fragment-shader solver produces the same wavefunction as the CPU reference, step for step.', run: h.proveSolver });
+  out.push({ id: 'gpu-geodesics', world: 'III', gpu: true, title: 'GPU black-hole ray-marcher', claim: 'Every pixel’s light path through the shader ends where the CPU geodesic integrator says it should.', run: g.proveRays });
   return out;
 }

@@ -36,6 +36,8 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const constants: Constants = { ...REAL };
 let renderer: THREE.WebGLRenderer | null = null;
 let startupError: string | null = null;
+/** Why the last world failed to start; the title screen says so, and the other worlds still open. */
+let worldError: string | null = null;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: params.has('e2e') });
   if (!renderer.extensions.has('EXT_color_buffer_float')) startupError = 'This browser cannot render to floating-point textures (EXT_color_buffer_float), which the physics needs. Try an up-to-date Chrome, Safari or Firefox.';
@@ -129,7 +131,7 @@ function showTitle() {
   ruler = null;
   document.body.dataset.mode = 'title';
   if (document.pointerLockElement) document.exitPointerLock();
-  ui.replaceChildren(titleScreen(enter, showProofs, setting, setQuality, startupError));
+  ui.replaceChildren(titleScreen(enter, showProofs, setting, setQuality, startupError ?? worldError));
   history.replaceState(null, '', location.pathname + (params.has('quality') ? `?quality=${setting}` : ''));
   // Coming back from a world, keep keyboard users on the plates; on first load, nothing looks pre-selected.
   if (returning) document.querySelector<HTMLButtonElement>('.plate')?.focus({ preventScroll: true });
@@ -160,10 +162,12 @@ async function enter(id: string) {
     world = new W(ctx());
   } catch (err) {
     console.warn(err);
-    startupError = `This world failed to start: ${(err as Error).message}`;
+    world = null;
+    worldError = `This world failed to start: ${(err as Error).message.replace(/\.?$/, '.')} Reload the page to try again.`;
     showTitle();
     return;
   }
+  worldError = null;
   const w = world;
   const card = WORLD_CARDS.find((c) => c.id === id)!;
   Object.assign(constants, REAL, w.preset);
@@ -206,11 +210,13 @@ async function enter(id: string) {
   ui.replaceChildren(chrome.root);
   chrome.syncDials(constants);
   input.setKeyHandler((code) => {
-    if (code === 'KeyN') goTour(tourIndex + 1);
-    else if (code === 'KeyB') goTour(tourIndex - 1);
-    else if (code === 'KeyR') ruler?.toggle();
+    if (code === 'KeyN' || code === 'KeyB') {
+      const next = tourIndex + (code === 'KeyN' ? 1 : -1);
+      // Past either end the Back and Next buttons are disabled, and the keys do nothing either.
+      if (next >= 0 && next < w.tour.length) goTour(next);
+    } else if (code === 'KeyR') ruler?.toggle();
     else if (code === 'Escape') {
-      document.querySelector<HTMLElement>('.help')?.setAttribute('hidden', '');
+      chrome?.closeHelp();
       ruler?.toggle(false);
     }
     const a = w.actions.find((x) => x.key === code);
