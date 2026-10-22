@@ -7,7 +7,7 @@ The title screen names the app, shows three world plates (Slow Light, Big ħ, Bi
 - `title-plates` shows the heading `Slowlight` and exactly three plates.
 - `title-enter` enters a world by mouse or by keyboard.
 - `title-back` returns from a world to the plates, with focus on a plate.
-- `title-quality` remembers the chosen quality across reloads.
+- `title-quality` offers `Auto` (the default) and three presets, and remembers the choice across reloads.
 - `title-error` explains in words when WebGL2 or float render targets are missing.
 
 ## How to get to it (user POV)
@@ -32,5 +32,5 @@ Preconditions:
 ## Gotchas
 
 - The plates are buttons whose accessible names include the blurb, so use `.plate[data-world=…]` rather than an exact role name.
-- Medium is the default except on Apple Silicon (High) and touch screens (Low). A saved choice overrides both.
+- `Auto` is the default. It starts a world at Medium (High on Apple Silicon, Low on touch screens), steps down when frames run slow and names the preset it is running, such as `Auto (low)`. A saved choice or `?quality=` in the URL replaces it.
 - `title-error` cannot be reached in this harness, because SwiftShader provides WebGL2. Report it BLOCKED unless a browser without WebGL2 is available.

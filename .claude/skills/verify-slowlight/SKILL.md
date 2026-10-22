@@ -15,7 +15,7 @@ Every command runs from the repo root through one script. Below, `ctl` stands fo
 
 - Needs `npm install` once and Playwright's Chromium: `npx playwright install chromium` on a Mac. In the cloud container, export `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and never install.
 - `ctl launch` runs `npm run build`, serves `dist/` with `vite preview` on port 4317, starts headless Chromium with software WebGL (SwiftShader, as CI does) and opens the title screen. It prints `"ready"` once the three world plates are on screen. `ctl launch --no-build` reuses the current `dist/`.
-- One instance per port. For another instance at the same time (a parallel checker, or the phone layout), set `VERIFY_PORT`; the browser's debug port is `VERIFY_PORT + 1000`. `VERIFY_DEVICE=phone` makes it a 390×844 touch phone instead of a 1280×800 desktop.
+- One instance per port. For another instance at the same time (a parallel checker, or the phone layout), set `VERIFY_PORT`; the browser's debug port is `VERIFY_PORT + 1000`. `VERIFY_DEVICE=phone` makes it a 390×844 touch phone instead of a 1280×800 desktop. `VERIFY_MOTION=reduce` makes its browser ask for reduced motion, as the operating system setting does.
 - State and evidence live in `$VERIFY_DIR`, by default `<os tmp>/verify-slowlight-<port>/`.
 
 ## Doctor
@@ -24,7 +24,7 @@ Every command runs from the repo root through one script. Below, `ctl` stands fo
 
 ## Drive
 
-Each command connects to the running browser, acts, and prints what the visitor can now see: URL, mode, world, frame count, constants, tour stop, switch states, readouts, status line, toast and proofs summary.
+Each command connects to the running browser, acts, and prints what the visitor can now see: URL, mode, world, frame count, constants, tour stop, switch states, readouts, status line, toast, the graphics card reset message (`gpuReset`) and proofs summary.
 
 | Command | What it does |
 | --- | --- |
@@ -38,6 +38,7 @@ Each command connects to the running browser, acts, and prints what the visitor 
 | `text <target>` | Print the text of every visible match. |
 | `probe` | Print the visible state without acting. |
 | `pause on` / `pause off` | Freeze or release time, to compare two views of one moment. It is the probe's only setter, not a user action. |
+| `gpu lose` / `gpu restore` | Lose or restore the view's WebGL context, as a graphics card reset does. Like `pause`, it changes the page's surroundings, not a user action. |
 | `sample` | Mean and spread of the view's brightness. Needs `e2e` in the URL, which keeps the drawing buffer. |
 | `shot <name>` / `aria <name>` | Save a screenshot or an ARIA snapshot into the evidence folder. |
 | `errors` | Console errors and warnings recorded since launch. |

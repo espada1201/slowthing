@@ -13,6 +13,7 @@ const repo = path.resolve(self, '../../../../..');
 const port = Number(process.env.VERIFY_PORT ?? 4317);
 const cdpPort = port + 1000;
 const phone = process.env.VERIFY_DEVICE === 'phone';
+const motion = process.env.VERIFY_MOTION === 'reduce' ? 'reduce' : 'no-preference';
 const dir = process.env.VERIFY_DIR ?? path.join(os.tmpdir(), `verify-slowlight-${port}`);
 const evidence = path.join(dir, 'evidence');
 const stateFile = path.join(dir, 'state.json');
@@ -56,6 +57,7 @@ const snapshot = (page) =>
       readouts: s?.world ? Object.fromEntries(s.readouts().map((r) => [r.label, r.value])) : undefined,
       status: s?.world ? s.status() : undefined,
       toast: text('.toast.show'),
+      gpuReset: text('#gpu-reset'),
       proofs: text('.proofs-summary'),
     };
   });
@@ -81,6 +83,8 @@ async function withPage(fn) {
   try {
     const page = browser.contexts()[0]?.pages()[0];
     if (!page) fail('the browser has no page; run cleanup, then launch');
+    // Each connection starts from the default media features, so ask again for the motion preference set at launch.
+    await page.emulateMedia({ reducedMotion: s.motion ?? 'no-preference' });
     return await fn(page);
   } finally {
     await browser.close(); // disconnects only; the instance keeps running
@@ -111,13 +115,13 @@ const commands = {
     const browser = spawn(process.execPath, [self, 'browserd'], { cwd: repo, detached: true, stdio: ['ignore', blog, blog] });
     preview.unref();
     browser.unref();
-    fs.writeFileSync(stateFile, JSON.stringify({ base, preview: preview.pid, browser: browser.pid, device: phone ? 'phone' : 'desktop', launchedAt: new Date().toISOString() }));
+    fs.writeFileSync(stateFile, JSON.stringify({ base, preview: preview.pid, browser: browser.pid, device: phone ? 'phone' : 'desktop', motion, launchedAt: new Date().toISOString() }));
     await ready(() => fetch(base).then((r) => r.ok), 30_000, 'preview server');
     await ready(() => fetch(`http://127.0.0.1:${cdpPort}/json/version`).then((r) => r.ok), 60_000, 'browser');
     await withPage(async (page) => {
       await page.goto(base);
       await page.locator('.plate').first().waitFor();
-      print({ ready: base, device: phone ? 'phone' : 'desktop', evidence, ...(await snapshot(page)) });
+      print({ ready: base, device: phone ? 'phone' : 'desktop', motion, evidence, ...(await snapshot(page)) });
     });
   },
 
@@ -127,6 +131,7 @@ const commands = {
     const ctx = await chromium.launchPersistentContext(path.join(dir, 'profile'), {
       headless: true,
       ...device,
+      reducedMotion: motion,
       args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--remote-debugging-port=${cdpPort}`],
     });
     const record = (page) => {
@@ -140,7 +145,7 @@ const commands = {
 
   async doctor() {
     const s = readState();
-    const report = { base, dir, running: !!s && alive(s.preview) && alive(s.browser), device: s?.device };
+    const report = { base, dir, running: !!s && alive(s.preview) && alive(s.browser), device: s?.device, motion: s?.motion };
     if (report.running) {
       const served = await fetch(base).then((r) => r.text()).catch(() => '');
       report.servesThisBuild = served === fs.readFileSync(path.join(repo, 'dist/index.html'), 'utf8');
@@ -224,6 +229,18 @@ const commands = {
       await page.evaluate((on) => window.slowlight.pause(on), args[0] !== 'off');
       print(await snapshot(page));
     }),
+  /** Lose or restore the view's WebGL context (WEBGL_lose_context), as a graphics card reset does. Not a visitor action. */
+  gpu: () =>
+    withPage(async (page) => {
+      if (args[0] !== 'lose' && args[0] !== 'restore') fail('gpu takes lose or restore');
+      await page.evaluate((call) => {
+        // A lost context hands out no extensions, so keep the one that restores it.
+        window.ctlLoseContext ??= document.querySelector('#view').getContext('webgl2').getExtension('WEBGL_lose_context');
+        window.ctlLoseContext[call]();
+      }, args[0] === 'lose' ? 'loseContext' : 'restoreContext');
+      await page.waitForTimeout(200);
+      print(await snapshot(page));
+    }),
   shot: () =>
     withPage(async (page) => {
       const file = path.join(evidence, `${args[0] ?? 'shot'}.png`);
@@ -239,7 +256,9 @@ const commands = {
   /** Mean and spread of the view's luminance on a 32×20 grid. Needs `e2e` in the URL to keep the drawing buffer. */
   sample: () =>
     withPage(async (page) => {
-      if (!/[?&]e2e/.test(page.url())) fail('sample needs a page opened with e2e in the URL (it keeps the drawing buffer)');
+      // A world tidies e2e out of the address bar, so look at the address the page was loaded from.
+      const loaded = await page.evaluate(() => performance.getEntriesByType('navigation')[0]?.name ?? location.href);
+      if (!/[?&]e2e/.test(loaded)) fail('sample needs a page opened with e2e in the URL (it keeps the drawing buffer)');
       print(
         await page.evaluate(() => {
           const c = Object.assign(document.createElement('canvas'), { width: 32, height: 20 });

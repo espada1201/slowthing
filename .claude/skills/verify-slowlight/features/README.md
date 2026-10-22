@@ -32,11 +32,13 @@ Each file starts with an H1 and one paragraph on the visible behaviour, then fou
 ## Features
 
 - [Title screen](./title.md): the three world plates, keyboard entry, back to the worlds, quality.
-- [World I, Slow Light](./slow-light.md): the c dial, six effect switches, walking and running, cruise, tram, clocks.
+- [World I, Slow Light](./slow-light.md): the c dial, six effect switches, walking and running, cruise, tram, clocks, the level reticle.
 - [World II, Big ħ](./big-hbar.md): the ħ dial, rolling a wave-ball, measuring it, the detector walls, rapid fire.
 - [World III, Big G](./big-g.md): the G dial, light bending, gravitational shift, the shadow edge, flying in, the sky ruler, weighing the hole, the Einstein ring.
 - [Guided tour](./tour.md): stops, keyboard and button navigation, predict-then-reveal questions.
 - [Proofs page](./proofs.md): every physics check run in the browser, with measured against expected.
 - [Share links](./share.md): copying a link to the current dials and restoring it.
 - [Phone layout](./phone.md): dials behind a toggle, quick actions, thumb walking.
-- [Sound and help](./settings.md): the Sound switch, the controls help, the quality choice inside a world.
+- [Sound and help](./settings.md): the Sound switch, the controls help, the quality choice inside a world, Auto quality.
+- [Reduced motion](./reduced-motion.md): a world opens still, and tour stops that set things moving wait for `Start`.
+- [Graphics card reset](./gpu-reset.md): the message while the view is lost, and the advice to reload when it stays lost.

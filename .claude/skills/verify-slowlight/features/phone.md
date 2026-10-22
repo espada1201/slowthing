@@ -12,7 +12,7 @@ On a narrow touch screen the Dials panel hides behind a `Dials` button, the two 
 
 ## How to get to it (user POV)
 
-- Open the app on a phone; touch screens default to Low quality.
+- Open the app on a phone; on a touch screen `Auto` starts each world at Low.
 
 ## Driving it with ctl
 

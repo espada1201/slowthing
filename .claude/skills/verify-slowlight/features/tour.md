@@ -7,7 +7,7 @@ Each world opens on a tour card: a numbered stop with a title and one or two sen
 - `tour-next` `Next →`, `←` and the N and B keys move between stops; the ends disable their buttons.
 - `tour-apply` a stop applies its pose, dials, switches and action.
 - `tour-predict` a prediction hides the stop's text and the instruments until answered.
-- `tour-answer` answering marks the right choice and a wrong pick, then shows the reveal and the text.
+- `tour-answer` answering marks the right choice and a wrong pick, for screen readers too, then shows the reveal and the text.
 - `tour-skip` `Just show me` reveals without marking a pick.
 - `tour-measure` a measurement stop takes typed answers, refuses anything that is not a number, and says how far off each was; driven in big-g.md (`Weigh the hole`).
 
@@ -25,7 +25,7 @@ Preconditions:
 - **First stop.** Run `ctl probe`. `tour.stop` is `1 / 9` and the `Previous tour stop` button is disabled (`ctl aria tour-first`).
 - **Next by button.** Run `ctl click --role button --name "Next tour stop"`. `tour.stop` is `2 / 9`, `tour.title` is `The late clock`, and `tour.predicting` is true.
 - **Hidden text.** Run `ctl text '.tour-text'` and `ctl text '.readouts'`. Both print `[]`: the stop's text and the instruments wait for an answer.
-- **Answer wrong.** Run `ctl click '.choice[data-choice="2"]'`, then `ctl text '.predict-reveal'`. The reveal starts `Not quite.` and mentions `5.4 s`. `ctl text '.choice[data-state="right"]'` prints `about 5 s behind` and `ctl text '.choice[data-state="wrong"]'` prints `about 5 s ahead`. Take `ctl shot tour-answered`.
+- **Answer wrong.** Run `ctl click '.choice[data-choice="2"]'`, then `ctl text '.predict-reveal'`. The reveal starts `Not quite.` and mentions `5.4 s`. `ctl text '.choice[data-state="right"]'` prints `about 5 s behind` and `ctl text '.choice[data-state="wrong"]'` prints `about 5 s ahead`. Take `ctl shot tour-answered` and `ctl aria tour-answered`: the buttons are named `about 5 s behind (right answer)` and `about 5 s ahead (your answer, wrong)`, all disabled.
 - **Next by key.** Run `ctl press KeyN`. `tour.title` is `Aberration` and the cruise starts.
 - **Skip.** Run `ctl click --role button --name "Just show me"`. The reveal shows without `Right.` or `Not quite.`.
 - **Back by key.** Run `ctl press KeyB`. `tour.stop` is `2 / 9`.
@@ -35,5 +35,5 @@ Preconditions:
 ## Gotchas
 
 - N and B are ignored while a text field or a select has focus, and Space or Enter on a focused button presses that button.
-- Arriving at a stop runs its action (a cruise, a roll, the tram), so readouts change on their own right after a step.
+- Arriving at a stop runs its action (a cruise, a roll, the tram), so readouts change on their own right after a step. Under reduced motion it waits for `Start` instead (reduced-motion.md).
 - Stops are meant to be one or two sentences. A longer stop is an ISSUE.
