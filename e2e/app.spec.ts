@@ -15,6 +15,20 @@ test('title screen lists the three worlds and enters one from the keyboard', asy
   expect(errors).toEqual([]);
 });
 
+test('inside a world, a first visit is told how to move until it moves, and is not told again', async ({ page }) => {
+  // Three of five simulated testers could not find out how to walk once inside a world.
+  await openWorld(page, 'slow-light');
+  await expect(page.locator('.move-hint')).toBeVisible();
+  await expect(page.locator('.move-hint')).toContainText('W A S D');
+  await page.locator('#view').focus();
+  await page.keyboard.down('KeyW');
+  await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[0].value) > 0.5, null, { timeout: 30_000 });
+  await page.keyboard.up('KeyW');
+  await expect(page.locator('.move-hint')).toBeHidden();
+  await openWorld(page, 'big-hbar');
+  await expect(page.locator('.move-hint')).toBeHidden();
+});
+
 test('a world that fails to load says so, and the other worlds still open', async ({ page }) => {
   await page.route(/\/assets\/bigG-[^/]+\.js$/, (route) => route.abort());
   await page.goto('./?quality=low&e2e');

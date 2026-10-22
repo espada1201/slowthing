@@ -36,10 +36,11 @@ for (const world of ['slow-light', 'big-hbar', 'big-g']) {
   });
 }
 
-test('a thumb drag on the left walks, and lifting it stops', async ({ page }) => {
+test('a thumb drag on the left walks, and lifting it stops; the hint saying so goes once you have walked', async ({ page }) => {
   await page.goto('./?world=slow-light&quality=low&e2e');
   await page.waitForFunction(() => (window as any).slowlight?.frames > 1, null, { timeout: 60_000 });
   const speed = () => page.evaluate(() => parseFloat((window as any).slowlight.readouts()[0].value));
+  await expect(page.locator('.move-hint')).toContainText('left');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 80, y: 600 }] });
   for (let y = 590; y >= 480; y -= 10) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 80, y }] });
@@ -47,4 +48,5 @@ test('a thumb drag on the left walks, and lifting it stops', async ({ page }) =>
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[0].value) < 0.5, null, { timeout: 30_000 });
   expect(await speed()).toBeLessThan(0.5);
+  await expect(page.locator('.move-hint')).toBeHidden();
 });

@@ -37,6 +37,8 @@ export class Input {
   private held = new Set<string>();
   private joy = { x: 0, y: 0 };
   private onKey: KeyHandler = () => {};
+  /** Set once the visitor has walked or looked; clear it to watch for that again. */
+  used = false;
 
   constructor(canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -63,6 +65,7 @@ export class Input {
   }
 
   look(dx: number, dy: number) {
+    this.used = true;
     this.state.yaw -= dx;
     this.state.pitch = Math.max(-1.5, Math.min(1.5, this.state.pitch - dy));
   }
@@ -82,6 +85,7 @@ export class Input {
     if (turn) this.look(-turn * dt, 0);
     const clamp = (v: number) => Math.max(-1, Math.min(1, v));
     this.state.move = { x: clamp(x), y: clamp(y), z: clamp(z) };
+    if (x || y || z) this.used = true;
     this.state.sprint = this.held.has('ShiftLeft') || this.held.has('ShiftRight') || Math.hypot(this.joy.x, this.joy.y) > 0.92;
   }
 

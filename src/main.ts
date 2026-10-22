@@ -287,6 +287,7 @@ function loop(now: number) {
   if (!resumed && !renderer.getContext().isContextLost()) adapt(ms);
   resumed = false;
   input.poll(dt);
+  if (input.used) chrome?.controlsUsed();
   world.frame(dt, input.state, ctx());
   ruler?.update();
   frames++;

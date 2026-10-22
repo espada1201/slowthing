@@ -65,6 +65,8 @@ export interface Chrome {
   showReticle(warping: boolean): void;
   /** Hide the controls help, as Esc does. */
   closeHelp(): void;
+  /** The visitor has walked or looked: drop the how-to-move hint, for this and later visits. */
+  controlsUsed(): void;
   flash(msg: string): void;
 }
 
@@ -205,6 +207,12 @@ export function worldChrome(
     helpBtn.setAttribute('aria-expanded', String(!help.hidden));
   });
   const toast = h('div', { class: 'toast', role: 'status' });
+  // Until a visitor has once walked or looked around, say how, over the view: the title screen's line is easy to miss.
+  const hint = h(
+    'aside',
+    { class: 'move-hint', 'aria-label': 'How to move', hidden: remembered(MOVED) },
+    matchMedia('(pointer: coarse)').matches ? 'Drag on the left of the screen to walk, on the right to look around.' : 'Click the view to look around · W A S D to walk, ← → to turn, Shift to run · ? lists every key',
+  );
 
   const top = h(
     'header',
@@ -214,7 +222,7 @@ export function worldChrome(
     h('div', { class: 'top-right' }, panelToggle, ...views.map((v) => v.top), soundBtn, selects[0], helpBtn),
   );
   // The ruler goes first so that it lies under the panels: they stay usable while it is on.
-  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, top, help, panel, hud, tour, toast, world.overlay ?? null);
+  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, hint, top, help, panel, hud, tour, toast, world.overlay ?? null);
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {
@@ -319,6 +327,11 @@ export function worldChrome(
     showReticle(warping) {
       reticle.hidden = !(warping && level.value);
     },
+    controlsUsed() {
+      if (hint.hidden) return;
+      hint.hidden = true;
+      remember(MOVED);
+    },
     closeHelp() {
       help.hidden = true;
       helpBtn.setAttribute('aria-expanded', 'false');
@@ -330,4 +343,22 @@ export function worldChrome(
       toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2600);
     },
   };
+}
+
+const MOVED = 'slowlight-moved';
+
+function remembered(key: string) {
+  try {
+    return localStorage.getItem(key) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+function remember(key: string) {
+  try {
+    localStorage.setItem(key, 'yes');
+  } catch {
+    /* not remembered: the hint shows again next visit */
+  }
 }
