@@ -23,7 +23,7 @@ Preconditions:
 - **First key press.** Run `ctl press KeyN`, then `ctl frames 20`. The tour is at `2 / 12` and `Town clock t` runs.
 - **Start waits.** Run `ctl press KeyN`. The title is `Aberration`, and `ctl text --role button --name Start` prints `["Start"]`. After `ctl frames 10`, `β = v/c` still reads `0.000` and `Town clock t` has not moved. Take `ctl shot rm-start`.
 - **Start runs it.** Run `ctl click --role button --name Start`, then `ctl frames 40`. `β = v/c` rises toward 0.900 and `ctl text --role button --name Start` prints `[]`.
-- **Calm stop.** Run `ctl press KeyN` four times. Each stop on the way (`Colours you cannot normally see`, `Searchlight`, `Terrell rotation`) shows `Start` with `β = v/c` back at 0.000 and `Town clock t` held; at `Seen and measured` (`7 / 12`), whose action is `Stop`, `ctl text --role button --name Start` prints `[]` and the clock runs again.
+- **Calm stop.** Run `ctl press KeyN` four times. Each stop on the way (`Colours you cannot normally see`, `Searchlight`, `Terrell rotation`) shows `Start` with `β = v/c` back at 0.000 and `Town clock t` held, and the screen agrees: `ctl text '.status'` prints the reduced-motion notice; at `Seen and measured` (`7 / 12`), whose action is `Stop`, `ctl text --role button --name Start` prints `[]` and the clock runs again.
 - **Without the preference.** On a default instance, open the same world and press N twice: the cruise starts on arrival at `Aberration` and no `Start` shows (see tour.md, step Next by key).
 - **Proof.** Run `ctl aria rm-final` and `ctl errors`.
 
