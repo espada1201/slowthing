@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { watchErrors } from './helpers';
+import { clockSeconds, frames, meanDiff, openWorld, readout, sample, watchErrors } from './helpers';
 
 test('title screen lists the three worlds and enters one from the keyboard', async ({ page }) => {
   const errors = watchErrors(page);
@@ -78,4 +78,30 @@ test('a tour prediction can be answered and then explains itself', async ({ page
   await expect(page.locator('.choice[data-choice="2"]')).toHaveAttribute('data-state', 'wrong');
   await expect(page.locator('.predict-reveal')).toContainText('5.4 s');
   await expect(page.locator('.tour-text')).toBeVisible();
+});
+
+test('with reduced motion, a world holds still until a key press, and a cruise waits for its Start button', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openWorld(page, 'slow-light');
+  await expect(page.locator('.status')).toHaveText(/nothing moves until you tap/);
+  const view = await sample(page);
+  const t = await clockSeconds(page, 'Town clock t');
+  await frames(page, 5);
+  expect(meanDiff(await sample(page), view)).toBe(0);
+  expect(await clockSeconds(page, 'Town clock t')).toBe(t);
+
+  await page.keyboard.press('KeyN');
+  await page.waitForFunction((t0) => {
+    const [h, m, s] = (window as any).slowlight.readouts().find((r: any) => r.label === 'Town clock t').value.split(':').map(Number);
+    return h * 3600 + m * 60 + s > t0 + 0.5;
+  }, t);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Aberration');
+  const start = page.getByRole('button', { name: 'Start', exact: true });
+  await expect(start).toBeVisible();
+  await frames(page, 10);
+  expect(await readout(page, 'β = v/c')).toBe('0.000');
+  await start.click();
+  await expect(start).toBeHidden();
+  await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
 });

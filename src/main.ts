@@ -33,6 +33,7 @@ let setting = (params.get('quality') ?? storedQuality ?? 'auto') as QualitySetti
 if (!['auto', 'low', 'medium', 'high'].includes(setting)) setting = 'auto';
 /** Where Auto starts in each world: low on phones, high on Apple Silicon (it handles it comfortably), else medium. */
 let autoStart: Quality = matchMedia('(pointer: coarse)').matches ? 'low' : 'medium';
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const constants: Constants = { ...REAL };
 let renderer: THREE.WebGLRenderer | null = null;
@@ -54,6 +55,11 @@ let chrome: Chrome | null = null;
 let ruler: Ruler | null = null;
 let tourIndex = 0;
 let frames = 0;
+/** Under reduced motion a world holds still until the visitor first taps, clicks or presses a key in it. */
+let still = false;
+for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, () => (still = false), true);
+/** The action of the current tour stop, waiting for its Start button under reduced motion. */
+let pending: string | null = null;
 /** Presets Auto found too slow, per world, for the rest of the visit. */
 const tooSlow: Record<string, Set<Quality>> = {};
 let auto = new AutoQuality(setting === 'auto' ? autoStart : setting, setting === 'auto');
@@ -177,6 +183,10 @@ async function enter(id: string) {
     },
     onAction: (a) => w.runAction(a, ctx()),
     onTour: goTour,
+    onStart: () => {
+      if (pending) w.runAction(pending, ctx());
+      pending = null;
+    },
     onQuality: setQuality,
     ruler,
   });
@@ -196,6 +206,8 @@ async function enter(id: string) {
   });
   history.replaceState(null, '', `?world=${id}${params.has('quality') ? `&quality=${setting}` : ''}`);
   chrome.showQuality(auto.auto ? quality : null);
+  still = reduceMotion.matches;
+  hudTimer = 0;
   goTour(0, true);
   if (pendingShare && params.get('world') === id) {
     for (const k of w.dials) if (pendingShare[k] !== undefined) constants[k] = pendingShare[k];
@@ -234,10 +246,19 @@ function goTour(i: number, initial = false) {
     input.state.yaw = pose.yaw;
     input.state.pitch = pose.pitch;
   }
-  if (stop.action) world.runAction(stop.action, ctx());
+  pending = null;
+  if (stop.action) {
+    const calm = world.actions.filter((a) => a.calm).map((a) => a.id);
+    if (!reduceMotion.matches || calm.includes(stop.action)) world.runAction(stop.action, ctx());
+    else {
+      pending = stop.action;
+      // shortcut: World II has no calm action, so a roll still going from the previous stop runs on until Start; add one when that matters.
+      for (const id of calm) world.runAction(id, ctx());
+    }
+  }
   // Marks made at the last stop would point at nothing in particular here.
   ruler?.clear();
-  chrome.setTour(tourIndex);
+  chrome.setTour(tourIndex, pending !== null);
   chrome.syncDials(constants);
   chrome.syncToggles();
 }
@@ -252,7 +273,7 @@ let resumed = false;
 document.addEventListener('visibilitychange', () => (resumed = true));
 function loop(now: number) {
   requestAnimationFrame(loop);
-  const dt = paused ? step : Math.min(0.05, (now - last) / 1000);
+  const dt = paused ? step : still ? 0 : Math.min(0.05, (now - last) / 1000);
   step = 0;
   const ms = now - last;
   last = now;
@@ -266,7 +287,7 @@ function loop(now: number) {
   hudTimer -= dt;
   if (hudTimer <= 0 && chrome) {
     hudTimer = 0.1;
-    chrome.setReadouts(world.readouts(ctx()), world.status(ctx()));
+    chrome.setReadouts(world.readouts(ctx()), still ? 'Reduced motion: nothing moves until you tap or press a key.' : world.status(ctx()));
   }
 }
 

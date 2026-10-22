@@ -66,7 +66,7 @@ export class SlowLightWorld implements World {
   readonly start: Pose = { position: [0, EYE, 30], yaw: 0, pitch: 0.04 };
   readonly actions = [
     { id: 'cruise', label: 'Cruise', key: 'KeyF' },
-    { id: 'stop', label: 'Stop', key: 'KeyX' },
+    { id: 'stop', label: 'Stop', key: 'KeyX', calm: true },
     { id: 'tram', label: 'Tram', key: 'KeyT' },
   ];
   readonly toggles: Toggle[] = [

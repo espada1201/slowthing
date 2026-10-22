@@ -104,7 +104,8 @@ export interface Chrome {
   setReadouts(r: Readout[], status: string): void;
   syncDials(c: Constants): void;
   syncToggles(): void;
-  setTour(i: number): void;
+  /** Show tour stop i; `waiting` offers the Start button for its action. */
+  setTour(i: number, waiting?: boolean): void;
   /** Name the preset Auto is running (null when a preset was chosen by hand). */
   showQuality(q: Quality | null): void;
   flash(msg: string): void;
@@ -123,6 +124,7 @@ export function worldChrome(
     onShare: () => void;
     onAction: (id: string) => void;
     onTour: (i: number) => void;
+    onStart: () => void;
     onQuality: (q: QualitySetting) => void;
     /** The sky ruler, for a world that reports its view. */
     ruler: Ruler | null;
@@ -176,7 +178,12 @@ export function worldChrome(
   const predictBox = h('div', { class: 'predict', hidden: true });
   const prev = h('button', { class: 'btn ghost', 'aria-label': 'Previous tour stop', onclick: () => opts.onTour(current - 1) }, '←');
   const next = h('button', { class: 'btn', 'data-tour-next': true, 'aria-label': 'Next tour stop', onclick: () => opts.onTour(current + 1) }, 'Next →');
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, quick, prev, next));
+  const start = h('button', { class: 'btn start', hidden: true }, 'Start');
+  start.addEventListener('click', () => {
+    start.hidden = true;
+    opts.onStart();
+  });
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, quick, start, prev, next));
   let current = 0;
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
@@ -248,8 +255,9 @@ export function worldChrome(
     syncToggles() {
       for (const t of toggles) t.box.checked = t.t.value;
     },
-    setTour(i) {
+    setTour(i, waiting = false) {
       current = i;
+      start.hidden = !waiting;
       const stop = world.tour[i];
       tourNo.textContent = `${i + 1} / ${world.tour.length}`;
       tourTitle.textContent = stop.title;

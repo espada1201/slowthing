@@ -38,7 +38,10 @@ export interface TourStop {
   pose?: Pose;
   constants?: Partial<Constants>;
   toggles?: Record<string, boolean>;
-  /** World-specific action run when the stop is shown (e.g. start cruising, throw a ball). */
+  /**
+   * World-specific action run when the stop is shown (e.g. start cruising, throw a ball). When the visitor asks for
+   * reduced motion, an action that sets things moving waits for a tap on the stop's Start button instead.
+   */
   action?: string;
   /** Predict-observe-explain: ask before showing, then reveal. */
   predict?: Prediction;
@@ -69,6 +72,8 @@ interface WorldAction {
   id: string;
   label: string;
   key: string;
+  /** Only brings things to rest: a tour stop runs it at once even under reduced motion, and in place of one that waits. */
+  calm?: boolean;
 }
 
 export interface WorldContext {

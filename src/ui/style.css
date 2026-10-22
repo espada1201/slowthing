@@ -76,6 +76,8 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 .btn:disabled { opacity: 0.35; cursor: default; background: var(--ink); border-color: var(--ink); }
 .btn.ghost { background: transparent; color: inherit; border-color: currentColor; }
 .btn.ghost:hover { background: rgba(16, 18, 22, 0.08); }
+.btn[hidden] { display: none; }
+.btn.start { background: var(--accent); border-color: var(--accent); color: #fff; }
 .topbar { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; pointer-events: none !important; }
 .topbar > * { pointer-events: auto; }
 .topbar .btn.ghost, .topbar select { background: rgba(16, 18, 22, 0.55); color: var(--paper); border-color: rgba(239, 231, 214, 0.35); backdrop-filter: blur(6px); }
