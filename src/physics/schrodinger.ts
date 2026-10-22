@@ -184,6 +184,54 @@ export function freeSpreadWidth(sigma0: number, t: number, p: Particle): number 
   return sigma0 * Math.sqrt(1 + ((p.hbar * t) / (2 * p.mass * sigma0 * sigma0)) ** 2);
 }
 
+/**
+ * Average of f(k) over the wavenumbers of a Gaussian packet whose |ψ|² has standard deviation σ: they are
+ * normally distributed about k₀ with standard deviation 1/(2σ).
+ */
+export function packetAverage(k0: number, sigma: number, f: (k: number) => number): number {
+  const sk = 1 / (2 * sigma);
+  let num = 0, den = 0;
+  for (let i = -1600; i <= 1600; i++) {
+    const q = i / 200, w = Math.exp(-0.5 * q * q);
+    num += w * f(k0 + q * sk);
+    den += w;
+  }
+  return num / den;
+}
+
+/**
+ * Mean wavevector [kx, ky] of the part of ψ in the cells `inside` picks, from the phase step between neighbours:
+ * arg Σ ψ*(r) ψ(r + dx) / dx along each axis. That sum is the momentum distribution's characteristic function at dx,
+ * so its phase is the mean k·dx, short only by the distribution's skew times dx²/6. A plane wave reads exactly k even
+ * at five cells to the wavelength, where a central-difference current reads sin(k dx)/dx, 22% short.
+ */
+export function meanWavevector(
+  grid: { nx: number; ny: number; dx: number },
+  re: (k: number) => number,
+  im: (k: number) => number,
+  inside: (i: number, j: number) => boolean,
+): [number, number] {
+  const { nx, ny, dx } = grid;
+  let xr = 0, xi = 0, yr = 0, yi = 0;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      if (!inside(i, j)) continue;
+      const k = j * nx + i, a = re(k), b = im(k);
+      if (i + 1 < nx && inside(i + 1, j)) {
+        const c = re(k + 1), d = im(k + 1);
+        xr += a * c + b * d;
+        xi += a * d - b * c;
+      }
+      if (j + 1 < ny && inside(i, j + 1)) {
+        const c = re(k + nx), d = im(k + nx);
+        yr += a * c + b * d;
+        yi += a * d - b * c;
+      }
+    }
+  }
+  return [Math.atan2(xi, xr) / dx, Math.atan2(yi, yr) / dx];
+}
+
 /** Running totals of a weight over cells, negative weights counting as zero: the distribution sampleIndex draws from. */
 export function cumulative(cells: number, weight: (k: number) => number): Float64Array {
   const cdf = new Float64Array(cells);

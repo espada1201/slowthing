@@ -5,6 +5,8 @@ import {
   correctSteps,
   cumulative,
   freeSpreadWidth,
+  meanWavevector,
+  packetAverage,
   sampleIndex,
   stableTimeStep,
 } from '../src/physics/schrodinger';
@@ -202,5 +204,39 @@ describe('Born-rule sampling', () => {
     expect(sampleIndex(cdf, 1 - Number.EPSILON / 2)).toBe(3);
     expect(sampleIndex(cdf, 1)).toBe(3);
     expect(sampleIndex(cumulative(1, () => 2), 0.6)).toBe(0);
+  });
+});
+
+describe('momentum read off ψ', () => {
+  it('reads a plane wave’s wavevector exactly, even with only five cells to a wavelength', () => {
+    // k·dx = 1.2, as for the courtyard ball on the coarsest grid, where a central-difference current reads sin(k dx)/dx: 22% short.
+    const grid = { nx: 40, ny: 30, dx: 0.1875 }, kx = 6.4, ky = -2.1;
+    const phase = (k: number) => kx * (k % grid.nx) * grid.dx + ky * Math.floor(k / grid.nx) * grid.dx;
+    const [gx, gy] = meanWavevector(grid, (k) => Math.cos(phase(k)), (k) => Math.sin(phase(k)), () => true);
+    expect(gx).toBeCloseTo(kx, 10);
+    expect(gy).toBeCloseTo(ky, 10);
+  });
+
+  it('reads only the cells it is given: two packets heading opposite ways, one in each half', () => {
+    const grid = { nx: 300, ny: 1, dx: 0.1 };
+    const packet = (x: number, x0: number, k: number): [number, number] => {
+      const a = Math.exp(-((x - x0) ** 2) / 4);
+      return [a * Math.cos(k * x), a * Math.sin(k * x)];
+    };
+    const psi = (k: number) => {
+      const x = k * grid.dx, a = packet(x, 5, 3), b = packet(x, 25, -5);
+      return [a[0] + b[0], a[1] + b[1]];
+    };
+    const read = (inside: (i: number) => boolean) => meanWavevector(grid, (k) => psi(k)[0], (k) => psi(k)[1], inside)[0];
+    expect(read((i) => i < 150)).toBeCloseTo(3, 9);
+    expect(read((i) => i >= 150)).toBeCloseTo(-5, 9);
+  });
+});
+
+describe('averages over a packet', () => {
+  it('weights wavenumbers as a packet of width σ carries them: about k₀, spread 1/(2σ)', () => {
+    expect(packetAverage(6.4, 2, (k) => k)).toBeCloseTo(6.4, 12);
+    expect(packetAverage(6.4, 2, (k) => (k - 6.4) ** 2)).toBeCloseTo(1 / 16, 9);
+    expect(packetAverage(6.4, 2, (k) => k ** 3)).toBeCloseTo(6.4 ** 3 + (3 * 6.4) / 16, 9);
   });
 });
