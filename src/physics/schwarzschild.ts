@@ -34,7 +34,7 @@ function coordinateDirection(pos: Vec3, nLocal: Vec3, rs: number): Vec3 {
   return add(scale(rhat, radial * Math.sqrt(Math.max(0, 1 - rs / len(pos)))), perp);
 }
 
-export interface RayResult {
+interface RayResult {
   captured: boolean;
   direction: Vec3;
   /** Where the march stopped. */

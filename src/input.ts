@@ -39,7 +39,7 @@ export class Input {
   private onKey: KeyHandler = () => {};
 
   constructor(canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
-    this.listen(window, 'keydown', (e: KeyboardEvent) => {
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || ownedByControl(e.target, e.code)) return;
       if (e.code in MOVE_KEYS || e.code in TURN_KEYS || e.code.startsWith('Shift')) {
         this.held.add(e.code);
@@ -47,12 +47,12 @@ export class Input {
       }
       if (!e.repeat) this.onKey(e.code);
     });
-    this.listen(window, 'keyup', (e: KeyboardEvent) => this.held.delete(e.code));
-    this.listen(window, 'blur', () => this.held.clear());
-    this.listen(canvas, 'click', () => {
+    window.addEventListener('keyup', (e: KeyboardEvent) => this.held.delete(e.code));
+    window.addEventListener('blur', () => this.held.clear());
+    canvas.addEventListener('click', () => {
       if (matchMedia('(pointer: fine)').matches && document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch?.(() => {});
     });
-    this.listen(document, 'mousemove', (e: MouseEvent) => {
+    document.addEventListener('mousemove', (e: MouseEvent) => {
       if (document.pointerLockElement === canvas) this.look(e.movementX * 0.0022, e.movementY * 0.0022);
     });
     this.setupTouch();
@@ -93,7 +93,7 @@ export class Input {
     let origin = { x: 0, y: 0 };
     let last = { x: 0, y: 0 };
     const R = 56;
-    this.listen(this.touchLayer, 'pointerdown', (e: PointerEvent) => {
+    this.touchLayer.addEventListener('pointerdown', (e: PointerEvent) => {
       if (e.pointerType === 'mouse' || (e.target as HTMLElement).closest('button')) return;
       const left = e.clientX < window.innerWidth * 0.45;
       if (left && stickId === null) {
@@ -108,7 +108,7 @@ export class Input {
       }
       this.touchLayer.setPointerCapture?.(e.pointerId);
     });
-    this.listen(this.touchLayer, 'pointermove', (e: PointerEvent) => {
+    this.touchLayer.addEventListener('pointermove', (e: PointerEvent) => {
       if (e.pointerId === stickId) {
         let dx = e.clientX - origin.x, dy = e.clientY - origin.y;
         const d = Math.hypot(dx, dy);
@@ -132,11 +132,7 @@ export class Input {
       }
       if (e.pointerId === lookId) lookId = null;
     };
-    this.listen(this.touchLayer, 'pointerup', end);
-    this.listen(this.touchLayer, 'pointercancel', end);
-  }
-
-  private listen<K extends EventTarget>(target: K, type: string, fn: (e: any) => void) {
-    target.addEventListener(type, fn);
+    this.touchLayer.addEventListener('pointerup', end);
+    this.touchLayer.addEventListener('pointercancel', end);
   }
 }

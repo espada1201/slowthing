@@ -1,8 +1,8 @@
 import type * as THREE from 'three';
 import { PROOFS, type Proof, worldProofs } from '../proofs';
-import { h } from './ui';
+import { WORLD_CARDS, h } from './ui';
 
-const WORLD_NAMES = { I: 'Slow Light', II: 'Big ħ', III: 'Big G' };
+const worldName = (plate: string) => WORLD_CARDS.find((c) => c.plate === `Plate ${plate}`)?.title;
 
 /** The Proofs screen: runs every check in this browser and shows measured against expected. */
 export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => void) {
@@ -30,7 +30,7 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
       const state = h('span', { class: 'proof-state' }, 'waiting');
       const result = h('span', { class: 'proof-result' });
       const li = h('li', { class: 'proof', 'data-proof': p.id, 'data-state': 'waiting' },
-        h('div', { class: 'proof-head' }, state, h('span', { class: 'proof-world' }, `${p.world} · ${WORLD_NAMES[p.world]}${p.gpu ? ' · GPU' : ''}`)),
+        h('div', { class: 'proof-head' }, state, h('span', { class: 'proof-world' }, `${p.world} · ${worldName(p.world)}${p.gpu ? ' · GPU' : ''}`)),
         h('h2', {}, p.title),
         h('p', { class: 'proof-claim' }, p.claim),
         result,

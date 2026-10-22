@@ -36,14 +36,14 @@ export interface TourStop {
   predict?: Prediction;
 }
 
-export interface Prediction {
+interface Prediction {
   question: string;
   options: string[];
   answer: number;
   reveal: string;
 }
 
-export interface WorldAction {
+interface WorldAction {
   id: string;
   label: string;
   key: string;

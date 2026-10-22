@@ -2,13 +2,18 @@ import * as THREE from 'three';
 import common from '../shaders/common.glsl?raw';
 import fullscreenVert from '../shaders/fullscreen.vert?raw';
 import { lutUniforms } from '../lut';
-
-export const SUN = new THREE.Vector3(0.45, 0.62, -0.64).normalize();
+import type { Pose } from './types';
 
 /** Rotation from camera space (−z forward) to world space for a yaw/pitch pair. */
 export function cameraRotation(yaw: number, pitch: number): THREE.Matrix3 {
   const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
   return new THREE.Matrix3().setFromMatrix4(m);
+}
+
+/** A pose at `position` looking at `target`. */
+export function facing(position: [number, number, number], target: [number, number, number] = [0, 0, 0]): Pose {
+  const d = new THREE.Vector3(target[0] - position[0], target[1] - position[1], target[2] - position[2]).normalize();
+  return { position, yaw: Math.atan2(-d.x, -d.z), pitch: Math.asin(d.y) };
 }
 
 export function forwardFlat(yaw: number): THREE.Vector3 {

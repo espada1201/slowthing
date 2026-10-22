@@ -38,7 +38,7 @@ export function setSound(on: boolean) {
 function ensure() {
   if (!ctx) {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return null;
+    if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = enabled ? 0.5 : 0;
@@ -46,7 +46,6 @@ function ensure() {
     master.connect(comp).connect(ctx.destination);
   }
   if (ctx.state === 'suspended') void ctx.resume();
-  return ctx;
 }
 
 function voice(pan: number) {

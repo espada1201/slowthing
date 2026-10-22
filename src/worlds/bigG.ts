@@ -10,7 +10,7 @@ import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift
 import { REFLECTION_LOG_RANGE, buildReflectionLUT } from '../physics/reflection';
 import { type Vec3, dot, normalize } from '../physics/vec';
 import frag from '../shaders/big-g.frag?raw';
-import { cameraRotation, fullscreenPass } from './shared';
+import { cameraRotation, facing, fullscreenPass } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
 /** A granite boulder: 2 m radius, 2700 kg/m³. */
@@ -35,11 +35,6 @@ const QUALITY: Record<Quality, { k: number; steps: number }> = {
 
 /** G that gives the boulder a Schwarzschild radius rs (at the real c). */
 const gFor = (rs: number) => (rs * REAL.c ** 2) / (2 * MASS);
-
-function facing(position: [number, number, number], target: [number, number, number] = [0, 0, 0]): Pose {
-  const d = new THREE.Vector3(target[0] - position[0], target[1] - position[1], target[2] - position[2]).normalize();
-  return { position, yaw: Math.atan2(-d.x, -d.z), pitch: Math.asin(d.y) };
-}
 
 const LAMPS: { pos: THREE.Vector3; color: THREE.Color; radius: number }[] = [
   // Buoys hovering close to the hole: their light climbs out visibly redshifted.

@@ -19,7 +19,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = 
   return el;
 }
 
-export interface WorldCard {
+interface WorldCard {
   id: string;
   plate: string;
   title: string;

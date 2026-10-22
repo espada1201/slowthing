@@ -10,13 +10,13 @@ Each world has a guided tour, effect switches, live instruments and a **Real uni
 
 ## Run on your Mac
 
-1. Install Homebrew from https://brew.sh if you don't have it yet.
-2. Open **Terminal** and run `brew install node`.
+1. Open **Terminal**. If you don't have Homebrew, paste the install command from https://brew.sh, then run the two "Next steps" lines it prints.
+2. Run `brew install node`.
 3. Download this repository: green **Code** button → **Download ZIP**, then unzip it.
 4. In Terminal, type `cd `, drag the unzipped folder into the window, and press Return.
 5. Run `npm install && npm start`, then open the link it prints (http://localhost:4173).
 
-Controls: click the view to look around, use WASD to move and the arrow keys to turn, hold Shift to run, press N for the next tour stop. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to your exact dial settings.
+Controls: click the view to look around, use WASD to move and ← → to turn, hold Shift to run, press N for the next tour stop. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to your exact dial settings.
 
 ## How the physics is computed
 
@@ -31,7 +31,7 @@ Controls: click the view to look around, use WASD to move and the arrow keys to 
 ```sh
 npm run dev        # live-reloading dev server
 npm test           # unit tests against textbook results
-npm run e2e        # Playwright end-to-end tests in Chromium
+npm run e2e        # Playwright end-to-end tests (first time: npx playwright install chromium)
 npm run typecheck
 ```
 
