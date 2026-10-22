@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { knotUniforms, lutUniforms, skyUniforms } from './lut';
-import { aberrationAngle, dopplerFactor, lorentzFactor, observerToWorldDirection, retardedTime } from './physics/relativity';
+import { aberrationAngle, dopplerFactor, lorentzFactor, observerToWorldDirection, retardedTime, sourceDopplerFactor } from './physics/relativity';
 import { simultaneousTime } from './physics/simultaneity';
 import { Schrodinger2D, barrierTransmission, freeSpreadWidth, packetAverage, stableTimeStep } from './physics/schrodinger';
 import { CRITICAL_IMPACT, exactDeflection, traceRay, tracedDeflection } from './physics/schwarzschild';
@@ -98,6 +98,40 @@ function pixelDirections(i: number, j: number) {
 
 // ---------- GPU harness for World I's moving objects ----------
 
+/**
+ * Draw each row's points with its material, point i of row j on pixel (i, j) of a float target `width` wide (the
+ * material puts it there from aReadout), and read the target back.
+ */
+function readPoints(renderer: THREE.WebGLRenderer, width: number, rows: { attributes: Record<string, number[][]>; material: THREE.ShaderMaterial }[]): Float32Array {
+  const scene = new THREE.Scene();
+  rows.forEach(({ attributes, material }, j) => {
+    const geometry = new THREE.BufferGeometry();
+    for (const [name, values] of Object.entries(attributes)) geometry.setAttribute(name, new THREE.Float32BufferAttribute(values.flat(), values[0].length));
+    geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(attributes.position.flatMap((_, i) => [((i + 0.5) / width) * 2 - 1, ((j + 0.5) / rows.length) * 2 - 1]), 2));
+    const cloud = new THREE.Points(geometry, material);
+    cloud.frustumCulled = false;
+    scene.add(cloud);
+  });
+  const target = new THREE.WebGLRenderTarget(width, rows.length, { type: THREE.FloatType, depthBuffer: false });
+  const pixels = new Float32Array(width * rows.length * 4);
+  const previous = renderer.getRenderTarget();
+  try {
+    renderer.setRenderTarget(target);
+    renderer.render(scene, new THREE.Camera());
+    renderer.readRenderTargetPixels(target, 0, 0, width, rows.length, pixels);
+  } finally {
+    renderer.setRenderTarget(previous);
+    target.dispose();
+    scene.traverse((o) => {
+      if (o instanceof THREE.Points) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
+  }
+  return pixels;
+}
+
 /** Test points of a tram car and of a carousel lamp: (along the track, up, outward), as slow-moving.vert takes them. */
 const CAR: Vec3[] = [[0, 0, 0], [3.7, 0, 0], [-3.7, 0, 0], [0, 3.5, 0], [0, 0, 1.35], [0, 0, -1.35], [3.7, 3.5, 1.35], [-3.7, 0.3, -1.35], [1.8, 1.2, 0.6]];
 const LAMP: Vec3[] = [[0, 3, 0], [0.5, 3, 0], [-0.5, 3, 0], [0, 3.5, 0], [0, 2.5, 0], [0, 3, 0.5], [0, 3, -0.5], [0.35, 3.35, 0.35], [-0.35, 2.65, -0.35]];
@@ -140,7 +174,7 @@ const MOVERS: Mover[] = [
   { c: 12, beta: 0.735, radius: 7, dir: -1, eye: [10, -4], eyeBeta: [-0.9, 0, 0], angle: -2.0, delay: false, points: LAMP },
   { c: 4, beta: 0.95, radius: 45, dir: 1, eye: [200, -4], eyeBeta: [0.3, 0, -0.93], angle: 3.7, delay: false, points: CAR },
 ];
-const MW = Math.max(...MOVERS.map((m) => m.points.length)), MH = MOVERS.length;
+const MW = Math.max(...MOVERS.map((m) => m.points.length));
 
 /** slow-moving.vert's pathPos, independently: where test point `local` of a mover is at town time s (now = 0). */
 function moverPath({ c, beta, radius, dir, angle, centre = [0, 0], contract = true }: Mover, local: Vec3) {
@@ -152,13 +186,9 @@ function moverPath({ c, beta, radius, dir, angle, centre = [0, 0], contract = tr
   };
 }
 
-/** Run the real slow-moving.vert on every test point, each drawn as a GL point on its own pixel, and read back where it put them. */
+/** Run the real slow-moving.vert on every test point and read back where it put them. */
 function runMovers(renderer: THREE.WebGLRenderer) {
-  const scene = new THREE.Scene();
-  MOVERS.forEach(({ c, beta, radius, dir, eye, eyeBeta = [0, 0, 0], angle, centre = [0, 0], contract = true, delay = true, points }, j) => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
-    geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(points.flatMap((_, i) => [((i + 0.5) / MW) * 2 - 1, ((j + 0.5) / MH) * 2 - 1]), 2));
+  const rows = MOVERS.map(({ c, beta, radius, dir, eye, eyeBeta = [0, 0, 0], angle, centre = [0, 0], contract = true, delay = true, points }) => {
     const material = new THREE.ShaderMaterial({
       vertexShader: movingVertex,
       fragmentShader: 'varying vec3 vWorld; varying float vTau; void main() { gl_FragColor = vec4(vWorld, vTau); }',
@@ -178,45 +208,30 @@ function runMovers(renderer: THREE.WebGLRenderer) {
         uObsBeta: { value: new THREE.Vector3(...eyeBeta) },
       },
     });
-    const cloud = new THREE.Points(geometry, material);
-    cloud.frustumCulled = false;
-    scene.add(cloud);
+    return { attributes: { position: points }, material };
   });
-  const target = new THREE.WebGLRenderTarget(MW, MH, { type: THREE.FloatType, depthBuffer: false });
-  const pixels = new Float32Array(MW * MH * 4);
-  const previous = renderer.getRenderTarget();
-  try {
-    renderer.setRenderTarget(target);
-    renderer.render(scene, new THREE.Camera());
-    renderer.readRenderTargetPixels(target, 0, 0, MW, MH, pixels);
-  } finally {
-    renderer.setRenderTarget(previous);
-    target.dispose();
-    scene.traverse((o) => {
-      if (o instanceof THREE.Points) {
-        o.geometry.dispose();
-        (o.material as THREE.Material).dispose();
-      }
-    });
-  }
-  return pixels;
+  return readPoints(renderer, MW, rows);
 }
 
 // ---------- GPU harness for World I's moving surfaces ----------
 
-/** One face of a tram, as slow-moving.vert hands it to slow-surface.frag, seen by an eye at `eye` moving at `eyeBeta`. */
+/** One face of a tram, as slow-moving.vert hands it to slow-surface.frag. */
 interface TramFace {
   colour: Vec3;
   normal: Vec3;
   at: Vec3;
   /** A head or tail lamp (pattern 2), which glows instead of reflecting. */
   lamp?: boolean;
+}
+
+/** The faces of a tram moving at `velocity`, seen by an eye at `eye` moving at `eyeBeta`, under one pair of switches. */
+interface TramDraw {
   velocity: Vec3;
-  sun: Vec3;
   eye: Vec3;
   eyeBeta: Vec3;
   colourOn: boolean;
   beamOn: boolean;
+  faces: TramFace[];
 }
 
 const TRAM_SUN = normalize([0.45, 0.62, -0.64]);
@@ -225,8 +240,8 @@ const TRAM_PAINTS = [0xc8553d, 0xf0e6cf].map((h) => new THREE.Color(h).toArray()
 const TRAM_LAMPS = [0xfff2c0, 0xff3b1f].map((h) => new THREE.Color(h).toArray() as Vec3);
 
 /** Tram faces and lamps at three speeds, seen from ahead, beside and behind, standing and cruising, under each pair of switches. */
-function tramFaces(): TramFace[][] {
-  const draws: TramFace[][] = [];
+function tramDraws(): TramDraw[] {
+  const draws: TramDraw[] = [];
   const a = 0.7;
   const radial: Vec3 = [Math.cos(a), 0, Math.sin(a)], forward: Vec3 = [-Math.sin(a), 0, Math.cos(a)];
   const centre = scale(radial, 45);
@@ -236,26 +251,24 @@ function tramFaces(): TramFace[][] {
         for (const [colourOn, beamOn] of [[true, true], [true, false], [false, true]]) {
           const faces: TramFace[] = [];
           for (const normal of [forward, scale(forward, -1), radial, scale(radial, -1), [0, 1, 0]] as Vec3[])
-            for (const [k, colour] of TRAM_PAINTS.entries())
-              faces.push({ colour, normal, at: add(add(centre, scale(normal, 1.3)), [0, k ? 3 : 1.2, 0]), velocity: scale(forward, beta), sun: TRAM_SUN, eye: [eye[0], 1.7, eye[2]], eyeBeta, colourOn, beamOn });
+            for (const [k, colour] of TRAM_PAINTS.entries()) faces.push({ colour, normal, at: add(add(centre, scale(normal, 1.3)), [0, k ? 3 : 1.2, 0]) });
           for (const [k, colour] of TRAM_LAMPS.entries()) {
             const normal = scale(forward, k ? -1 : 1);
-            faces.push({ colour, normal, at: add(add(centre, scale(normal, 3.62)), [0, 1.3, 0]), lamp: true, velocity: scale(forward, beta), sun: TRAM_SUN, eye: [eye[0], 1.7, eye[2]], eyeBeta, colourOn, beamOn });
+            faces.push({ colour, normal, at: add(add(centre, scale(normal, 3.62)), [0, 1.3, 0]), lamp: true });
           }
-          draws.push(faces);
+          draws.push({ velocity: scale(forward, beta), eye: [eye[0], 1.7, eye[2]], eyeBeta, colourOn, beamOn, faces });
         }
   return draws;
 }
 
-/** What slow-moving.vert works out for a face: the sun's direction and Doppler factor in the tram's frame, and the
- * factors its light picks up on the way to the eye (the tram's own, the eye's own, and both). */
-function tramShifts(f: TramFace) {
-  const gamma = lorentzFactor(len(f.velocity));
-  const toEye = normalize(sub(f.eye, f.at));
-  const dSrc = 1 / (gamma * (1 - dot(f.velocity, toEye)));
-  const dObs = dopplerFactor(scale(toEye, -1), f.eyeBeta);
-  return { sunLocal: observerToWorldDirection(f.sun, scale(f.velocity, -1)), dIn: gamma * (1 + dot(f.velocity, f.sun)), dSrc, dObs, dOut: dSrc * dObs };
+/** What slow-moving.vert works out for a face at `at`: the sun's direction and Doppler factor in the tram's frame, and
+ * the factors its light picks up on the way to the eye (the tram's own, the eye's own, and both). */
+function tramShifts({ velocity, eye, eyeBeta }: TramDraw, at: Vec3) {
+  const toEye = normalize(sub(eye, at));
+  const dSrc = sourceDopplerFactor(velocity, toEye), dObs = dopplerFactor(scale(toEye, -1), eyeBeta);
+  return { sunLocal: observerToWorldDirection(TRAM_SUN, scale(velocity, -1)), dIn: dopplerFactor(TRAM_SUN, velocity), dSrc, dObs, dOut: dSrc * dObs };
 }
+type TramShifts = ReturnType<typeof tramShifts>;
 
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -270,23 +283,22 @@ const luminance = (c: Vec3) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
  * the way to the eye, plus the face's 300 K glow. The face's lighting (diffuse sun, tinted sky, ground shadow) is
  * slow-surface.frag's. A lamp glows at 2.4 times its colour, and only its own light is shifted, by D_out.
  */
-function exactTramColour(f: TramFace): Vec3 {
-  const { sunLocal, dIn, dOut } = tramShifts(f);
-  const seen = (col: Vec3) => col.map((v) => Math.min(v * (f.beamOn ? dOut ** 5 : 1), 6e4)) as Vec3;
+function exactTramColour({ velocity, colourOn, beamOn }: TramDraw, f: TramFace, { sunLocal, dIn, dOut }: TramShifts): Vec3 {
+  const seen = (col: Vec3) => col.map((v) => Math.min(v * (beamOn ? dOut ** 5 : 1), 6e4)) as Vec3;
   if (f.lamp) {
     const glow = scale(f.colour, 2.4);
-    return seen(f.colourOn ? (applyDoppler(glow, dOut).map((v) => Math.max(v, 0)) as Vec3) : glow);
+    return seen(colourOn ? (applyDoppler(glow, dOut).map((v) => Math.max(v, 0)) as Vec3) : glow);
   }
   const ao = 0.72 + 0.28 * smoothstep(0, 2.5, f.at[1]);
   const hemi = 0.5 + 0.5 * f.normal[1];
   const sunlit = f.colour.map((c, k) => c * Math.max(dot(f.normal, sunLocal), 0) * [1, 0.95, 0.86][k] * 0.9 * ao) as Vec3;
   const skylit = f.colour.map((c, k) => c * ([0.32, 0.28, 0.24][k] + ([0.55, 0.66, 0.82][k] - [0.32, 0.28, 0.24][k]) * hemi) * 0.42 * ao) as Vec3;
-  const beta = len(f.velocity), x = dot(f.normal, scale(f.velocity, 1 / beta)), eta = Math.atanh(beta);
-  const sunGain = f.beamOn ? dIn ** 3 : 1;
+  const beta = len(velocity), x = dot(f.normal, scale(velocity, 1 / beta)), eta = Math.atanh(beta);
+  const sunGain = beamOn ? dIn ** 3 : 1;
   let col: Vec3;
-  if (f.colourOn) {
+  if (colourOn) {
     const sun = apply3(reflectionTransform(dOut, dIn * dOut), sunlit);
-    const sky = apply3(skyLight(x, eta, f.beamOn ? 5 : 0, (D) => reflectionTransform(dOut, D * dOut), 128), skylit);
+    const sky = apply3(skyLight(x, eta, beamOn ? 5 : 0, (D) => reflectionTransform(dOut, D * dOut), 128), skylit);
     const glow = applyDoppler([0, 0, 0], dOut);
     col = [0, 1, 2].map((k) => Math.max(sunGain * sun[k] + sky[k], 0) + Math.max(glow[k], 0)) as Vec3;
   } else {
@@ -296,24 +308,21 @@ function exactTramColour(f: TramFace): Vec3 {
   return seen(col);
 }
 
-/** Run the real slow-surface.frag (MOVING) on every face, each drawn as a GL point on its own pixel, and read back its colour. */
-function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramFace[][]) {
-  const fw = Math.max(...draws.map((d) => d.length)), fh = draws.length;
-  const scene = new THREE.Scene();
+/** Run the real slow-surface.frag (MOVING) on every face, handed the shifts slow-moving.vert would, and read back its colour. */
+function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramDraw[], shifts: TramShifts[][]) {
+  const width = Math.max(...draws.map((d) => d.faces.length));
   const tables = { ...lutUniforms(), ...knotUniforms(), ...skyUniforms() };
-  draws.forEach((faces, j) => {
-    const f0 = faces[0];
-    const geometry = new THREE.BufferGeometry();
-    const attr = (pick: (f: TramFace) => number[]) => new THREE.Float32BufferAttribute(faces.flatMap(pick), pick(f0).length);
-    geometry.setAttribute('position', attr((f) => f.at));
-    geometry.setAttribute('normal', attr((f) => f.normal));
-    geometry.setAttribute('aColor', attr((f) => f.colour));
-    geometry.setAttribute('aPattern', attr((f) => [f.lamp ? 2 : 0]));
-    geometry.setAttribute('aVelocity', attr((f) => f.velocity));
-    geometry.setAttribute('aSunLocal', attr((f) => tramShifts(f).sunLocal));
-    geometry.setAttribute('aShift', attr((f) => [tramShifts(f).dSrc, tramShifts(f).dIn]));
-    geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(faces.flatMap((_, i) => [((i + 0.5) / fw) * 2 - 1, ((j + 0.5) / fh) * 2 - 1]), 2));
-    const material = new THREE.ShaderMaterial({
+  const rows = draws.map(({ velocity, eye, eyeBeta, colourOn, beamOn, faces }, j) => ({
+    attributes: {
+      position: faces.map((f) => f.at),
+      normal: faces.map((f) => f.normal),
+      aColor: faces.map((f) => f.colour),
+      aPattern: faces.map((f) => [f.lamp ? 2 : 0]),
+      aVelocity: faces.map(() => velocity),
+      aSunLocal: shifts[j].map((s) => s.sunLocal),
+      aShift: shifts[j].map((s) => [s.dSrc, s.dIn]),
+    },
+    material: new THREE.ShaderMaterial({
       vertexShader: `attribute vec3 aColor; attribute float aPattern; attribute vec3 aVelocity; attribute vec3 aSunLocal; attribute vec2 aShift; attribute vec2 aReadout;
         varying vec3 vColor; varying vec3 vNormal; varying vec3 vWorld; varying float vPattern;
         varying float vDsrc; varying float vTau; varying float vDin; varying vec3 vSunLocal; varying vec3 vVelocity;
@@ -327,37 +336,17 @@ function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramFace[][]) {
       defines: { MOVING: '' },
       uniforms: {
         ...tables,
-        uSun: { value: new THREE.Vector3(...f0.sun) },
+        uSun: { value: new THREE.Vector3(...TRAM_SUN) },
         uBlinkPeriod: { value: 1 },
-        uBeta: { value: len(f0.velocity) },
-        uObs: { value: new THREE.Vector3(...f0.eye) },
-        uObsBeta: { value: new THREE.Vector3(...f0.eyeBeta) },
-        uDopplerOn: { value: f0.colourOn ? 1 : 0 },
-        uBeamingOn: { value: f0.beamOn ? 1 : 0 },
+        uBeta: { value: len(velocity) },
+        uObs: { value: new THREE.Vector3(...eye) },
+        uObsBeta: { value: new THREE.Vector3(...eyeBeta) },
+        uDopplerOn: { value: colourOn ? 1 : 0 },
+        uBeamingOn: { value: beamOn ? 1 : 0 },
       },
-    });
-    const cloud = new THREE.Points(geometry, material);
-    cloud.frustumCulled = false;
-    scene.add(cloud);
-  });
-  const target = new THREE.WebGLRenderTarget(fw, fh, { type: THREE.FloatType, depthBuffer: false });
-  const pixels = new Float32Array(fw * fh * 4);
-  const previous = renderer.getRenderTarget();
-  try {
-    renderer.setRenderTarget(target);
-    renderer.render(scene, new THREE.Camera());
-    renderer.readRenderTargetPixels(target, 0, 0, fw, fh, pixels);
-  } finally {
-    renderer.setRenderTarget(previous);
-    target.dispose();
-    scene.traverse((o) => {
-      if (o instanceof THREE.Points) {
-        o.geometry.dispose();
-        (o.material as THREE.Material).dispose();
-      }
-    });
-  }
-  return { pixels, width: fw };
+    }),
+  }));
+  return { pixels: readPoints(renderer, width, rows), width };
 }
 
 export const PROOFS: Proof[] = [
@@ -476,15 +465,16 @@ export const PROOFS: Proof[] = [
     title: 'GPU tram colour shader',
     claim: 'The shader that colours trams and lamps gives every tested face the colour a full spectral calculation does: sunlight and sky light shifted onto the moving tram, reflected, then shifted again on the way to you.',
     run: (r) => {
-      const draws = tramFaces();
-      const { pixels, width } = runTramFaces(r, draws);
+      const draws = tramDraws();
+      const shifts = draws.map((d) => d.faces.map((f) => tramShifts(d, f.at)));
+      const { pixels, width } = runTramFaces(r, draws, shifts);
       let worst = 0, worstLamp = 0, handOff = 0, checked = 0, lamps = 0;
-      draws.forEach((faces, j) =>
-        faces.forEach((f, i) => {
+      draws.forEach((d, j) =>
+        d.faces.forEach((f, i) => {
           const o = (j * width + i) * 4;
           // The composite multiplies by its own D_obs, so the face must hand it 1 / D_obs.
-          handOff = Math.max(handOff, Math.abs(pixels[o + 3] * tramShifts(f).dObs - 1));
-          const want = exactTramColour(f);
+          handOff = Math.max(handOff, Math.abs(pixels[o + 3] * shifts[j][i].dObs - 1));
+          const want = exactTramColour(d, f, shifts[j][i]);
           // Faces too dark to see (under 2 % of a white wall in sunshine) are not held to a relative error.
           if (luminance(want) < 0.02) return;
           const error = Math.max(...want.map((v, k) => Math.abs(pixels[o + k] - v) / luminance(want)));
