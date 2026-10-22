@@ -199,6 +199,7 @@ test('weighing the hole: its shadow, measured with the ruler, gives rs and M to 
 
   await rsBox.click({ clickCount: 3 });
   await page.keyboard.type(rs.toFixed(2));
+  expect(await rsBox.evaluate((el) => el.matches(':invalid')), 'a corrected box should lose its red edge as you type').toBe(false);
   await page.locator('[data-ask="M"]').click();
   await page.keyboard.type(`${(M / 1e4).toFixed(2)}×10^4`);
   await page.keyboard.press('Enter');
