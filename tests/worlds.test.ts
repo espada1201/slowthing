@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { WORLD_CARDS } from '../src/ui/ui';
+import { WORLD_CARDS } from '../src/ui/dom';
 import { WORLDS, isWorldId } from '../src/worlds';
 import { SlowLightLesson } from '../src/worlds/slowLight';
 import type { Authored } from '../src/worlds/types';

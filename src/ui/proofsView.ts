@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { PROOFS, type Proof, worldProofs } from '../proofs';
-import { WORLD_CARDS, h } from './ui';
+import { WORLD_CARDS, h } from './dom';
 
 const worldName = (plate: string) => WORLD_CARDS.find((c) => c.plate === `Plate ${plate}`)?.title;
 

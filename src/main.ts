@@ -8,9 +8,10 @@ import { AutoQuality } from './autoQuality';
 import { type Constants, REAL } from './constants';
 import { Input } from './input';
 import { type Setup, applySetup, readLink, setupOf, writeLink } from './kit/link';
+import { WORLD_CARDS } from './ui/dom';
 import { proofsView } from './ui/proofsView';
 import { type Ruler, skyRuler } from './ui/ruler';
-import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
+import { type Chrome, titleScreen, worldChrome } from './ui/ui';
 import { WORLDS, isWorldId } from './worlds';
 import type { Authored, Quality, QualitySetting, World, WorldContext } from './worlds/types';
 

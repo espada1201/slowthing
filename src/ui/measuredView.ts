@@ -4,7 +4,7 @@
 import { formatSI } from '../constants';
 import type { DiagramPoint, MapPoint, MeasuredModel } from '../worlds/measured';
 import { clockString } from '../worlds/shared';
-import { h } from './ui';
+import { h } from './dom';
 
 /** Metres from you to the map's sides. You sit a quarter of the way up, so it reaches three times as far ahead as behind. */
 const MAP_HALF = 45;

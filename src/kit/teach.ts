@@ -6,7 +6,7 @@ import '@fontsource/instrument-serif/400-italic.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import './kit.css';
-import { WORLD_CARDS, h } from '../ui/ui';
+import { WORLD_CARDS, h } from '../ui/dom';
 import { WORLDS, isWorldId } from '../worlds';
 import { type Activity, type Answered, type Guide, type Question, type Sheet, type Step, guideOf, sheetOf } from './sheet';
 

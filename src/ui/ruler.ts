@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { viewPoint, viewRay } from '../worlds/shared';
 import type { View } from '../worlds/types';
-import { h } from './ui';
+import { h } from './dom';
 
 /** A press this close to a mark (CSS px) picks the mark up instead of starting a new one. */
 const GRAB = 24;
