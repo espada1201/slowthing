@@ -17,8 +17,7 @@ void main() {
   vec3 nObs = normalize(uCamRot * vec3((vUv.x * 2.0 - 1.0) * uTan.x, (vUv.y * 2.0 - 1.0) * uTan.y, -1.0));
   vec3 nW = uAberration > 0.5 ? observerToWorld(nObs, uBeta) : nObs;
   vec4 s = texture(uCube, nW);
-  float g = 1.0 / sqrt(1.0 - dot(uBeta, uBeta));
-  float D = g * (1.0 + dot(uBeta, nW)) * s.a;
+  float D = dopplerFactor(nW, uBeta) * s.a;
   vec3 col = uDoppler > 0.5 ? dopplerShift(s.rgb, D, 1.0) : s.rgb;
   if (uBeaming > 0.5) col *= pow(D, 5.0);
   col *= uExposure;

@@ -1,5 +1,5 @@
-// Moving objects, shaded all the way to the eye (TABLES_GLSL, common.glsl, reflect.glsl and slow-surface.glsl
-// prepended): lit in their own frame, then shifted on the way to the eye.
+// Moving objects, shaded all the way to the eye (TABLES_GLSL, common.glsl, boost.glsl, reflect.glsl and
+// slow-surface.glsl prepended): lit in their own frame, then shifted on the way to the eye.
 uniform float uBlinkPeriod;
 uniform float uBeta;
 uniform vec3 uObs;
@@ -56,7 +56,7 @@ void main() {
   // In its own frame a moving surface gets sunlight shifted by vDin (D³ brighter per unit wavelength, a point source)
   // and sky light bluer and brighter ahead (physics/skylight.ts); its light then reaches the eye shifted by D_out,
   // through its own motion and then the observer's.
-  float dObs = inversesqrt(1.0 - dot(uObsBeta, uObsBeta)) * (1.0 + dot(uObsBeta, normalize(vWorld - uObs)));
+  float dObs = dopplerFactor(normalize(vWorld - uObs), uObsBeta);
   float dOut = vDsrc * dObs;
   float x = uBeta > 1e-6 ? dot(s.n, normalize(vVelocity)) : 0.0;
   float eta = atanh(min(uBeta, 0.9999));

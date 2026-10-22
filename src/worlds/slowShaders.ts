@@ -20,6 +20,6 @@ export const skyFragment = `${noise}\n${skyFrag}`;
 export const groundFragment = `${noise}\n${groundFrag}`;
 export const staticFragment = `${surface}\n${staticFrag}`;
 export const movingVertex = `${boost}\n${movingVert}`;
-export const movingFragment = `${TABLES_GLSL}\n${common}\n${reflect}\n${surface}\n${movingFrag}`;
+export const movingFragment = `${TABLES_GLSL}\n${common}\n${boost}\n${reflect}\n${surface}\n${movingFrag}`;
 /** The tables movingFragment reads. */
 export const movingUniforms = () => ({ ...knotUniforms(), ...skyUniforms() });

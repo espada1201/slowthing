@@ -111,7 +111,7 @@ void main() {
   vec3 k = normalize(uObs - wp);
   vDsrc = 1.0 / (uGamma * (1.0 - dot(forward * uBeta, k)));
   vVelocity = forward * uBeta;
-  vDin = uGamma * (1.0 + dot(vVelocity, uSun));
+  vDin = dopplerFactor(uSun, vVelocity);
   vSunLocal = uAberrationOn > 0.5 ? observerToWorld(uSun, -vVelocity) : uSun;
   vTau = uTauNow + delta / uGamma;
   vWorld = wp;

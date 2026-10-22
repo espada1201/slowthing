@@ -1,6 +1,6 @@
-// Aberration. Light that an observer moving with velocity beta (in units of c) sees arriving along n comes, in the
-// scenery's frame, from observerToWorld(n, beta); the reverse, where something moving at beta sees light that lies
-// along n in the scenery, is observerToWorld(n, -beta).
+// Light under a Lorentz boost. Aberration: light that an observer moving with velocity beta (in units of c) sees
+// arriving along n comes, in the scenery's frame, from observerToWorld(n, beta); the reverse, where something moving
+// at beta sees light that lies along n in the scenery, is observerToWorld(n, -beta).
 vec3 observerToWorld(vec3 n, vec3 beta) {
   float b = length(beta);
   if (b < 1e-6) return n;
@@ -10,4 +10,11 @@ vec3 observerToWorld(vec3 n, vec3 beta) {
   vec3 perp = n - bh * par;
   float den = 1.0 - dot(beta, n);
   return normalize(bh * (par - b) / den + perp / (g * den));
+}
+
+// Doppler factor ν_observed / ν_scenery for an observer moving with velocity beta who sees light arriving from the
+// scenery-frame direction n (eye → source), as physics/relativity.ts dopplerFactor. Something moving at beta that
+// receives light from direction n sees it shifted by the same factor.
+float dopplerFactor(vec3 n, vec3 beta) {
+  return 1.0 / sqrt(1.0 - dot(beta, beta)) * (1.0 + dot(beta, n));
 }
