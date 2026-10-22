@@ -51,6 +51,18 @@ export interface TourStop<S = unknown> {
   predict?: Prediction;
   /** Measure something and work numbers out from it; the true values show once the visitor has answered. */
   measure?: Measurement<S>;
+  /** What a class does here. A stop with minutes is on the 15-minute lesson path and the student sheet. */
+  lesson?: StopLesson;
+}
+
+/** Classroom notes for one tour stop, which the teaching kit prints. */
+export interface StopLesson {
+  /** Minutes on the 15-minute lesson path, which takes the stops with minutes in tour order. */
+  minutes?: number;
+  /** The wrong ideas this stop is built to surface, as a student would put them. */
+  misconceptions?: string[];
+  /** Observe-and-explain prompts for the student sheet, each tied to a switch of this world. */
+  explain?: { toggle: string; prompt: string }[];
 }
 
 interface Prediction {
