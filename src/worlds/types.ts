@@ -24,6 +24,12 @@ export interface Pose {
   pitch: number;
 }
 
+/** A frame's camera, as the shaders take it (uCamRot, uTan): see viewRay in shared.ts. */
+export interface View {
+  rot: THREE.Matrix3;
+  tan: THREE.Vector2;
+}
+
 export interface TourStop {
   title: string;
   text: string;

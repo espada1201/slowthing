@@ -2,12 +2,24 @@ import * as THREE from 'three';
 import common from '../shaders/common.glsl?raw';
 import fullscreenVert from '../shaders/fullscreen.vert?raw';
 import { lutUniforms } from '../lut';
-import type { Pose } from './types';
+import type { Pose, View } from './types';
 
 /** Rotation from camera space (−z forward) to world space for a yaw/pitch pair. */
 export function cameraRotation(yaw: number, pitch: number): THREE.Matrix3 {
   const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
   return new THREE.Matrix3().setFromMatrix4(m);
+}
+
+/** The ray a shader casts through point (u, v) of the view, counted from its bottom-left corner in [0, 1]². */
+export function viewRay({ rot, tan }: View, u: number, v: number): THREE.Vector3 {
+  return new THREE.Vector3((2 * u - 1) * tan.x, (2 * v - 1) * tan.y, -1).applyMatrix3(rot).normalize();
+}
+
+/** The point (u, v) of the view that looks along direction d, or null if d is behind the camera. */
+export function viewPoint({ rot, tan }: View, d: THREE.Vector3): THREE.Vector2 | null {
+  // A rotation's transpose is its inverse: back from world to camera space, where the view looks along −z.
+  const c = d.clone().applyMatrix3(rot.clone().transpose());
+  return c.z < 0 ? new THREE.Vector2(0.5 - c.x / (2 * c.z * tan.x), 0.5 - c.y / (2 * c.z * tan.y)) : null;
 }
 
 /** A pose at `position` looking at `target`. */
