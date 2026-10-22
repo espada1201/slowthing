@@ -328,7 +328,7 @@ export function worldChrome(
         const check = h('button', { class: 'btn', 'data-check': true }, 'Check');
         const reveal = h('p', { class: 'predict-reveal', hidden: true });
         const commit = (mine: number[] | null) => {
-          const { values, reveal: text } = m.answer();
+          const { values, reveal: text } = m.answer(world.measureState?.());
           const yours = mine?.map((v, k) => {
             const off = (100 * (v - values[k])) / values[k];
             return `${m.asks[k].symbol} = ${formatSI(v)} ${m.asks[k].unit} (${Math.abs(off).toFixed(1)}% ${off < 0 ? 'low' : 'high'})`;

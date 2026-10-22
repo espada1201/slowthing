@@ -34,7 +34,7 @@ export interface View {
   tan: THREE.Vector2;
 }
 
-export interface TourStop {
+export interface TourStop<S = unknown> {
   title: string;
   text: string;
   pose?: Pose;
@@ -48,7 +48,7 @@ export interface TourStop {
   /** Predict-observe-explain: ask before showing, then reveal. */
   predict?: Prediction;
   /** Measure something and work numbers out from it; the true values show once the visitor has answered. */
-  measure?: Measurement;
+  measure?: Measurement<S>;
 }
 
 interface Prediction {
@@ -58,7 +58,7 @@ interface Prediction {
   reveal: string;
 }
 
-interface Measurement {
+interface Measurement<S> {
   question: string;
   /** How to get there, one step to a line. */
   steps: string[];
@@ -66,8 +66,8 @@ interface Measurement {
   given: string[];
   /** What to work out, in order, e.g. { symbol: 'rs', unit: 'm' }. */
   asks: { symbol: string; unit: string }[];
-  /** The true values, in the order asked, and one or two sentences giving them and how they follow; read on answering. */
-  answer(): { values: number[]; reveal: string };
+  /** The true values, in the order asked, and one or two sentences giving them and how they follow, worked out on answering from the world's measureState(). */
+  answer(state: S): { values: number[]; reveal: string };
 }
 
 interface WorldAction {
@@ -84,13 +84,13 @@ export interface WorldContext {
   quality: Quality;
 }
 
-export interface World {
+export interface World<S = unknown> {
   readonly id: string;
   readonly title: string;
   readonly dials: ConstantKey[];
   readonly preset: Partial<Constants>;
   readonly toggles: Toggle[];
-  readonly tour: TourStop[];
+  readonly tour: TourStop<S>[];
   readonly actions: WorldAction[];
   readonly start: Pose;
   /** Advance the simulation by dt real seconds (the player's proper time) and draw a frame. */
@@ -103,6 +103,8 @@ export interface World {
   status(ctx: WorldContext): string;
   /** The camera of the last frame drawn, for the sky ruler; a world without it has no ruler. */
   view?(): View;
+  /** What a measure stop's answer is worked out from, read as the visitor answers. */
+  measureState?(): S;
   /** Whether your own speed is warping the whole view, when a fixed level reticle gives the eye a steady reference. */
   warping?(ctx: WorldContext): boolean;
   /** Instruments the world draws itself, added to the chrome. */

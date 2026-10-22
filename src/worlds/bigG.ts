@@ -101,7 +101,13 @@ const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-RING.r).toArray() as 
 
 const degrees = (radians: number, digits = 1) => `${THREE.MathUtils.radToDeg(radians).toFixed(digits)}°`;
 
-export class BigGWorld implements World {
+/** What weighing the hole works from: your distance from its centre and its Schwarzschild radius, in metres. */
+interface HoleState {
+  r: number;
+  rs: number;
+}
+
+export class BigGWorld implements World<HoleState> {
   readonly id = 'big-g';
   readonly title = 'Big G';
   readonly dials = ['G' as const];
@@ -113,7 +119,7 @@ export class BigGWorld implements World {
     { id: 'redshift', label: 'Gravitational shift', hint: 'Light changes colour and brightness climbing in or out of the well', value: true },
     { id: 'guide', label: 'Shadow edge', hint: 'Dashed circle: where light just grazes the photon sphere at 1.5 rs', value: false },
   ];
-  readonly tour: TourStop[] = [
+  readonly tour: TourStop<HoleState>[] = [
     {
       title: 'A black hole from a boulder',
       text: 'This was a 90-tonne granite boulder. With G turned up 3.4×10²² times it has collapsed into a black hole 9 m across, and everything around it is light bent by its gravity.',
@@ -171,12 +177,11 @@ export class BigGWorld implements World {
           { symbol: 'rs', unit: 'm' },
           { symbol: 'M', unit: 'kg' },
         ],
-        answer: () => {
-          const r = this.pos.length();
-          const alpha = shadowAngularRadius(r, this.rs);
+        answer: ({ r, rs }) => {
+          const alpha = shadowAngularRadius(r, rs);
           return {
-            values: [this.rs, MASS],
-            reveal: `The hole has rs = ${formatSI(this.rs)} m and M = rs c²/(2G) = ${formatSI(MASS)} kg: the 90-tonne boulder you started with. At ${formatSI(r)} m its shadow’s radius is ${degrees(alpha, 2)}, which gives rs = ${formatSI(rsFromShadow(alpha, r, 1))} m with the square root left out and ${formatSI(rsFromShadow(alpha, r))} m with it put back.`,
+            values: [rs, MASS],
+            reveal: `The hole has rs = ${formatSI(rs)} m and M = rs c²/(2G) = ${formatSI(MASS)} kg: the 90-tonne boulder you started with. At ${formatSI(r)} m its shadow’s radius is ${degrees(alpha, 2)}, which gives rs = ${formatSI(rsFromShadow(alpha, r, 1))} m with the square root left out and ${formatSI(rsFromShadow(alpha, r))} m with it put back.`,
           };
         },
       },
@@ -349,6 +354,10 @@ export class BigGWorld implements World {
   view(): View {
     const u = this.pass.material.uniforms;
     return { rot: u.uCamRot.value, tan: u.uTan.value };
+  }
+
+  measureState(): HoleState {
+    return { r: this.pos.length(), rs: this.rs };
   }
 
   dispose() {
