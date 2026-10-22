@@ -127,6 +127,24 @@ describe('links', () => {
     expect(stopKey({ title: 'Renamed for clarity', key: 'the-late-clock', text: '' })).toBe('the-late-clock');
   });
 
+  it('open each stop as walking the tour to it shows it', () => {
+    // A link opens a stop as authored; pressing Next keeps whatever earlier stops set. Where the two differ, a printed
+    // link would open a stop unlike the one the class walked to, so each stop must set what earlier stops changed.
+    const differ: string[] = [];
+    for (const lesson of lessons) {
+      const switches = Object.fromEntries(lesson.toggles.map((t) => [t.id, t.value]));
+      const dials: Constants = { ...REAL, ...lesson.preset };
+      lesson.tour.forEach((stop, i) => {
+        Object.assign(switches, stop.toggles);
+        Object.assign(dials, stop.constants);
+        const linked = setupAt(lesson, i);
+        for (const t of lesson.toggles) if (switches[t.id] !== linked.switches[t.id]) differ.push(`${lesson.id}, "${stop.title}": ${t.id} walks ${switches[t.id]}, links ${linked.switches[t.id]}`);
+        for (const k of lesson.dials) if (dials[k] !== linked.dials[k]) differ.push(`${lesson.id}, "${stop.title}": ${k} walks ${dials[k]}, links ${linked.dials[k]}`);
+      });
+    }
+    expect(differ).toEqual([]);
+  });
+
   it('keep every slider step through the 4-figure rounding, and the real values exactly', () => {
     for (const lesson of lessons) {
       for (const k of lesson.dials) {
