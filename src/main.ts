@@ -262,6 +262,8 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   chrome.setTour(tourIndex, pending !== null);
   chrome.syncDials(constants);
   chrome.syncToggles();
+  // The instruments show the new stop on the next frame, even one in which the world holds still.
+  hudTimer = 0;
 }
 
 let last = performance.now();

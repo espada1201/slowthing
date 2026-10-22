@@ -103,6 +103,12 @@ test('with reduced motion, a world holds still until a key press, and holds agai
   await start.click();
   await expect(start).toBeHidden();
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
+
+  // The next stop's cruise waits as well: its calm Stop brings you to rest, and the instruments on screen say so at once.
+  await page.keyboard.press('KeyN');
+  await expect(start).toBeVisible();
+  await expect(page.locator('.status')).toHaveText(/nothing moves until you tap/);
+  await expect(page.locator('dt', { hasText: 'β = v/c' }).locator('xpath=following-sibling::dd[1]')).toHaveText('0.000');
 });
 
 test('Auto quality drops to the low preset at half resolution on a slow GPU, and a preset chosen by hand stays', async ({ page }) => {
