@@ -300,6 +300,9 @@ export function worldChrome(
             b.disabled = true;
             if (j === p.answer) b.dataset.state = 'right';
             else if (j === k) b.dataset.state = 'wrong';
+            else continue;
+            // The marks are only drawn, so screen readers get them in the name.
+            b.setAttribute('aria-label', `${p.options[j]} (${j === p.answer ? 'right answer' : 'your answer, wrong'})`);
           }
           reveal.textContent = (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal;
           reveal.hidden = false;
