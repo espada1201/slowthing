@@ -32,6 +32,14 @@ test('an answered prediction passes axe', async ({ page }) => {
   expect(await problems(page)).toEqual([]);
 });
 
+test('answering a prediction from the keyboard leaves focus on the answer, not at the top of the page', async ({ page }) => {
+  await openWorld(page, 'slow-light');
+  await page.keyboard.press('KeyN');
+  await page.locator('.choice[data-choice="0"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.predict-reveal')).toBeFocused();
+});
+
 test('the proofs page passes axe once every proof has run', async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto('./?proofs&e2e');

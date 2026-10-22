@@ -258,7 +258,8 @@ export function worldChrome(
       root.classList.toggle('predicting', !!p);
       given = m?.given ?? null;
       if (p) {
-        const reveal = h('p', { class: 'predict-reveal', hidden: true });
+        // Answering disables the button that had focus, so focus moves on to the answer.
+        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1 });
         const choose = (k: number | null) => {
           for (const [j, b] of buttons.entries()) {
             b.disabled = true;
@@ -273,6 +274,7 @@ export function worldChrome(
           tourText.hidden = false;
           root.classList.remove('predicting');
           skip.hidden = true;
+          reveal.focus();
         };
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
@@ -281,7 +283,7 @@ export function worldChrome(
       if (m) {
         const inputs = m.asks.map((a) => h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-label': `${a.symbol} in ${a.unit}`, 'data-ask': a.symbol, oninput: (e: Event) => (e.target as HTMLInputElement).setCustomValidity('') }));
         const check = h('button', { class: 'btn', 'data-check': true }, 'Check');
-        const reveal = h('p', { class: 'predict-reveal', hidden: true });
+        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1 });
         const commit = (mine: number[] | null) => {
           const { values, reveal: text } = m.answer(world.measureState?.());
           const yours = mine?.map((v, k) => {
@@ -294,6 +296,7 @@ export function worldChrome(
           tourText.hidden = false;
           skip.hidden = true;
           given = null;
+          reveal.focus();
         };
         const skip = h('button', { class: 'linkish', onclick: () => commit(null) }, 'Just show me');
         const onsubmit = (e: Event) => {
