@@ -7,7 +7,7 @@ import { tick } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
 import { knotUniforms } from '../lut';
-import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift, rsFromShadow, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
+import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, einsteinRingRadius, gravitationalShift, rsFromShadow, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
@@ -94,7 +94,9 @@ const START = facing([0, 6, 38]);
  */
 const WEIGH_RS = 4;
 const WEIGH = facing([0, 76.8, 22.4], [0, 0, 15]);
-const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-200).toArray() as [number, number, number]);
+/** The Einstein ring: 20 rs from a 10 m hole, with the gas giant right behind it. */
+const RING = { r: 200, rs: 10 };
+const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-RING.r).toArray() as [number, number, number]);
 
 const degrees = (radians: number, digits = 1) => `${THREE.MathUtils.radToDeg(radians).toFixed(digits)}°`;
 
@@ -180,9 +182,9 @@ export class BigGWorld implements World {
     },
     {
       title: 'Einstein ring',
-      text: 'Line the gas giant up behind the hole and its light comes round every side at once, spread into a ring around the shadow.',
+      text: `Line the gas giant up behind the hole and its light comes round every side at once, into a ring ${degrees(einsteinRingRadius(RING.r, RING.rs))} out from the middle of the shadow. The usual formula √(2rs/r) gives only ${degrees(Math.sqrt((2 * RING.rs) / RING.r))}: it assumes light bends just a little, which is true only far from a hole.`,
       pose: EINSTEIN,
-      constants: { G: gFor(10) },
+      constants: { G: gFor(RING.rs) },
       toggles: { guide: false },
     },
     {

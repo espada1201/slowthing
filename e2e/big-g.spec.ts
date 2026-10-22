@@ -209,6 +209,12 @@ test('weighing the hole: its shadow, measured with the ruler, gives rs and M to 
   for (const off of await offs(page)) expect(off).toBeLessThan(2);
   await expect(page.locator('.tour-text')).toBeVisible();
   await expect(page.locator('.readouts dt').first()).toHaveText('Schwarzschild radius');
+
+  // The ring is the extension: at 20 rs light bends too much for the usual formula √(2rs/r).
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Einstein ring');
+  await expect(page.locator('.tour-text')).toContainText('into a ring 20.2°');
+  await expect(page.locator('.tour-text')).toContainText('gives only 18.1°');
   expect(errors).toEqual([]);
 });
 
