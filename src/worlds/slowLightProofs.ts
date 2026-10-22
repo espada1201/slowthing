@@ -191,7 +191,7 @@ function runMovers(renderer: THREE.WebGLRenderer) {
 
 // ---------- GPU harness for World I's moving surfaces ----------
 
-/** One face of a tram, as slow-moving.vert hands it to slow-surface.frag. */
+/** One face of a tram, as slow-moving.vert hands it to slow-moving.frag. */
 interface TramFace {
   colour: Vec3;
   normal: Vec3;
@@ -257,7 +257,7 @@ const luminance = (c: Vec3) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
  * The colour a tram face sends to the eye, from the full spectral sums: sunlight aberrated into the tram's frame and
  * shifted by D_in, sky light integrated over the half of the sky the face sees, each reflected and shifted by D_out on
  * the way to the eye, plus the face's 300 K glow. The face's lighting (diffuse sun, tinted sky, ground shadow) is
- * slow-surface.frag's. A lamp glows at 2.4 times its colour, and only its own light is shifted, by D_out.
+ * slow-surface.glsl's. A lamp glows at 2.4 times its colour, and only its own light is shifted, by D_out.
  */
 function exactTramColour({ velocity, colourOn, beamOn }: TramDraw, f: TramFace, { sunLocal, dIn, dOut }: TramShifts): Vec3 {
   const seen = (col: Vec3) => col.map((v) => Math.min(v * (beamOn ? dOut ** 5 : 1), 6e4)) as Vec3;
@@ -284,7 +284,7 @@ function exactTramColour({ velocity, colourOn, beamOn }: TramDraw, f: TramFace, 
   return seen(col);
 }
 
-/** Run the real slow-surface.frag (MOVING) on every face, handed the shifts slow-moving.vert would, and read back its colour. */
+/** Run the real slow-moving.frag on every face, handed the shifts slow-moving.vert would, and read back its colour. */
 function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramDraw[], shifts: TramShifts[][]) {
   const width = Math.max(...draws.map((d) => d.faces.length));
   const tables = { ...lutUniforms(), ...knotUniforms(), ...skyUniforms() };
@@ -309,10 +309,8 @@ function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramDraw[], shifts: 
           gl_PointSize = 1.0;
         }`,
       fragmentShader: movingFragment,
-      defines: { MOVING: '' },
       uniforms: {
         ...tables,
-        uSun: { value: new THREE.Vector3(...TRAM_SUN) },
         uBlinkPeriod: { value: 1 },
         uBeta: { value: len(velocity) },
         uObs: { value: new THREE.Vector3(...eye) },
@@ -376,7 +374,7 @@ export function proveRetarded(r: THREE.WebGLRenderer): ProofResult {
   };
 }
 
-/** slow-surface.frag on moving faces: each face's colour against exactTramColour, and the 1 / D_obs it hands the composite. */
+/** slow-moving.frag: each face's colour against exactTramColour, and the 1 / D_obs it hands the composite. */
 export function proveTramColour(r: THREE.WebGLRenderer): ProofResult {
   const draws = tramDraws();
   const shifts = draws.map((d) => d.faces.map((f) => tramShifts(d, f.at)));

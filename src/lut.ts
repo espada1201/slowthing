@@ -25,7 +25,7 @@ export function knotUniforms() {
   return { uKnots: { value: knots } };
 }
 
-/** Uniforms for the sky light on moving surfaces in shaders/slow-surface.frag. Built once (≈60 ms). */
+/** Uniforms for the sky light on moving surfaces in shaders/slow-moving.frag. Built once (≈60 ms). */
 export function skyUniforms() {
   sky ??= table(buildSkyLUT(), SKY_BEAM + 1, SKY_X * SKY_ETA);
   return { uSky: { value: sky } };

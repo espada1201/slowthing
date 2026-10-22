@@ -97,7 +97,7 @@ export const SKY_X = 33;
 export const SKY_ETA = 32;
 
 /**
- * The table for shaders/slow-surface.frag over nx face directions spaced evenly in angle from the motion,
+ * The table for shaders/slow-moving.frag over nx face directions spaced evenly in angle from the motion,
  * x = cos(π·ix/(nx − 1)) (a face's view of the sky changes fastest edge-on to the bright sky ahead and near the back),
  * and ne rapidities η ∈ [0, SKY_RAPIDITY_MAX]: texel (n + SKY_TEXELS·s, ix + nx·e) holds ln of skySpectrum at
  * λ_n…λ_{n+3}, with the searchlight on (s = 0) or off (s = 1), and texel (SKY_BEAM, ix + nx·e) holds in red ln of the

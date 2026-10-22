@@ -1,5 +1,8 @@
 // What a moving observer actually sees: aberrate each screen ray into the scenery frame (boost.glsl), look it up in
 // the rest-frame cube map, then apply the Doppler colour shift and D⁵ searchlight beaming.
+// The cube map's alpha multiplies the observer's Doppler factor D_obs. Everything at rest in the scenery writes 1, so
+// its light is shifted by D_obs here. Moving objects are shaded all the way to the eye (slow-moving.frag) and write
+// 1 / D_obs, so here their light is shifted no further.
 uniform samplerCube uCube;
 uniform vec3 uBeta;
 uniform mat3 uCamRot;

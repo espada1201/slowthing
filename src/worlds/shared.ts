@@ -54,7 +54,7 @@ export function fullscreenPass(fragment: string, uniforms: Record<string, THREE.
   return { scene, camera: new THREE.Camera(), material, dispose: () => (geometry.dispose(), material.dispose()) };
 }
 
-/** Give a geometry a flat colour and a surface pattern id (see slow-surface.frag). */
+/** Give a geometry a flat colour and a surface pattern id (see slow-surface.glsl). */
 export function paint(geometry: THREE.BufferGeometry, color: THREE.ColorRepresentation, pattern = 0): THREE.BufferGeometry {
   const g = geometry.index ? geometry.toNonIndexed() : geometry;
   const n = g.getAttribute('position').count;

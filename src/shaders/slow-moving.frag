@@ -1,24 +1,17 @@
-// Lit surface colour in the scenery's rest frame. Alpha carries the source Doppler factor, which the composite
-// combines with the observer's own. Moving objects (MOVING, with TABLES_GLSL, common.glsl and reflect.glsl prepended) are shaded
-// all the way to the eye instead, and write alpha = 1 / (the observer's factor) so the composite shifts them no further.
-uniform vec3 uSun;
+// Moving objects, shaded all the way to the eye (TABLES_GLSL, common.glsl, reflect.glsl and slow-surface.glsl
+// prepended): lit in their own frame, then shifted on the way to the eye.
 uniform float uBlinkPeriod;
-varying vec3 vColor;
-varying vec3 vNormal;
-varying vec3 vWorld;
-varying float vPattern;
-#ifdef MOVING
-varying float vDsrc;
-varying float vTau;
-varying float vDin;
-varying vec3 vSunLocal;
-varying vec3 vVelocity;
 uniform float uBeta;
 uniform vec3 uObs;
 uniform vec3 uObsBeta;    // the observer's velocity / c
 uniform float uDopplerOn;
 uniform float uBeamingOn;
 uniform sampler2D uSky;
+varying float vDsrc;
+varying float vTau;
+varying float vDin;
+varying vec3 vSunLocal;
+varying vec3 vVelocity;
 
 const float PI = 3.14159265;
 
@@ -57,72 +50,32 @@ void skyKnots(float dOut, float x, float eta, int setting, out float light[KNOTS
 float skyBeam(float x, float eta) {
   return exp(skyTexel(SKY_BEAM, skyCell(x, eta)).r);
 }
-#endif
-
-float lineMask(float coord, float width) {
-  float w = fwidth(coord);
-  float f = abs(fract(coord) - 0.5);
-  return smoothstep(width + w, width, 0.5 - f);
-}
 
 void main() {
-  vec3 n = normalize(vNormal);
-  if (!gl_FrontFacing) n = -n;
-  vec3 albedo = vColor;
-  float emissive = 0.0;
-  if (vPattern > 0.5 && vPattern < 1.5 && abs(n.y) < 0.5) {
-    // Windows on building walls.
-    vec2 t = vec2(dot(vWorld.xz, normalize(vec2(-n.z, n.x))) / 2.4, vWorld.y / 3.1);
-    vec2 f = fract(t);
-    float win = step(0.3, f.x) * step(f.x, 0.72) * step(0.35, f.y) * step(f.y, 0.78) * step(0.9, vWorld.y);
-    albedo = mix(albedo, vec3(0.16, 0.2, 0.24), win);
-  } else if (vPattern > 1.5 && vPattern < 2.5) {
-    emissive = 1.0;
-  } else if (vPattern > 2.5) {
-    // Blinking lamp: a sharp flash once per proper-time period.
-    float ph = 1.0;
-#ifdef MOVING
-    ph = fract(vTau / uBlinkPeriod);
-#endif
-    emissive = 0.7 + 3.0 * exp(-ph * 9.0);
-  }
-  vec3 sun = uSun;
-#ifdef MOVING
-  sun = normalize(vSunLocal);
-#endif
-  float diff = max(dot(n, sun), 0.0);
-  float hemi = 0.5 + 0.5 * n.y;
-  vec3 ambient = mix(vec3(0.32, 0.28, 0.24), vec3(0.55, 0.66, 0.82), hemi);
-  float ao = mix(0.72, 1.0, smoothstep(0.0, 2.5, vWorld.y));
-  vec3 sunlit = albedo * diff * vec3(1.0, 0.95, 0.86) * 0.9 * ao;
-  vec3 skylit = albedo * ambient * 0.42 * ao;
-  vec3 col = emissive > 0.0 ? vColor * 2.4 * emissive : sunlit + skylit;
-  float alpha = 1.0;
-#ifdef MOVING
+  Lit s = lightSurface(normalize(vSunLocal), fract(vTau / uBlinkPeriod));
   // In its own frame a moving surface gets sunlight shifted by vDin (D³ brighter per unit wavelength, a point source)
   // and sky light bluer and brighter ahead (physics/skylight.ts); its light then reaches the eye shifted by D_out,
   // through its own motion and then the observer's.
   float dObs = inversesqrt(1.0 - dot(uObsBeta, uObsBeta)) * (1.0 + dot(uObsBeta, normalize(vWorld - uObs)));
   float dOut = vDsrc * dObs;
-  float x = uBeta > 1e-6 ? dot(n, normalize(vVelocity)) : 0.0;
+  float x = uBeta > 1e-6 ? dot(s.n, normalize(vVelocity)) : 0.0;
   float eta = atanh(min(uBeta, 0.9999));
   bool colour = uDopplerOn > 0.5;
   bool beam = uBeamingOn > 0.5;
   float sunGain = beam ? vDin * vDin * vDin : 1.0;
-  if (emissive > 0.0) {
+  vec3 col = s.col;
+  if (s.emissive > 0.0) {
     if (colour) col = dopplerShift(col, dOut, 1.0);
   } else if (colour) {
     float sky[KNOTS];
     skyKnots(dOut, x, eta, beam ? 0 : 1, sky);
     vec3 light[KNOTS];
-    for (int p = 0; p < KNOTS; p++) light[p] = sunlight(KNOT_LAMBDA[p] * vDin * dOut) * sunGain * sunlit + sky[p] * skylit;
+    for (int p = 0; p < KNOTS; p++) light[p] = sunlight(KNOT_LAMBDA[p] * vDin * dOut) * sunGain * s.sunlit + sky[p] * s.skylit;
     col = reflectKnots(dOut, light) + dopplerShift(vec3(0.0), dOut, 1.0);
   } else if (beam) {
-    col = sunlit * sunGain + skylit * skyBeam(x, eta);
+    col = s.sunlit * sunGain + s.skylit * skyBeam(x, eta);
   }
   if (beam) col *= pow(dOut, 5.0);
   col = min(col, vec3(6e4)); // a finite half-float in the cube map
-  alpha = 1.0 / dObs;
-#endif
-  gl_FragColor = vec4(col, alpha);
+  gl_FragColor = vec4(col, 1.0 / dObs); // alpha: see slow-composite.frag
 }

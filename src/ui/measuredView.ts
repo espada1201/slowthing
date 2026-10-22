@@ -107,7 +107,7 @@ export class MeasuredView {
     while (this.lamps.childElementCount < m.lamps.length) this.lamps.append(svg('circle', { class: 'm-lamp' }));
     m.lamps.forEach((l, i) => {
       const [x, y] = px(l.at);
-      // A sharp flash at each multiple of the blink period, fading as slow-surface.frag fades it.
+      // A sharp flash at each multiple of the blink period, fading as slow-surface.glsl fades it.
       const phase = (((l.tau / m.blink) % 1) + 1) % 1;
       const lit = Math.exp(-9 * phase);
       set(this.lamps.children[i], { cx: x, cy: y, r: 2.2 + 2.2 * lit, 'fill-opacity': 0.4 + 0.6 * lit });

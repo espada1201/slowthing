@@ -12,15 +12,11 @@ import { whiteLuminance } from '../physics/spectrum';
 import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
 import { MeasuredView } from '../ui/measuredView';
-import noise from '../shaders/noise.glsl?raw';
-import groundFrag from '../shaders/slow-ground.frag?raw';
-import skyFrag from '../shaders/slow-sky.frag?raw';
 import staticVert from '../shaders/slow-static.vert?raw';
-import surfaceFrag from '../shaders/slow-surface.frag?raw';
 import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
 import { type Rider, type Town, measure, ride } from './measured';
-import { compositeFragment, movingFragment, movingVertex } from './slowShaders';
+import { compositeFragment, groundFragment, movingFragment, movingVertex, skyFragment, staticFragment } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
 const TRACK_R = 45;
@@ -138,20 +134,19 @@ export class SlowLightWorld implements World {
     this.buildCube(ctx.quality);
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(1200, 48, 24),
-      this.material(staticVert, `${noise}\n${skyFrag}`, { uObs: { value: this.pos } }, THREE.BackSide),
+      this.material(staticVert, skyFragment, { uObs: { value: this.pos } }, THREE.BackSide),
     );
     this.scene.add(this.sky);
     this.clockMaterial = this.buildClockMaterial();
     this.buildTown();
   }
 
-  private material(vert: string, frag: string, uniforms: Record<string, THREE.IUniform> = {}, side: THREE.Side = THREE.FrontSide, defines: Record<string, string> = {}) {
+  private material(vert: string, frag: string, uniforms: Record<string, THREE.IUniform> = {}, side: THREE.Side = THREE.FrontSide) {
     const m = new THREE.ShaderMaterial({
       vertexShader: vert,
       fragmentShader: frag,
       uniforms: { uSun: { value: SUN }, uBlinkPeriod: { value: BLINK_PERIOD }, ...uniforms },
       side,
-      defines,
     });
     this.materials.push(m);
     return m;
@@ -212,7 +207,7 @@ export class SlowLightWorld implements World {
       statics.push(paint(g, color, pattern));
     };
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), this.material(staticVert, `${noise}\n${groundFrag}`, { uTrackRadius: { value: TRACK_R } }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), this.material(staticVert, groundFragment, { uTrackRadius: { value: TRACK_R } }));
     this.scene.add(ground);
 
     // Houses in a ring outside the tram loop, with gaps for four streets.
@@ -317,7 +312,7 @@ export class SlowLightWorld implements World {
     statics.push(paint(hillGeo, 0x6f8196));
 
     const merged = mergeGeometries(statics);
-    this.scene.add(new THREE.Mesh(merged, this.material(staticVert, surfaceFrag, {}, THREE.DoubleSide)));
+    this.scene.add(new THREE.Mesh(merged, this.material(staticVert, staticFragment, {}, THREE.DoubleSide)));
     statics.forEach((g) => g.dispose());
 
     // Tram: four cars on the loop.
@@ -371,8 +366,6 @@ export class SlowLightWorld implements World {
         ...knotUniforms(),
         ...skyUniforms(),
       },
-      THREE.FrontSide,
-      { MOVING: '' },
     );
     const mesh = new THREE.Mesh(geometry, mat);
     mesh.frustumCulled = false;

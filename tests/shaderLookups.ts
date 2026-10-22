@@ -1,5 +1,5 @@
 // The shaders' table lookups, step for step, on the CPU: shaders/reflect.glsl reflectKnots and
-// shaders/slow-surface.frag skyTexel, skyKnots and skyBeam. Tests run them against the full spectral sums.
+// shaders/slow-moving.frag skyTexel, skyKnots and skyBeam. Tests run them against the full spectral sums.
 import { SKY_BEAM, SKY_ETA, SKY_HALF, SKY_RAPIDITY_MAX, SKY_STEP, SKY_TEXELS, SKY_X, buildSkyLUT } from '../src/physics/skylight';
 import { KNOTS, LUT_LOG_D_RANGE, LUT_SIZE, buildKnotLUT } from '../src/physics/spectrum';
 
