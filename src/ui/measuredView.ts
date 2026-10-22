@@ -77,7 +77,7 @@ export class MeasuredView {
     this.root = h(
       'div',
       { class: 'measured-view', hidden: true },
-      h('section', { class: 'measured', 'aria-label': 'Measured view' }, h('h2', { class: 'measured-h' }, 'Measured', h('span', {}, 'your now, in your frame')), this.map.el, this.diagram.el),
+      h('section', { class: 'measured', 'aria-label': 'Measured view' }, h('h2', { class: 'measured-h' }, 'Measured ', h('span', {}, 'your now, in your frame')), this.map.el, this.diagram.el),
       h('p', { class: 'seen-tag' }, 'Seen ', h('span', {}, 'the light reaching you now')),
     );
   }
