@@ -5,7 +5,7 @@
 attribute vec3 aColor;
 attribute float aPattern;
 #ifdef PROOF
-attribute vec2 aReadout;  // proofs.ts: this vertex's readout pixel, in clip space
+attribute vec2 aReadout;  // slowLightProofs.ts: this vertex's readout pixel, in clip space
 #endif
 uniform vec3 uObs;
 uniform float uC;
@@ -119,7 +119,7 @@ void main() {
   vPattern = aPattern;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 #ifdef PROOF
-  // proofs.ts reads the solve back: each vertex becomes a point on its own pixel.
+  // slowLightProofs.ts reads the solve back: each vertex becomes a point on its own pixel.
   gl_Position = vec4(aReadout, 0.0, 1.0);
   gl_PointSize = 1.0;
 #endif
