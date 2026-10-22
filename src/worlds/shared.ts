@@ -54,6 +54,39 @@ export function fullscreenPass(fragment: string, uniforms: Record<string, THREE.
   return { scene, camera: new THREE.Camera(), material, dispose: () => (geometry.dispose(), material.dispose()) };
 }
 
+/** Anything a read-back makes. Its dispose is handed the renderer, which the GPU solver's needs. */
+interface Disposable {
+  dispose(r: THREE.WebGLRenderer): void;
+}
+
+/**
+ * GPU work whose result is read back, as the proofs' is. `work` hands everything it makes to `own`, and `read` renders
+ * a scene into a new float target and returns it as RGBA floats, from the bottom row up. Whatever happens, the
+ * renderer's render target is put back and everything made is disposed.
+ */
+export function readBack<T>(
+  r: THREE.WebGLRenderer,
+  work: (own: <D extends Disposable>(d: D) => D, read: (scene: THREE.Object3D, camera: THREE.Camera, width: number, height: number) => Float32Array) => T,
+): T {
+  const previous = r.getRenderTarget();
+  const made: Disposable[] = [];
+  const own = <D extends Disposable>(d: D) => (made.push(d), d);
+  const read = (scene: THREE.Object3D, camera: THREE.Camera, width: number, height: number) => {
+    const target = own(new THREE.WebGLRenderTarget(width, height, { type: THREE.FloatType, depthBuffer: false }));
+    const pixels = new Float32Array(width * height * 4);
+    r.setRenderTarget(target);
+    r.render(scene, camera);
+    r.readRenderTargetPixels(target, 0, 0, width, height, pixels);
+    return pixels;
+  };
+  try {
+    return work(own, read);
+  } finally {
+    r.setRenderTarget(previous);
+    for (const d of made) d.dispose(r);
+  }
+}
+
 /** Give a geometry a flat colour and a surface pattern id (see slow-surface.glsl). */
 export function paint(geometry: THREE.BufferGeometry, color: THREE.ColorRepresentation, pattern = 0): THREE.BufferGeometry {
   const g = geometry.index ? geometry.toNonIndexed() : geometry;

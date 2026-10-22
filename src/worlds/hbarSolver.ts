@@ -6,6 +6,7 @@ import fullscreenVert from '../shaders/fullscreen.vert?raw';
 import copyFrag from '../shaders/hbar-copy.frag?raw';
 import stepFrag from '../shaders/hbar-step.frag?raw';
 import type { Field } from './courtyard';
+import { readBack } from './shared';
 
 const floatTarget = (n: number) =>
   new THREE.WebGLRenderTarget(n, n, {
@@ -247,9 +248,8 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
   cpu.open.set(field.open);
   cpu.setGaussian(3, 8, 1, 3, 0.5);
   const normBefore = cpu.norm();
-  const previous = r.getRenderTarget();
-  const gpu = new GpuSchrodinger(field);
-  try {
+  return readBack(r, (own) => {
+    const gpu = own(new GpuSchrodinger(field));
     gpu.load(r, cpu.re, cpu.im, cpu.imPrev);
     gpu.step(r, steps, cpu.dt, p);
     cpu.step(steps);
@@ -264,10 +264,7 @@ function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
       gpuNorm += out[k * 4] ** 2 + out[k * 4 + 1] * out[k * 4 + 2];
     }
     return { steps, relative: maxDiff / maxAmp, normBefore, gpuNorm: gpuNorm * dx * dx };
-  } finally {
-    gpu.dispose(r);
-    r.setRenderTarget(previous);
-  }
+  });
 }
 
 /** Proof for the in-browser checks: the GPU wave matches the CPU physics to float32 precision. */

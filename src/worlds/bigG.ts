@@ -12,7 +12,7 @@ import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, einsteinRingRadius
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
-import { cameraRotation, facing, fullscreenPass, viewRay } from './shared';
+import { cameraRotation, facing, fullscreenPass, readBack, viewRay } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, View, World, WorldContext } from './types';
 
 /** A granite boulder: 2 m radius, 2700 kg/m³. */
@@ -398,32 +398,23 @@ export async function proveRays(renderer: THREE.WebGLRenderer): Promise<{ pass: 
   const r = Math.hypot(...cam);
   const far = Math.max(30 * rs, 1.2 * r, 60);
 
-  const pass = fullscreenPass(frag, rayUniforms());
-  const u = pass.material.uniforms;
-  u.uDebug.value = 1;
-  u.uCamPos.value.set(...cam);
-  u.uCamRot.value.copy(rot);
-  u.uTan.value.set(tanX, tanY);
-  u.uRs.value = rs;
-  u.uHorizon.value = rs;
-  u.uRock.value = 0;
-  u.uDeck.value.set(0, 0);
-  u.uLampRadii.value = LAMPS.map(() => -1);
-  u.uSteps.value = steps;
-  u.uK.value = k;
-  u.uFar.value = far;
-  const target = new THREE.WebGLRenderTarget(W, H, { type: THREE.FloatType, depthBuffer: false });
-  const pixels = new Float32Array(W * H * 4);
-  const previous = renderer.getRenderTarget();
-  try {
-    renderer.setRenderTarget(target);
-    renderer.render(pass.scene, pass.camera);
-    renderer.readRenderTargetPixels(target, 0, 0, W, H, pixels);
-  } finally {
-    renderer.setRenderTarget(previous);
-    target.dispose();
-    pass.dispose();
-  }
+  const pixels = readBack(renderer, (own, read) => {
+    const pass = own(fullscreenPass(frag, rayUniforms()));
+    const u = pass.material.uniforms;
+    u.uDebug.value = 1;
+    u.uCamPos.value.set(...cam);
+    u.uCamRot.value.copy(rot);
+    u.uTan.value.set(tanX, tanY);
+    u.uRs.value = rs;
+    u.uHorizon.value = rs;
+    u.uRock.value = 0;
+    u.uDeck.value.set(0, 0);
+    u.uLampRadii.value = LAMPS.map(() => -1);
+    u.uSteps.value = steps;
+    u.uK.value = k;
+    u.uFar.value = far;
+    return read(pass.scene, pass.camera, W, H);
+  });
 
   let considered = 0, agree = 0, compared = 0, maxErr = 0, maxBend = 0;
   const bc = CRITICAL_IMPACT * rs;

@@ -8,7 +8,7 @@ import { skyLight } from '../physics/skylight';
 import { apply3, applyDoppler, luminance, reflectionTransform } from '../physics/spectrum';
 import { type Vec3, add, dot, len, normalize, scale, sub } from '../physics/vec';
 import { type ProofResult, deg, fmt, within } from '../proofs';
-import { cameraRotation, fullscreenPass } from './shared';
+import { cameraRotation, fullscreenPass, readBack } from './shared';
 import { compositeFragment, movingFragment, movingUniforms, movingVertex } from './slowShaders';
 
 // ---------- GPU harness for World I's composite shader ----------
@@ -18,43 +18,36 @@ const AB_YAW = 0.4, AB_PITCH = 0.2, W = 48, H = 32;
 
 /** Fill a cube map like the world does, render the real composite shader into a float target, read it back. */
 function runComposite(renderer: THREE.WebGLRenderer, cubeFrag: string, uniforms: Record<string, number>) {
-  const cube = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter });
-  const scene = new THREE.Scene();
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(10, 32, 16),
-    new THREE.ShaderMaterial({
-      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `varying vec3 vDir; void main() { vec3 d = normalize(vDir); ${cubeFrag} }`,
-      side: THREE.BackSide,
-    }),
-  );
-  scene.add(sphere);
-  const cam = new THREE.CubeCamera(0.1, 100, cube);
-  cam.update(renderer, scene);
+  return readBack(renderer, (own, read) => {
+    const cube = own(new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter }));
+    const scene = new THREE.Scene();
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(10, 32, 16),
+      new THREE.ShaderMaterial({
+        vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `varying vec3 vDir; void main() { vec3 d = normalize(vDir); ${cubeFrag} }`,
+        side: THREE.BackSide,
+      }),
+    );
+    own(sphere.geometry);
+    own(sphere.material);
+    scene.add(sphere);
+    const cam = new THREE.CubeCamera(0.1, 100, cube);
+    cam.update(renderer, scene);
 
-  const pass = fullscreenPass(compositeFragment, {
-    uCube: { value: cube.texture },
-    uBeta: { value: AB_BETA.clone() },
-    uCamRot: { value: cameraRotation(AB_YAW, AB_PITCH) },
-    uTan: { value: new THREE.Vector2(Math.tan(37.5 * deg) * (W / H), Math.tan(37.5 * deg)) },
-    uAberration: { value: 1 },
-    uDoppler: { value: uniforms.doppler },
-    uBeaming: { value: 0 },
-    uExposure: { value: 1 },
+    const pass = fullscreenPass(compositeFragment, {
+      uCube: { value: cube.texture },
+      uBeta: { value: AB_BETA.clone() },
+      uCamRot: { value: cameraRotation(AB_YAW, AB_PITCH) },
+      uTan: { value: new THREE.Vector2(Math.tan(37.5 * deg) * (W / H), Math.tan(37.5 * deg)) },
+      uAberration: { value: 1 },
+      uDoppler: { value: uniforms.doppler },
+      uBeaming: { value: 0 },
+      uExposure: { value: 1 },
+    });
+    own(pass);
+    return read(pass.scene, pass.camera, W, H);
   });
-  const target = new THREE.WebGLRenderTarget(W, H, { type: THREE.FloatType });
-  const previous = renderer.getRenderTarget();
-  renderer.setRenderTarget(target);
-  renderer.render(pass.scene, pass.camera);
-  const pixels = new Float32Array(W * H * 4);
-  renderer.readRenderTargetPixels(target, 0, 0, W, H, pixels);
-  renderer.setRenderTarget(previous);
-  target.dispose();
-  pass.dispose();
-  cube.dispose();
-  sphere.geometry.dispose();
-  (sphere.material as THREE.Material).dispose();
-  return pixels;
 }
 
 const srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
@@ -78,33 +71,19 @@ function pixelDirections(i: number, j: number) {
  * material puts it there from aReadout), and read the target back.
  */
 function readPoints(renderer: THREE.WebGLRenderer, width: number, rows: { attributes: Record<string, number[][]>; material: THREE.ShaderMaterial }[]): Float32Array {
-  const scene = new THREE.Scene();
-  rows.forEach(({ attributes, material }, j) => {
-    const geometry = new THREE.BufferGeometry();
-    for (const [name, values] of Object.entries(attributes)) geometry.setAttribute(name, new THREE.Float32BufferAttribute(values.flat(), values[0].length));
-    geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(attributes.position.flatMap((_, i) => [((i + 0.5) / width) * 2 - 1, ((j + 0.5) / rows.length) * 2 - 1]), 2));
-    const cloud = new THREE.Points(geometry, material);
-    cloud.frustumCulled = false;
-    scene.add(cloud);
-  });
-  const target = new THREE.WebGLRenderTarget(width, rows.length, { type: THREE.FloatType, depthBuffer: false });
-  const pixels = new Float32Array(width * rows.length * 4);
-  const previous = renderer.getRenderTarget();
-  try {
-    renderer.setRenderTarget(target);
-    renderer.render(scene, new THREE.Camera());
-    renderer.readRenderTargetPixels(target, 0, 0, width, rows.length, pixels);
-  } finally {
-    renderer.setRenderTarget(previous);
-    target.dispose();
-    scene.traverse((o) => {
-      if (o instanceof THREE.Points) {
-        o.geometry.dispose();
-        (o.material as THREE.Material).dispose();
-      }
+  return readBack(renderer, (own, read) => {
+    const scene = new THREE.Scene();
+    rows.forEach(({ attributes, material }, j) => {
+      own(material);
+      const geometry = own(new THREE.BufferGeometry());
+      for (const [name, values] of Object.entries(attributes)) geometry.setAttribute(name, new THREE.Float32BufferAttribute(values.flat(), values[0].length));
+      geometry.setAttribute('aReadout', new THREE.Float32BufferAttribute(attributes.position.flatMap((_, i) => [((i + 0.5) / width) * 2 - 1, ((j + 0.5) / rows.length) * 2 - 1]), 2));
+      const cloud = new THREE.Points(geometry, material);
+      cloud.frustumCulled = false;
+      scene.add(cloud);
     });
-  }
-  return pixels;
+    return read(scene, new THREE.Camera(), width, rows.length);
+  });
 }
 
 /** Test points of a tram car and of a carousel lamp: (along the track, up, outward), as slow-moving.vert takes them. */
