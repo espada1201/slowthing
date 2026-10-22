@@ -39,8 +39,6 @@ interface RayResult {
   direction: Vec3;
   /** Where the march stopped. */
   position: Vec3;
-  minR: number;
-  steps: number;
   path?: Vec3[];
 }
 
@@ -55,21 +53,19 @@ export function traceRay(pos: Vec3, nLocal: Vec3, rs: number, opts: { stepScale?
     return scale(p, (-1.5 * rs * h2) / r ** 5);
   };
   let a = accel(x);
-  let minR = len(x);
   const path = keepPath ? [x] : undefined;
   for (let i = 0; i < maxSteps; i++) {
     const r = len(x);
-    if (r < rs * 1.0001) return { captured: true, direction: normalize(v), position: x, minR, steps: i, path };
-    if (r > rFar && dot(x, v) > 0) return { captured: false, direction: normalize(v), position: x, minR, steps: i, path };
+    if (r < rs * 1.0001) return { captured: true, direction: normalize(v), position: x, path };
+    if (r > rFar && dot(x, v) > 0) return { captured: false, direction: normalize(v), position: x, path };
     const h = (stepScale * r) / len(v);
     x = add(x, add(scale(v, h), scale(a, 0.5 * h * h)));
     const an = accel(x);
     v = add(v, scale(add(a, an), 0.5 * h));
     a = an;
-    minR = Math.min(minR, len(x));
     path?.push(x);
   }
-  return { captured: false, direction: normalize(v), position: x, minR, steps: maxSteps, path };
+  return { captured: false, direction: normalize(v), position: x, path };
 }
 
 /** Bending angle of a ray with impact parameter b coming in from far away along +x. */
