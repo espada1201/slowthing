@@ -1,6 +1,6 @@
 # Guided tour
 
-Each world opens on a tour card: a numbered stop with a title and one or two sentences. A stop can move the visitor, set dials and switches, and start an action. Some stops first ask a prediction question; the text and the instruments stay hidden until the visitor answers or chooses `Just show me`.
+Each world opens on a tour card: a numbered stop with a title and one or two sentences. A stop can move the visitor, set dials and switches, and start an action. Some stops first ask a prediction question; the text and the instruments stay hidden until the visitor answers or chooses `Just show me`. A measurement stop instead asks for typed numbers and keeps up only the instruments it needs.
 
 ## Sub-features
 
@@ -9,6 +9,7 @@ Each world opens on a tour card: a numbered stop with a title and one or two sen
 - `tour-predict` a prediction hides the stop's text and the instruments until answered.
 - `tour-answer` answering marks the right choice and a wrong pick, then shows the reveal and the text.
 - `tour-skip` `Just show me` reveals without marking a pick.
+- `tour-measure` a measurement stop takes typed answers, refuses anything that is not a number, and says how far off each was; driven in big-g.md (`Weigh the hole`).
 
 ## How to get to it (user POV)
 

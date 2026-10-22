@@ -34,7 +34,7 @@ Each file starts with an H1 and one paragraph on the visible behaviour, then fou
 - [Title screen](./title.md): the three world plates, keyboard entry, back to the worlds, quality.
 - [World I, Slow Light](./slow-light.md): the c dial, six effect switches, walking and running, cruise, tram, clocks.
 - [World II, Big ħ](./big-hbar.md): the ħ dial, rolling a wave-ball, measuring it, the detector walls, rapid fire.
-- [World III, Big G](./big-g.md): the G dial, light bending, gravitational shift, the shadow edge, flying in.
+- [World III, Big G](./big-g.md): the G dial, light bending, gravitational shift, the shadow edge, flying in, the sky ruler, weighing the hole, the Einstein ring.
 - [Guided tour](./tour.md): stops, keyboard and button navigation, predict-then-reveal questions.
 - [Proofs page](./proofs.md): every physics check run in the browser, with measured against expected.
 - [Share links](./share.md): copying a link to the current dials and restoring it.

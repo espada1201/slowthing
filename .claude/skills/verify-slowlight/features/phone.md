@@ -33,4 +33,4 @@ Preconditions:
 
 - The touch layer ignores mouse events, so `click` cannot walk; use `swipe`.
 - A swipe that starts on a button presses the button instead of walking.
-- Big ħ's quick actions are `Roll ball` and `Measure`; Big G has one, `Face the hole`.
+- Big ħ's quick actions are `Roll ball` and `Measure`; Big G's are `Face the hole` and `Ruler`.
