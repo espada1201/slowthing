@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Schrodinger2D, barrierTransmission, correctSteps, stableTimeStep } from '../src/physics/schrodinger';
-import { BALL, BLOCKS, GLASS_THICKNESS, GLASS_V0, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, rasterize, spongeRate } from '../src/worlds/courtyard';
+import { Schrodinger2D, correctSteps, meanWavevector, stableTimeStep } from '../src/physics/schrodinger';
+import { BALL, BLOCKS, GLASS_SIGMA, GLASS_THICKNESS, GLASS_V0, HBAR, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, glassTheory, rasterize, spongeRate } from '../src/worlds/courtyard';
 
 describe('courtyard floor plan', () => {
   for (const n of [256, 384, 512]) {
@@ -24,34 +24,46 @@ describe('courtyard floor plan', () => {
       expect((divider.x1 - divider.x0) / f.dx).toBeGreaterThanOrEqual(2);
     });
 
-    it(`lets the ball tunnel through the glass at the analytic rate on a ${n}² grid`, () => {
+    it(`lets the ball tunnel through the glass at the analytic rate on a ${n}² grid, and come out no slower`, () => {
       // The potential across the glass as the solver sees it (steps corrected), laid along a long line.
       const f = rasterize(n);
       const v = correctSteps(f.potential, f.open, n, n);
       const col = cellIndex(16, f.dx, n), j0 = cellIndex(OBSTACLE_Z, f.dx, n) - 4;
       const profile = Array.from({ length: GLASS_THICKNESS / f.dx + 8 }, (_, q) => v[(j0 + q) * n + col]);
-      const p = { mass: BALL.mass, hbar: 0.25 }, k0 = (BALL.mass * BALL.speed) / p.hbar, sigma = 3;
+      const p = { mass: BALL.mass, hbar: HBAR }, k0 = (BALL.mass * BALL.speed) / p.hbar;
       const grid = { nx: Math.round(100 / f.dx), ny: 2, dx: f.dx, periodicY: true, stencil: 4 as const };
       const sim = new Schrodinger2D(grid, p, stableTimeStep(grid, p, GLASS_V0));
-      const i0 = Math.round(40 / f.dx);
+      const i0 = Math.round(40 / f.dx), past = i0 + profile.length;
       profile.forEach((u, q) => (sim.potential[i0 + q] = sim.potential[grid.nx + i0 + q] = u));
-      sim.setGaussian(20, 0, sigma, k0, 0);
+      sim.setGaussian(20, 0, GLASS_SIGMA, k0, 0);
+      // Speed from the mean momentum of ψ (Im ψ taken midway between its two half steps), over the cells asked for.
+      const speed = (inside: (i: number) => boolean) =>
+        (p.hbar * Math.hypot(...meanWavevector(grid, (k) => sim.re[k], (k) => 0.5 * (sim.im[k] + sim.imPrev[k]), inside))) / BALL.mass;
+      expect(speed(() => true)).toBeCloseTo(BALL.speed, 9);
       sim.step(Math.round(11 / sim.dt));
       const d = sim.density();
       let through = 0, total = 0;
       for (let i = 0; i < grid.nx; i++) {
         total += d[i] + d[grid.nx + i];
-        if (i >= i0 + profile.length) through += d[i] + d[grid.nx + i];
+        if (i >= past) through += d[i] + d[grid.nx + i];
       }
-      let num = 0, den = 0;
-      for (let q = -5; q <= 5; q += 0.01) {
-        const w = Math.exp(-0.5 * q * q), k = k0 + q / (2 * sigma);
-        num += w * barrierTransmission((p.hbar * k) ** 2 / (2 * BALL.mass), GLASS_V0, GLASS_THICKNESS, p);
-        den += w;
-      }
-      expect(Math.abs(through / total / (num / den) - 1)).toBeLessThan(0.03);
+      const theory = glassTheory(p.hbar);
+      expect(Math.abs(through / total / theory.through - 1)).toBeLessThan(0.03);
+      // What got through lost no energy: the faster parts of the packet tunnel more easily, so it is if anything faster.
+      const out = speed((i) => i >= past);
+      expect(out).toBeGreaterThan(BALL.speed);
+      expect(Math.abs(out - theory.speedThrough)).toBeLessThan(0.004);
     });
   }
+
+  it('rolls the glass lane a packet whose energy lies almost all below the glass, so what gets through has tunnelled', () => {
+    const t = glassTheory(HBAR);
+    expect(t.below).toBeGreaterThanOrEqual(0.95);
+    // Narrow enough in energy that the packet lets through about what a plane wave at the ball's speed would.
+    expect(Math.abs(t.through / t.planeWave - 1)).toBeLessThan(0.02);
+    expect(t.speedThrough).toBeGreaterThan(BALL.speed);
+    expect(t.speedThrough).toBeLessThan(1.01 * BALL.speed);
+  });
 
   it('absorbs only at the rim and beside the dividers past the obstacles', () => {
     expect(spongeRate(0, 18)).toBe(0);
