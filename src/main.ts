@@ -5,13 +5,14 @@ import '@fontsource/ibm-plex-mono/500.css';
 import './ui/style.css';
 import * as THREE from 'three';
 import { AutoQuality } from './autoQuality';
-import { type ConstantKey, type Constants, DIALS, REAL } from './constants';
+import { type Constants, REAL } from './constants';
 import { Input } from './input';
+import { type Setup, applySetup, readLink, setupOf, writeLink } from './kit/link';
 import { proofsView } from './ui/proofsView';
 import { type Ruler, skyRuler } from './ui/ruler';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
 import { WORLDS, isWorldId } from './worlds';
-import type { Quality, QualitySetting, World, WorldContext } from './worlds/types';
+import type { Authored, Quality, QualitySetting, World, WorldContext } from './worlds/types';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
@@ -145,8 +146,10 @@ async function enter(id: string) {
   if (!renderer || startupError || !isWorldId(id)) return;
   document.body.dataset.mode = 'loading';
   ui.replaceChildren(Object.assign(document.createElement('div'), { className: 'loading', role: 'status', textContent: 'Tuning the constants…' }));
+  let lesson: Authored;
   try {
-    const { World: W } = await WORLDS[id]();
+    const { lesson: authored, World: W } = await WORLDS[id]();
+    lesson = authored;
     await new Promise((r) => requestAnimationFrame(r));
     world?.dispose();
     startAuto(id, autoStart);
@@ -180,7 +183,7 @@ async function enter(id: string) {
       chrome?.syncDials(constants);
     },
     onShare: () => {
-      const url = shareUrl(id);
+      const url = new URL(writeLink(lesson, setupOf(w, tourIndex, constants)), location.href).href;
       history.replaceState(null, '', url);
       navigator.clipboard?.writeText(url).then(
         () => chrome?.flash('Link to this universe copied'),
@@ -215,37 +218,25 @@ async function enter(id: string) {
   still = reduceMotion.matches;
   hudTimer = 0;
   goTour(0, true);
-  if (pendingShare && params.get('world') === id) {
-    for (const k of w.dials) if (pendingShare[k] !== undefined) constants[k] = pendingShare[k];
-    chrome.syncDials(constants);
+  const shared = linkUnread ? readLink(lesson, params) : null;
+  linkUnread = false;
+  if (shared) {
+    goTour(shared.stop, true, shared);
+    history.replaceState(null, '', `${writeLink(lesson, shared)}${params.has('quality') ? `&quality=${setting}` : ''}`);
   }
-  pendingShare = null;
 }
 
-/** Dial values carried in the URL (?c=…&hbar=…&G=…), clamped to each dial's range. */
-function sharedConstants(): Partial<Constants> {
-  const out: Partial<Constants> = {};
-  for (const k of Object.keys(DIALS) as ConstantKey[]) {
-    const v = Number(params.get(k));
-    if (params.has(k) && Number.isFinite(v) && v > 0) out[k] = Math.min(DIALS[k].max, Math.max(DIALS[k].min, v));
-  }
-  return out;
-}
+/** The page's own address is a link into the first world entered, and only that one. */
+let linkUnread = true;
 
-let pendingShare: Partial<Constants> | null = sharedConstants();
-
-function shareUrl(id: string) {
-  const q = new URLSearchParams({ world: id });
-  for (const k of world?.dials ?? []) q.set(k, constants[k].toPrecision(4));
-  return `${location.origin}${location.pathname}?${q}`;
-}
-
-function goTour(i: number, initial = false) {
+/** Show stop i. A setup from a link then replaces the stop's own switches and dials, before its action runs. */
+function goTour(i: number, initial = false, shared: Setup | null = null) {
   if (!world || !chrome) return;
   const stop = world.tour[Math.max(0, Math.min(world.tour.length - 1, i))];
   tourIndex = world.tour.indexOf(stop);
   if (stop.constants) Object.assign(constants, stop.constants);
   if (stop.toggles) for (const t of world.toggles) if (t.id in stop.toggles) t.value = stop.toggles[t.id];
+  if (shared) applySetup(world, constants, shared);
   const pose = stop.pose ?? (initial ? world.start : undefined);
   if (pose) {
     world.setPose(pose);
@@ -330,4 +321,7 @@ else showTitle();
   readouts: () => (world ? world.readouts(ctx()) : []),
   status: () => (world ? world.status(ctx()) : ''),
   probe: () => world?.probe?.(ctx()),
+  get setup() {
+    return world ? setupOf(world, tourIndex, constants) : null;
+  },
 };

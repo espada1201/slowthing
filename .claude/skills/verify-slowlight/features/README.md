@@ -37,7 +37,7 @@ Each file starts with an H1 and one paragraph on the visible behaviour, then fou
 - [World III, Big G](./big-g.md): the G dial, light bending, gravitational shift, the shadow edge, flying in, the sky ruler, weighing the hole, the Einstein ring.
 - [Guided tour](./tour.md): stops, keyboard and button navigation, predict-then-reveal questions.
 - [Proofs page](./proofs.md): every physics check run in the browser, with measured against expected.
-- [Share links](./share.md): copying a link to the current dials and restoring it.
+- [Share links](./share.md): copying a link to the current stop, switches and dials, and restoring it.
 - [Phone layout](./phone.md): dials behind a toggle, quick actions, thumb walking.
 - [Sound and help](./settings.md): the Sound switch, the controls help, the quality choice inside a world, Auto quality.
 - [Reduced motion](./reduced-motion.md): a world opens still, and tour stops that set things moving wait for `Start`.
