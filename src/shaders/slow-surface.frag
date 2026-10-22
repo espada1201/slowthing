@@ -19,7 +19,6 @@ uniform vec3 uObsBeta;    // the observer's velocity / c
 uniform float uDopplerOn;
 uniform float uBeamingOn;
 uniform sampler2D uSky;
-uniform sampler2D uSkyBeam;
 
 const float PI = 3.14159265;
 
@@ -27,23 +26,28 @@ vec2 skyCell(float x, float eta) {
   return vec2(acos(clamp(x, -1.0, 1.0)) / PI * float(SKY_X - 1), clamp(eta / SKY_RAPIDITY_MAX, 0.0, 1.0) * float(SKY_ETA - 1));
 }
 
+// Column col of the sky table (physics/skylight.ts buildSkyLUT), blended between the four face directions and
+// rapidities around cell q.
+vec4 skyTexel(int col, vec2 q) {
+  ivec2 a = ivec2(floor(q));
+  ivec2 b = min(a + 1, ivec2(SKY_X, SKY_ETA) - 1);
+  vec2 g = q - vec2(a);
+  vec4 lo = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * a.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * a.y), 0), g.x);
+  vec4 hi = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * b.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * b.y), 0), g.x);
+  return mix(lo, hi, g.y);
+}
+
 // The sky light on a face at cos x to its motion at rapidity eta, in its own frame, reflected on to the eye with
-// Doppler factor dOut: its value at each knot (physics/skylight.ts buildSkyLUT). The table holds its logarithm on one
-// wavelength grid; knot p of a face seen with D_out at node i sits at wavelength 2p + i.
+// Doppler factor dOut: its value at each knot. The table holds its logarithm on one wavelength grid; knot p of a face
+// seen with D_out at node i sits at wavelength 2p + i.
 void skyKnots(float dOut, float x, float eta, int setting, out float light[KNOTS]) {
   float i = clamp(log(max(dOut, 1e-6)) / SKY_STEP + float(SKY_HALF), 0.0, float(2 * SKY_HALF));
   int n0 = min(int(i), 2 * SKY_HALF - 1);
   float f = i - float(n0);
   vec2 q = skyCell(x, eta);
-  ivec2 a = ivec2(floor(q));
-  ivec2 b = min(a + 1, ivec2(SKY_X, SKY_ETA) - 1);
-  vec2 g = q - vec2(a);
   float v[2 * KNOTS];
   for (int t = 0; t < KNOTS / 2; t++) {
-    int col = n0 + 4 * t + setting * SKY_TEXELS;
-    vec4 lo = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * a.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * a.y), 0), g.x);
-    vec4 hi = mix(texelFetch(uSky, ivec2(col, a.x + SKY_X * b.y), 0), texelFetch(uSky, ivec2(col, b.x + SKY_X * b.y), 0), g.x);
-    vec4 c = mix(lo, hi, g.y);
+    vec4 c = skyTexel(n0 + 4 * t + setting * SKY_TEXELS, q);
     for (int k = 0; k < 4; k++) v[4 * t + k] = c[k];
   }
   for (int p = 0; p < KNOTS; p++) light[p] = exp(mix(v[2 * p], v[2 * p + 1], f));
@@ -51,13 +55,7 @@ void skyKnots(float dOut, float x, float eta, int setting, out float light[KNOTS
 
 // With the colour shift off, the searchlight alone: the face's sky light relative to the sky at rest.
 float skyBeam(float x, float eta) {
-  vec2 q = skyCell(x, eta);
-  ivec2 a = ivec2(floor(q));
-  ivec2 b = min(a + 1, ivec2(SKY_X, SKY_ETA) - 1);
-  vec2 g = q - vec2(a);
-  float lo = mix(texelFetch(uSkyBeam, a, 0).r, texelFetch(uSkyBeam, ivec2(b.x, a.y), 0).r, g.x);
-  float hi = mix(texelFetch(uSkyBeam, ivec2(a.x, b.y), 0).r, texelFetch(uSkyBeam, b, 0).r, g.x);
-  return exp(mix(lo, hi, g.y));
+  return exp(skyTexel(SKY_BEAM, skyCell(x, eta)).r);
 }
 #endif
 

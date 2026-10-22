@@ -36,13 +36,14 @@ function eachSkySample(x: number, rapidity: number, power: number, steps: number
 
 /**
  * Light from a uniform sky on a surface moving at rapidity η, in the surface's own frame, relative to the surface
- * at rest: Σ share · colour(D). `colour(D)` is a 3×3 colour matrix for one D (or anything linear in it) and
- * `power` the intensity exponent per unit wavelength (5 with the searchlight on, 0 with it off).
+ * at rest: Σ share · colour(D). `colour(D)` is a 3×3 colour matrix for one D, or any list of numbers linear in the
+ * light, and the sum has as many entries; `power` is the intensity exponent per unit wavelength (5 with the searchlight
+ * on, 0 with it off).
  */
 export function skyLight(x: number, eta: number, power: number, colour: (D: number) => number[], steps = 512): number[] {
-  const out = new Array(9).fill(0);
+  const out: number[] = [];
   eachSkySample(x, eta, power, steps, (lnD, w) => {
-    if (w !== 0) colour(Math.exp(lnD)).forEach((v, k) => (out[k] += w * v));
+    if (w !== 0) colour(Math.exp(lnD)).forEach((v, k) => (out[k] = (out[k] ?? 0) + w * v));
   });
   return out;
 }
@@ -68,70 +69,61 @@ const SUN_FINE = Float64Array.from({ length: FINE * (SKY_LAMBDAS - 1) + 2 * FINE
 
 /**
  * Sky light on a face at cos x to the motion, at rapidity η, in its own frame, relative to sunlight at rest, at each λ_n:
- * Σ share · sun(λ_n·D), with the searchlight on (D⁵ per unit wavelength) and off, and the total with it on. The shares,
- * with and without D⁵, are eachSkySample's spread linearly onto a grid of ln D FINE times finer than SKY_STEP, which
- * makes the sums convolutions with SUN_FINE.
+ * Σ share · sun(λ_n·D), with intensity exponent `power` (as skyLight). The shares are eachSkySample's spread linearly
+ * onto a grid of ln D FINE times finer than SKY_STEP, which makes the sum a convolution with SUN_FINE.
  */
-export function skySpectrum(x: number, eta: number): { lit: Float64Array; unlit: Float64Array; total: number } {
+export function skySpectrum(x: number, eta: number, power: number): Float64Array {
   const share = new Float64Array(2 * FINE_REACH + 1);
-  const share5 = new Float64Array(2 * FINE_REACH + 1);
-  let total = 0;
-  eachSkySample(x, eta, 0, 256, (lnD, w) => {
-    const w5 = w * Math.exp(5 * lnD);
-    total += w5;
+  eachSkySample(x, eta, power, 256, (lnD, w) => {
     const p = Math.min(2 * FINE_REACH, Math.max(0, lnD / SKY_FINE + FINE_REACH));
     const m = Math.min(2 * FINE_REACH - 1, Math.floor(p));
     share[m] += w * (m + 1 - p);
     share[m + 1] += w * (p - m);
-    share5[m] += w5 * (m + 1 - p);
-    share5[m + 1] += w5 * (p - m);
   });
-  const lit = new Float64Array(SKY_LAMBDAS);
-  const unlit = new Float64Array(SKY_LAMBDAS);
+  const light = new Float64Array(SKY_LAMBDAS);
   for (let m = 0; m < share.length; m++) {
     if (share[m] === 0) continue;
-    for (let n = 0, q = m; n < SKY_LAMBDAS; n++, q += FINE) {
-      unlit[n] += share[m] * SUN_FINE[q];
-      lit[n] += share5[m] * SUN_FINE[q];
-    }
+    for (let n = 0, q = m; n < SKY_LAMBDAS; n++, q += FINE) light[n] += share[m] * SUN_FINE[q];
   }
-  return { lit, unlit, total };
+  return light;
 }
 
 /** Texels per row of the sky table for one searchlight setting: texel n holds λ_n…λ_{n+3}. */
 export const SKY_TEXELS = SKY_LAMBDAS - 3;
+/** The sky table's last column: the total sky light with the searchlight on, for when the colour shift is off. */
+export const SKY_BEAM = 2 * SKY_TEXELS;
 /** Face directions and rapidities in the sky table. */
 export const SKY_X = 33;
 export const SKY_ETA = 32;
 
 /**
- * Tables for shaders/slow-surface.frag over nx face directions spaced evenly in angle from the motion, x = cos(π·ix/(nx − 1))
- * (a face's view of the sky changes fastest edge-on to the bright sky ahead and near the back), and ne rapidities
- * η ∈ [0, SKY_RAPIDITY_MAX]. `spectrum`: texel (n + SKY_TEXELS·s, ix + nx·e) holds ln of skySpectrum at λ_n…λ_{n+3},
- * with the searchlight on (s = 0) or off (s = 1); logarithms, because they interpolate smoothly. `beam`: texel (ix, e)
- * holds in red the logarithm of the total with the searchlight on, for when the colour shift is off.
+ * The table for shaders/slow-surface.frag over nx face directions spaced evenly in angle from the motion,
+ * x = cos(π·ix/(nx − 1)) (a face's view of the sky changes fastest edge-on to the bright sky ahead and near the back),
+ * and ne rapidities η ∈ [0, SKY_RAPIDITY_MAX]: texel (n + SKY_TEXELS·s, ix + nx·e) holds ln of skySpectrum at
+ * λ_n…λ_{n+3}, with the searchlight on (s = 0) or off (s = 1), and texel (SKY_BEAM, ix + nx·e) holds in red ln of the
+ * total with the searchlight on. Logarithms, because they interpolate smoothly.
  */
-export function buildSkyLUT(nx = SKY_X, ne = SKY_ETA): { spectrum: Float32Array; beam: Float32Array } {
-  const width = 2 * SKY_TEXELS;
-  const spectrum = new Float32Array(width * nx * ne * 4);
-  const beam = new Float32Array(nx * ne * 4);
+export function buildSkyLUT(nx = SKY_X, ne = SKY_ETA): Float32Array {
+  const width = SKY_BEAM + 1;
+  const table = new Float32Array(width * nx * ne * 4);
   for (let e = 0; e < ne; e++) {
     for (let ix = 0; ix < nx; ix++) {
-      const { lit, unlit, total } = skySpectrum(Math.cos((Math.PI * ix) / (nx - 1)), (SKY_RAPIDITY_MAX * e) / (ne - 1));
+      const x = Math.cos((Math.PI * ix) / (nx - 1)), eta = (SKY_RAPIDITY_MAX * e) / (ne - 1);
       const row = (ix + nx * e) * width;
-      [lit, unlit].forEach((light, s) => {
+      [5, 0].forEach((power, s) => {
+        const light = skySpectrum(x, eta, power);
         for (let n = 0; n < SKY_LAMBDAS; n++) {
           // Far into the ultraviolet the sunlight underflows to 0. A floor far below anything visible keeps the logarithm
           // finite, so the shader's interpolation never meets an infinity (0 × ∞ is NaN).
           const v = Math.log(Math.max(light[n], 1e-30));
           // λ_n is component k of texel n − k.
-          for (let k = 0; k < 4; k++) if (n - k >= 0 && n - k < SKY_TEXELS) spectrum[(row + n - k + SKY_TEXELS * s) * 4 + k] = v;
+          for (let k = 0; k < 4; k++) if (n - k >= 0 && n - k < SKY_TEXELS) table[(row + n - k + SKY_TEXELS * s) * 4 + k] = v;
         }
       });
-      beam.set([Math.log(total), 0, 0, 1], (e * nx + ix) * 4);
+      table.set([Math.log(skyLight(x, eta, 5, () => [1], 256)[0]), 0, 0, 1], (row + SKY_BEAM) * 4);
     }
   }
-  return { spectrum, beam };
+  return table;
 }
 
 const glsl = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
@@ -151,4 +143,5 @@ const float SKY_RAPIDITY_MAX = ${glsl(SKY_RAPIDITY_MAX)};
 const float SKY_STEP = ${glsl(SKY_STEP)};
 const int SKY_HALF = ${SKY_HALF};
 const int SKY_TEXELS = ${SKY_TEXELS};
+const int SKY_BEAM = ${SKY_BEAM};
 `;

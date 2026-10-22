@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { SKY_ETA, SKY_TEXELS, SKY_X, buildSkyLUT } from './physics/skylight';
+import { SKY_BEAM, SKY_ETA, SKY_X, buildSkyLUT } from './physics/skylight';
 import { KNOTS, LUT_LOG_D_RANGE, LUT_SIZE, buildDopplerLUT, buildKnotLUT } from './physics/spectrum';
 
 let doppler: THREE.DataTexture | null = null;
 let knots: THREE.DataTexture | null = null;
-let sky: { spectrum: THREE.DataTexture; beam: THREE.DataTexture } | null = null;
+let sky: THREE.DataTexture | null = null;
 
 function table(data: Float32Array, width: number, height: number) {
   const t = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
@@ -27,9 +27,6 @@ export function knotUniforms() {
 
 /** Uniforms for the sky light on moving surfaces in shaders/slow-surface.frag. Built once (≈60 ms). */
 export function skyUniforms() {
-  if (!sky) {
-    const { spectrum, beam } = buildSkyLUT();
-    sky = { spectrum: table(spectrum, 2 * SKY_TEXELS, SKY_X * SKY_ETA), beam: table(beam, SKY_X, SKY_ETA) };
-  }
-  return { uSky: { value: sky.spectrum }, uSkyBeam: { value: sky.beam } };
+  sky ??= table(buildSkyLUT(), SKY_BEAM + 1, SKY_X * SKY_ETA);
+  return { uSky: { value: sky } };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SKY_HALF, SKY_LAMBDAS, SKY_STEP, SKY_TEXELS, buildSkyLUT, hemisphereWeight, skyLambda, skyLight } from '../src/physics/skylight';
+import { SKY_BEAM, SKY_HALF, SKY_LAMBDAS, SKY_STEP, SKY_TEXELS, buildSkyLUT, hemisphereWeight, skyLambda, skyLight } from '../src/physics/skylight';
 import { KNOTS, reflectionTransform, sun } from '../src/physics/spectrum';
 import { reflectKnots, skyBeam, skyKnots } from './shaderLookups';
 
@@ -81,15 +81,17 @@ describe('sky light reflected on to the eye, as the shader looks it up', () => {
       expect(Math.abs(skyBeam(x, eta(b)) / skyLight(x, eta(b), 5, () => [1], 256)[0] - 1)).toBeLessThan(0.005);
     }
   });
-  it('builds finite tables, with the sky at rest equal to sunlight', () => {
-    const { spectrum, beam } = buildSkyLUT(5, 4);
-    expect(spectrum.length).toBe(2 * SKY_TEXELS * 5 * 4 * 4);
-    expect(spectrum.every(Number.isFinite)).toBe(true);
-    expect(beam.every(Number.isFinite)).toBe(true);
-    // Row e = 0 (at rest), face ix = 2: texel n holds ln sun at λ_n…λ_{n+3}, floored far below anything visible.
+  it('builds a finite table, with the sky at rest equal to sunlight', () => {
+    const table = buildSkyLUT(5, 4);
+    expect(table.length).toBe((SKY_BEAM + 1) * 5 * 4 * 4);
+    expect(table.every(Number.isFinite)).toBe(true);
+    // Row e = 0 (at rest), face ix = 2: texel n holds ln sun at λ_n…λ_{n+3}, floored far below anything visible, and
+    // the last texel ln of the total, which at rest is the sky itself.
+    const row = 2 * (SKY_BEAM + 1);
     for (const n of [0, 40, 100]) {
-      for (let k = 0; k < 4; k++) expect(spectrum[(2 * 2 * SKY_TEXELS + n) * 4 + k]).toBeCloseTo(Math.log(Math.max(sun(skyLambda(n + k)), 1e-30)), 3);
+      for (let k = 0; k < 4; k++) expect(table[(row + n) * 4 + k]).toBeCloseTo(Math.log(Math.max(sun(skyLambda(n + k)), 1e-30)), 3);
     }
+    expect(table[(row + SKY_BEAM) * 4]).toBeCloseTo(0, 3);
     // The shader reads knot p of a face seen with D_out = e^{(i − SKY_HALF)·SKY_STEP} at λ_{2p+i}.
     for (const i of [0, SKY_HALF, 2 * SKY_HALF]) KNOTS.forEach((l, p) => expect(skyLambda(2 * p + i) / (l * Math.exp((i - SKY_HALF) * SKY_STEP))).toBeCloseTo(1, 12));
     expect(SKY_LAMBDAS).toBe(SKY_TEXELS + 3);
