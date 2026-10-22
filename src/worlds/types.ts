@@ -36,6 +36,8 @@ export interface View {
 
 export interface TourStop<S = unknown> {
   title: string;
+  /** The stop's name in links (`?stop=`), when its title's slug won't do: set it to keep printed links working after a rename. */
+  key?: string;
   text: string;
   pose?: Pose;
   constants?: Partial<Constants>;
