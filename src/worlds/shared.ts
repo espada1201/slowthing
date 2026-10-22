@@ -79,6 +79,11 @@ export function seeded(seed: number) {
   };
 }
 
+/** A standard normal deviate (Box–Muller). */
+export function gaussian() {
+  return Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+}
+
 /** Format seconds as h:mm:ss.s for clocks. */
 export function clockString(seconds: number): string {
   const s = ((seconds % 86400) + 86400) % 86400;
