@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIALS, REAL, formatSI, fromSlider, ratioLabel, toSlider } from '../src/constants';
+import { DIALS, REAL, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../src/constants';
 
 describe('dial labels', () => {
   it('give the factor from reality with its mantissa, not a rounded power of ten', () => {
@@ -25,5 +25,20 @@ describe('dial labels', () => {
       const mid = Math.sqrt(d.min * d.max);
       expect(toSlider(d, mid)).toBe(500);
     }
+  });
+});
+
+describe('numbers typed as answers', () => {
+  it('read decimal points or commas, digit groups and powers of ten however they are written', () => {
+    const cases: [string, number][] = [
+      ['4.1', 4.1], ['4,1', 4.1], [' 3.99 ', 3.99], ['.5', 0.5], ['−2', -2],
+      ['90 000', 9e4], ['90,000', 9e4], ['1,234,567.5', 1234567.5],
+      ['9e4', 9e4], ['9.0E+4', 9e4], ['9×10^4', 9e4], ['9 x 10^4', 9e4], ['8.99*10^4', 8.99e4], ['9·10⁴', 9e4], ['1.3 × 10⁻²²', 1.3e-22],
+    ];
+    for (const [text, v] of cases) expect(parseNumber(text), text).toBe(v);
+  });
+
+  it('refuse anything else', () => {
+    for (const text of ['', 'four', '4.1 m', '4..1', '9e', '1,2,3', '×10^4', '1e999']) expect(parseNumber(text), text).toBeNull();
   });
 });

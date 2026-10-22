@@ -51,6 +51,19 @@ export function formatSI(v: number, digits = 3): string {
   return `${m.toFixed(digits - 1)}×10${sup(e)}`;
 }
 
+/**
+ * A number as people type it: "4.1" or "4,1", "90 000" or "90,000", "9e4", "9×10^4", "9 x 10⁴". A comma between
+ * groups of three digits separates thousands; any other comma is a decimal point. Null if it is not a number.
+ */
+export function parseNumber(text: string): number | null {
+  const fromSup = (t: string) => t.replace(/[⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (ch) => (ch === '⁻' ? '-' : ch === '⁺' ? '+' : String(SUPERSCRIPT.indexOf(ch))));
+  let s = text.replace(/\s/g, '').replace(/−/g, '-');
+  s = s.replace(/[×x*·]10(?:\^([+-]?\d+)|([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+))$/i, (_, plain?: string, sup?: string) => `e${plain ?? fromSup(sup!)}`);
+  s = /^[+-]?\d{1,3}(,\d{3})+(\.\d*)?(e[+-]?\d+)?$/i.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+  const v = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s) ? Number(s) : NaN;
+  return Number.isFinite(v) ? v : null;
+}
+
 /** How many times larger or smaller than reality: "×3.4×10²²", "÷2.5×10⁷", "×1.5" or "real". */
 export function ratioLabel(key: ConstantKey, v: number): string {
   const r = v / REAL[key];
