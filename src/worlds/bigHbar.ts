@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { click } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
-import { Schrodinger2D, barrierTransmission, cumulative, deBroglieWavelength, sampleIndex, stableTimeStep } from '../physics/schrodinger';
+import { Schrodinger2D, barrierTransmission, cumulative, deBroglieWavelength, meanWavevector, sampleIndex, stableTimeStep } from '../physics/schrodinger';
 import floorGlsl from '../shaders/hbar-floor.glsl?raw';
 import paletteGlsl from '../shaders/hbar-palette.glsl?raw';
 import skyFrag from '../shaders/hbar-sky.frag?raw';
@@ -17,9 +17,11 @@ import {
   BLOCKS,
   ENERGY,
   type Field,
+  GLASS_SIGMA,
   GLASS_THICKNESS,
   GLASS_V0,
   HALF,
+  HBAR,
   LANES,
   type Lane,
   OBSTACLE_Z,
@@ -28,6 +30,7 @@ import {
   absorberOf,
   cellCentre,
   cellIndex,
+  glassTheory,
   laneOf,
   rasterize,
   spongeRate,
@@ -85,7 +88,10 @@ interface WaveStats {
   x: number;
   z: number;
   spread: number;
+  /** Share of the ball past the obstacle, on the floor or already absorbed there. */
   beyond: number;
+  /** Probability on the floor past the obstacle, not yet absorbed. */
+  beyondOnFloor: number;
 }
 
 /** What a stream of identical rolls lands on: a fixed point (classical), or the wave's absorbed distribution so far. */
@@ -177,6 +183,12 @@ const fix1 = (v: number) => (Math.round(v * 10) / 10 || 0).toFixed(1);
 const spot = (x: number, z: number) => `${fix1(x)}, ${fix1(z)} m`;
 /** The ball's wavelength at a given ħ, written as the HUD writes it. */
 const wavelength = (hbar: number) => `${formatSI(deBroglieWavelength({ mass: BALL.mass, hbar }, BALL.speed))} m`;
+/** Shares, speeds and energies as the HUD and the tour both write them. */
+const percent = (share: number) => `${(100 * share).toPrecision(2)}%`;
+const speed = (v: number) => `${v.toFixed(2)} m/s`;
+const joules = (e: number) => `${formatSI(e)} J`;
+/** The glass experiment at the courtyard's ħ, as theory has it. */
+const GLASS = glassTheory(HBAR);
 
 /** Text cut into the floor. */
 function engraving(lines: string[], width: number) {
@@ -210,7 +222,7 @@ export class BigHbarWorld implements World {
   readonly id = 'big-hbar';
   readonly title = 'Big ħ';
   readonly dials = ['hbar' as const];
-  readonly preset = { hbar: 0.25 };
+  readonly preset = { hbar: HBAR };
   readonly start: Pose = terrace(0);
   readonly actions = [
     { id: 'throw', label: 'Roll ball', key: 'KeyF' },
@@ -233,9 +245,9 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'Turn ħ up',
-      text: `At ħ = 0.25 J·s the same roll has a wavelength of ${wavelength(0.25)}, about a metre. The ball leaves the mark as a wave, and you can watch it spread as it goes.`,
+      text: `At ħ = ${HBAR} J·s the same roll has a wavelength of ${wavelength(HBAR)}, about a metre. The ball leaves the mark as a wave, and you can watch it spread as it goes.`,
       pose: porch(0),
-      constants: { hbar: 0.25 },
+      constants: { hbar: HBAR },
       toggles: { rapid: false },
       action: 'roll@0',
     },
@@ -274,15 +286,30 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'Through glass',
-      text: 'The glass needs 3.68 J to cross and the ball has 3.2 J, so classically it always bounces. Here some balls tunnel through: compare the count with the plane-wave theory in the panel.',
+      text: `This lane rolls a longer wave, which pins its speed down more tightly: ${percent(GLASS.below)} of it has less energy than the ${joules(GLASS_V0)} needed to cross the glass, and a classical ball that short of energy always bounces back. Yet some balls tunnel through: compare the count with the theory in the panel.`,
       pose: gallery(1),
+      constants: { hbar: HBAR },
       toggles: { rapid: true },
       action: 'clear+roll@16.125',
       predict: {
-        question: 'The ball has 3.2 J and the glass needs 3.68 J. How many balls get through?',
+        question: `The ball has ${joules(ENERGY)} and the glass needs ${joules(GLASS_V0)}. How many balls get through?`,
         options: ['None of them', 'About a quarter', 'All of them'],
         answer: 1,
-        reveal: 'The wave leaks through a barrier it cannot classically cross: for a plane wave the theory gives 28%. The ball is a packet with a spread of speeds, and its fast part gains more than its slow part loses, so the count settles a little higher.',
+        reveal: `The wave leaks through a barrier it cannot classically cross. Theory gives ${percent(GLASS.planeWave)} for a wave with exactly the ball's energy, and the count settles near it.`,
+      },
+    },
+    {
+      title: 'Fainter, not slower',
+      text: 'The panel’s “Glass: speed through” is worked out from the wave past the glass, from the spacing of its crests. Tunnelling changes how many balls get through, not how fast they go.',
+      pose: gallery(1),
+      constants: { hbar: HBAR },
+      toggles: { rapid: true },
+      action: 'roll@16.125',
+      predict: {
+        question: 'A ball that tunnels through the glass comes out…',
+        options: ['Slower: getting through cost it energy', 'Just as fast as it went in'],
+        answer: 1,
+        reveal: `No energy is lost in the glass: what gets through averages ${speed(GLASS.speedThrough)}, if anything a touch over the ${BALL.speed} m/s it rolled in at, as faster parts of the wave tunnel more easily. The wave past the glass is fainter because fewer balls get there, not because they are slower.`,
       },
     },
     {
@@ -356,6 +383,13 @@ export class BigHbarWorld implements World {
   private dotCount = 0;
   private markCount = 0;
   private flashAge = 1;
+  /**
+   * A glass roll still crossing: the wave past the glass at its fullest so far, as a share of the ball, and its mean
+   * speed then (see readGlass). Null once read, for any other roll, and after a measurement.
+   */
+  private crossing: { share: number; speed: number } | null = null;
+  /** Mean speed of what got through the glass, read from ψ on the latest glass roll to finish crossing. */
+  private glassSpeed: number | null = null;
   private notice = '';
   private noticeTimer = 0;
   private lastEvent = '';
@@ -691,6 +725,7 @@ export class BigHbarWorld implements World {
     this.counts = emptyCounts();
     this.dotCount = 0;
     this.dots.count = 0;
+    this.glassSpeed = null;
     this.lastEvent = '';
   }
 
@@ -699,6 +734,7 @@ export class BigHbarWorld implements World {
     this.stats = null;
     this.measureAt = null;
     this.held = null;
+    this.crossing = null;
     this.gpu.clear(this.renderer);
   }
 
@@ -742,8 +778,10 @@ export class BigHbarWorld implements World {
     const cpu = new Schrodinger2D({ nx: n, ny: n, dx, stencil: 4 }, this.particle, this.waveDt());
     cpu.potential.set(this.gpu.v);
     cpu.open.set(this.field.open);
-    // A packet several wavelengths long, so the ball has a well-defined momentum to begin with.
-    const sigma = THREE.MathUtils.clamp(0.8 * this.lambda, 0.8, 2);
+    // A packet several wavelengths long, so the ball has a well-defined momentum to begin with; down the glass lane
+    // a longer one, whose energy lies almost all below the glass.
+    const glass = laneOf(x) === 'glass';
+    const sigma = glass ? GLASS_SIGMA : THREE.MathUtils.clamp(0.8 * this.lambda, 0.8, 2);
     const k = (BALL.mass * BALL.speed) / this.hbar;
     cpu.setGaussian(x + HALF - dx / 2, z + HALF - dx / 2, sigma, k * dirX, k * dirZ);
     this.gpu.load(r, cpu.re, cpu.im, cpu.imPrev);
@@ -758,7 +796,8 @@ export class BigHbarWorld implements World {
     this.readTimer = READ_INTERVAL;
     this.measureAt = null;
     this.held = null;
-    this.stats = { inField: 1, absorbed: 0, peak, x, z, spread: sigma * Math.SQRT2, beyond: 0 };
+    this.crossing = glass ? { share: 0, speed: 0 } : null;
+    this.stats = { inField: 1, absorbed: 0, peak, x, z, spread: sigma * Math.SQRT2, beyond: 0, beyondOnFloor: 0 };
     this.ghost.position.set(x, BALL.radius + 0.02, z);
     this.spreadRing.scale.setScalar(sigma * Math.SQRT2);
   }
@@ -768,14 +807,17 @@ export class BigHbarWorld implements World {
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
     const cell = dx * dx;
-    let m = 0, mx = 0, mz = 0, mxx = 0, mzz = 0, ab = 0, beyond = 0, peak = 0;
+    let m = 0, mx = 0, mz = 0, mxx = 0, mzz = 0, ab = 0, beyond = 0, onFloor = 0, peak = 0;
     for (let j = 0; j < n; j++) {
       const z = cellCentre(j, dx);
       for (let i = 0; i < n; i++) {
         const k = (j * n + i) * 4;
         const rho = Math.max(0, b[k] * b[k] + b[k + 1] * b[k + 2]);
         ab += b[k + 3];
-        if (z < OBSTACLE_Z) beyond += rho * cell + b[k + 3];
+        if (z < OBSTACLE_Z) {
+          beyond += rho * cell + b[k + 3];
+          onFloor += rho;
+        }
         if (rho === 0) continue;
         const x = cellCentre(i, dx);
         if (rho > peak) peak = rho;
@@ -787,7 +829,7 @@ export class BigHbarWorld implements World {
       }
     }
     const inField = m * cell;
-    if (m <= 0) return (this.stats = { inField: 0, absorbed: ab, peak: 0, x: 0, z: 0, spread: 0, beyond: 1 });
+    if (m <= 0) return (this.stats = { inField: 0, absorbed: ab, peak: 0, x: 0, z: 0, spread: 0, beyond: 1, beyondOnFloor: 0 });
     const ex = mx / m, ez = mz / m;
     this.stats = {
       inField,
@@ -797,27 +839,37 @@ export class BigHbarWorld implements World {
       z: ez,
       spread: Math.sqrt(Math.max(0, mxx / m - ex * ex + mzz / m - ez * ez)),
       beyond: beyond / Math.max(1e-9, inField + ab),
+      beyondOnFloor: onFloor * cell,
     };
     return this.stats;
   }
 
-  /** Mean momentum of the wave in the last read-back, from the probability current. */
-  private momentum(): [number, number] {
+  /** Mean wavevector of the wave in the last read-back, over the cells `inside` picks (all of them by default). */
+  private wavevector(inside: (i: number, j: number) => boolean = () => true): [number, number] {
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    let m = 0, jx = 0, jz = 0;
-    for (let j = 1; j < n - 1; j++) {
-      for (let i = 1; i < n - 1; i++) {
-        const k = (j * n + i) * 4;
-        const re = b[k], im = b[k + 1];
-        m += Math.max(0, re * re + im * b[k + 2]);
-        // Probability current Re ∂ψ·Im − …: central differences, 2dx apart.
-        jx += re * (b[k + 5] - b[k - 3]) - im * (b[k + 4] - b[k - 4]);
-        jz += re * (b[k + 4 * n + 1] - b[k - 4 * n + 1]) - im * (b[k + 4 * n] - b[k - 4 * n]);
-      }
+    // Im ψ is read back at the half steps either side of Re ψ: their mean is Im ψ at the same moment.
+    return meanWavevector({ nx: n, ny: n, dx }, (k) => b[k * 4], (k) => 0.5 * (b[k * 4 + 1] + b[k * 4 + 2]), inside);
+  }
+
+  /**
+   * On a glass roll, whose wave can pass the obstacle only through the glass, read the mean speed ħk/m of what has
+   * got through from ψ, each time the wave past the glass is fuller than at the last read. Once it stops growing,
+   * every part that will get through has, and the far wall has begun to absorb it, fastest first, so a later reading
+   * would lean slow: the last reading is the roll's.
+   */
+  private readGlass(st: WaveStats) {
+    const c = this.crossing;
+    // Below a percent of the ball, what lies past the glass is too faint to read.
+    if (!c || st.beyondOnFloor < 0.01) return;
+    if (st.beyondOnFloor > c.share) {
+      const dx = this.field.dx;
+      const [kx, kz] = this.wavevector((_, j) => cellCentre(j, dx) < OBSTACLE_Z);
+      this.crossing = { share: st.beyondOnFloor, speed: (this.hbar * Math.hypot(kx, kz)) / BALL.mass };
+    } else {
+      this.glassSpeed = c.speed;
+      this.crossing = null;
     }
-    const pScale = m > 0 ? this.hbar / (2 * dx * m) : 0;
-    return [jx * pScale, jz * pScale];
   }
 
   /** Draw a cell from the last read-back with probability |ψ|². */
@@ -847,9 +899,9 @@ export class BigHbarWorld implements World {
   private becomeBall() {
     const pick = this.sampleCell();
     if (!pick) return this.stopAll();
-    const [px, pz] = this.momentum();
-    const p = Math.hypot(px, pz);
-    const [dx, dz] = p > 0.2 * BALL.mass * BALL.speed ? [px / p, pz / p] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
+    const [kx, kz] = this.wavevector();
+    const k = Math.hypot(kx, kz);
+    const [dx, dz] = this.hbar * k > 0.2 * BALL.mass * BALL.speed ? [kx / k, kz / k] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
     this.startBall(pick[0], pick[1], dx, dz);
     this.say('The wavelength fell below what the grid can carry: the wave was observed, and rolls on as a classical ball.');
   }
@@ -904,8 +956,10 @@ export class BigHbarWorld implements World {
     // The collapse empties the absorbed tally, so the detectors start counting again from nothing.
     this.seen.fill(0);
     this.seenTotal = 0;
+    // What lies past the glass from now on was put there by the detector, not by tunnelling.
+    this.crossing = null;
     const ex = mx / kept, ez = mz / kept;
-    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread: Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez)), beyond: beyond / kept };
+    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread: Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez)), beyond: beyond / kept, beyondOnFloor: beyond / kept };
     this.flash(pick[0], pick[1]);
     this.mark(pick[0], pick[1]);
     this.lastEvent = `Measured at x ${fix1(pick[0])}, z ${fix1(pick[1])} m`;
@@ -1127,9 +1181,10 @@ export class BigHbarWorld implements World {
     if (this.readTimer <= 0 && this.gpu.requestRead(r)) this.readTimer = READ_INTERVAL;
   }
 
-  /** A read-back has arrived: summarise the wave, and give the detector walls their chance to catch it. */
+  /** A read-back has arrived: summarise the wave, read the glass, and give the detector walls their chance to catch it. */
   private detect() {
     const st = this.analyse();
+    this.readGlass(st);
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
     const finished = st.inField < 0.03 || this.age > 60;
@@ -1246,7 +1301,8 @@ export class BigHbarWorld implements World {
     const n = c.glass.through + c.glass.back;
     const theory = barrierTransmission(ENERGY, GLASS_V0, GLASS_THICKNESS, { mass: BALL.mass, hbar: h });
     out.push({ label: 'Glass: through', value: n ? `${c.glass.through} of ${n} (${Math.round((100 * c.glass.through) / n)}%)` : '—', gauge: n ? c.glass.through / n : undefined });
-    out.push({ label: 'Theory (plane wave)', value: `${(theory * 100).toPrecision(2)}%` });
+    out.push({ label: 'Theory (plane wave)', value: percent(theory) });
+    out.push({ label: 'Glass: speed through', value: this.glassSpeed === null ? '—' : speed(this.glassSpeed) });
     return out;
   }
 

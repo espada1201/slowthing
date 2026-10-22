@@ -49,7 +49,7 @@ test('at the real ħ the ball is a point; turned up, it rolls out as a wave', as
 test('Show wave draws |ψ|² across the floor, and hiding it leaves bare stone', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'big-hbar');
-  for (let i = 0; i < 6; i++) await page.keyboard.press('KeyN');
+  for (let i = 0; i < 7; i++) await page.keyboard.press('KeyN');
   await expect(page.locator('.tour-title')).toHaveText('A ball as wide as a room');
   // The crests sweep across the floor as the wave rolls, so a frame difference mostly measures that motion:
   // count the wave's own colour instead.
@@ -102,7 +102,7 @@ test('measuring the wave pins it down to one spot', async ({ page }) => {
   expect(spread).toBeLessThan(0.8);
 });
 
-test('rapid fire at the glass: once every outcome is arriving, about as many get through as theory says', async ({ page }) => {
+test('rapid fire at the glass: once every outcome is arriving, about as many get through as theory says, no slower', async ({ page }) => {
   test.setTimeout(420_000);
   const errors = watchErrors(page);
   await openWorld(page, 'big-hbar');
@@ -123,5 +123,15 @@ test('rapid fire at the glass: once every outcome is arriving, about as many get
   const through = (t2 - t1) / (n2 - n1);
   expect(through).toBeGreaterThan(0.15);
   expect(through).toBeLessThan(0.42);
+  // The speed of what got through, read from ψ, is no lower than the ball's, and is what the next stop says it is.
+  const rolled = parseFloat((await readout(page, 'Ball')).split(' at ')[1]);
+  const speedThrough = parseFloat(await readout(page, 'Glass: speed through'));
+  expect(speedThrough).toBeGreaterThan(rolled);
+  expect(speedThrough).toBeLessThan(rolled + 0.05);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Fainter, not slower');
+  await page.locator('.choice[data-choice="1"]').click();
+  const said = parseFloat(/averages ([\d.]+) m\/s/.exec((await page.locator('.predict-reveal').textContent()) ?? '')![1]);
+  expect(Math.abs(speedThrough - said)).toBeLessThanOrEqual(0.01);
   expect(errors).toEqual([]);
 });
