@@ -51,8 +51,8 @@ export interface Step {
   /** The stop's prediction with its answer, and the tour's reveal as the reason. */
   readonly answer: Answered | null;
   readonly misconceptions: readonly string[];
-  /** What the switch behind each prompt shows: its hint. */
-  readonly notes: readonly string[];
+  /** The switch behind each of the activity's prompts, and what it shows. */
+  readonly switches: readonly { readonly label: string; readonly hint: string }[];
 }
 
 export interface Guide {
@@ -82,14 +82,14 @@ export function sheetOf(lesson: Authored): Sheet {
 /** The teacher page, built around the same activities as the sheet. */
 export function guideOf(lesson: Authored): Guide {
   const { sheet, path, minutes, room, problems } = plan(lesson);
-  const hints = new Map(lesson.toggles.map((t) => [t.id, t.hint]));
+  const switches = new Map(lesson.toggles.map(({ id, label, hint }) => [id, { label, hint }]));
   return {
     sheet,
     syllabus: room.syllabus,
     minutes,
     steps: path.map((p, k) => {
       const stop = lesson.tour[p.stop];
-      return { activity: sheet.activities[k], minutes: p.minutes, text: stop.text, answer: answerOf(stop), misconceptions: stop.lesson?.misconceptions ?? [], notes: p.explain.map((e) => hints.get(e.toggle)!) };
+      return { activity: sheet.activities[k], minutes: p.minutes, text: stop.text, answer: answerOf(stop), misconceptions: stop.lesson?.misconceptions ?? [], switches: p.explain.map((e) => switches.get(e.toggle)!) };
     }),
     tour: lesson.tour.map((stop, i) => ({ stop: i, title: stop.title, link: link(lesson, i), answer: answerOf(stop) })),
     switches: lesson.toggles.map(({ id, label, hint }) => ({ id, label, hint })),

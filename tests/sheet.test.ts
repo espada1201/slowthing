@@ -95,7 +95,7 @@ describe('the sheet and the teacher page', () => {
     ]);
     expect(guide.sheet.activities[0].prompts).toEqual(['What did you see? Explain why it happens.']);
     expect(guide.sheet.activities[1].prompts).toEqual(['Turn Light delay off. What changes, and why?']);
-    expect(guide.steps[1].notes).toEqual([lesson.toggles.find((t) => t.id === 'delay')!.hint]);
+    expect(guide.steps[1].switches).toEqual([{ label: 'Light delay', hint: lesson.toggles.find((t) => t.id === 'delay')!.hint }]);
     expect(guide.steps[1].misconceptions).toEqual(['A moving object looks squashed.']);
     expect(guide.steps.map((s) => s.minutes)).toEqual([6, 9]);
   });
