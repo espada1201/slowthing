@@ -288,6 +288,7 @@ function loop(now: number) {
   if (hudTimer <= 0 && chrome) {
     hudTimer = 0.1;
     chrome.setReadouts(world.readouts(ctx()), still ? 'Reduced motion: nothing moves until you tap or press a key.' : world.status(ctx()));
+    chrome.showReticle(world.warping?.(ctx()) ?? false);
   }
 }
 

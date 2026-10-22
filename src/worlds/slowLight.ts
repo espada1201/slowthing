@@ -554,6 +554,11 @@ export class SlowLightWorld implements World {
     ];
   }
 
+  /** Walking tops out at 0.45 c; sprinting and cruising go past half c, where the whole view warps. */
+  warping(ctx: WorldContext) {
+    return len(velocityFromProper(this.properVel.toArray(), ctx.constants.c)) >= 0.5 * ctx.constants.c;
+  }
+
   status(ctx: WorldContext) {
     if (this.atEdge) return 'Edge of town. Turn round and cruise back through it (F).';
     const tram = motion(TRAM_PROPER_SPEED, ctx.constants.c);

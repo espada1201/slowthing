@@ -122,6 +122,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .gauge::after { content: ''; position: absolute; inset: 0; width: calc(var(--g) * 100%); background: var(--accent); }
 .status { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); max-width: 260px; }
 .status:empty { display: none; }
+.reticle { position: absolute; left: 50%; top: 50%; width: 72px; height: 12px; margin: -6px 0 0 -36px; pointer-events: none !important; }
 
 .tour { position: absolute; left: 50%; bottom: calc(16px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(100vw - 24px - 600px)); min-width: 340px; padding: 14px 18px 10px; }
 .tour-head { display: flex; align-items: baseline; gap: 10px; }

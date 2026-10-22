@@ -2,7 +2,7 @@
 
 import { setSound, soundOn } from '../audio';
 import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
-import type { Quality, QualitySetting, Readout, World } from '../worlds/types';
+import type { Quality, QualitySetting, Readout, Toggle, World } from '../worlds/types';
 import type { Ruler } from './ruler';
 
 type Attrs = Record<string, string | boolean | number | ((e: Event) => void)>;
@@ -108,6 +108,8 @@ export interface Chrome {
   setTour(i: number, waiting?: boolean): void;
   /** Name the preset Auto is running (null when a preset was chosen by hand). */
   showQuality(q: Quality | null): void;
+  /** Show the level reticle while the view warps, unless the visitor switched it off. */
+  showReticle(warping: boolean): void;
   flash(msg: string): void;
 }
 
@@ -139,12 +141,33 @@ export function worldChrome(
     input.addEventListener('input', () => opts.onDial(k, fromSlider(d, Number(input.value))));
     return { k, input, val, ratio, el: h('div', { class: 'dial' }, h('div', { class: 'dial-head' }, h('span', { class: 'dial-sym' }, d.symbol), h('span', { class: 'dial-name' }, d.name), ratio), input, val) };
   });
-  const toggles = world.toggles.map((t) => {
+  const switchFor = (t: Toggle) => {
     const box = h('input', { type: 'checkbox', role: 'switch', 'data-toggle': t.id, ...(t.value ? { checked: true } : {}) });
     box.addEventListener('change', () => {
       t.value = box.checked;
     });
     return { t, box, el: h('label', { class: 'switch', title: t.hint }, box, h('span', { class: 'track' }), h('span', { class: 'switch-label' }, t.label)) };
+  };
+  const toggles = world.toggles.map(switchFor);
+  // On by default: it only shows at speed, which is where a visitor reported feeling dizzy.
+  const level: Toggle = { id: 'reticle', label: 'Level reticle', hint: 'A fixed level mark at the centre while you move near light speed, to steady your eyes', value: true };
+  try {
+    level.value = localStorage.getItem('slowlight-reticle') !== 'off';
+  } catch {
+    /* storage blocked: keep the default */
+  }
+  const steady = switchFor(level);
+  steady.box.addEventListener('change', () => {
+    try {
+      localStorage.setItem('slowlight-reticle', level.value ? 'on' : 'off');
+    } catch {
+      /* not remembered */
+    }
+  });
+  const reticle = h('div', {
+    class: 'reticle',
+    hidden: true,
+    html: '<svg viewBox="0 0 72 12" width="72" height="12" aria-hidden="true"><g stroke-linecap="round"><path d="M4 6h22M46 6h22" stroke="rgba(16,18,22,.6)" stroke-width="5"/><path d="M4 6h22M46 6h22" stroke="#fff" stroke-width="2"/></g><circle cx="36" cy="6" r="2.2" fill="#fff" stroke="rgba(16,18,22,.6)" stroke-width="1.5"/></svg>',
   });
   const actions = world.actions.map((a) => h('button', { class: 'btn', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label, h('kbd', {}, a.key.replace('Key', ''))));
   if (ruler) actions.push(ruler.button('btn', h('kbd', {}, 'R')));
@@ -166,6 +189,8 @@ export function worldChrome(
     toggles.length ? h('h2', { class: 'panel-h' }, 'Effects') : null,
     toggles.length ? h('div', { class: 'switches' }, ...toggles.map((t) => t.el)) : null,
     actions.length ? h('div', { class: 'row actions' }, ...actions) : null,
+    world.warping ? h('h2', { class: 'panel-h' }, 'Comfort') : null,
+    world.warping ? steady.el : null,
     h('label', { class: 'panel-quality' }, 'Quality ', selects[1]),
   );
   const readoutList = h('dl', { class: 'readouts' });
@@ -224,7 +249,7 @@ export function worldChrome(
     h('div', { class: 'top-right' }, panelToggle, soundBtn, selects[0], helpBtn),
   );
   // The ruler goes first so that it lies under the panels: they stay usable while it is on.
-  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, top, help, panel, hud, tour, toast);
+  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, top, help, panel, hud, tour, toast);
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {
@@ -318,6 +343,9 @@ export function worldChrome(
     },
     showQuality(q) {
       for (const s of selects) s.options[0].textContent = q ? `Auto (${q})` : 'Auto';
+    },
+    showReticle(warping) {
+      reticle.hidden = !(warping && level.value);
     },
     flash(msg) {
       toast.textContent = msg;

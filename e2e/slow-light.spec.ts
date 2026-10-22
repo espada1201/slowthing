@@ -75,3 +75,29 @@ test('the carousel lamps flash within the WCAG 2.3.1 limit', async ({ page }) =>
   expect(flashes).toBeGreaterThan(3);
   expect(area).toBeLessThan(0.25);
 });
+
+test('a level reticle stays fixed at the centre at 0.9 c, and stays off once switched off', async ({ page }) => {
+  const reticle = page.locator('.reticle');
+  const cruise = async () => {
+    await openWorld(page, 'slow-light');
+    await expect(reticle).toBeHidden();
+    await page.keyboard.press('KeyN');
+    await page.keyboard.press('KeyN');
+    await expect(page.locator('.tour-title')).toHaveText('Aberration');
+    await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
+    await frames(page, 3);
+  };
+  await cruise();
+  await expect(reticle).toBeVisible();
+  const box = (await reticle.boundingBox())!;
+  expect(box.x + box.width / 2).toBeCloseTo(640, 0);
+  expect(box.y + box.height / 2).toBeCloseTo(400, 0);
+  // Level: tilted by even 2°, the 72 × 12 px bar would be less than five times as wide as it is tall.
+  expect(box.width).toBeGreaterThan(5 * box.height);
+
+  await page.locator('[data-toggle="reticle"]').setChecked(false, { force: true });
+  await expect(reticle).toBeHidden();
+  await cruise();
+  await expect(page.locator('[data-toggle="reticle"]')).not.toBeChecked();
+  await expect(reticle).toBeHidden();
+});
