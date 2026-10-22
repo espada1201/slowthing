@@ -244,14 +244,16 @@ function goTour(i: number, initial = false) {
 
 let last = performance.now();
 let hudTimer = 0;
-/** End-to-end tests freeze time to compare a switch on and off on the very same moment. */
+/** End-to-end tests freeze time to compare a switch on and off on the very same moment, or step it at a fixed rate. */
 let paused = false;
+let step = 0;
 /** The first frame after the tab was hidden spans the whole absence, which says nothing about speed. */
 let resumed = false;
 document.addEventListener('visibilitychange', () => (resumed = true));
 function loop(now: number) {
   requestAnimationFrame(loop);
-  const dt = paused ? 0 : Math.min(0.05, (now - last) / 1000);
+  const dt = paused ? step : Math.min(0.05, (now - last) / 1000);
+  step = 0;
   const ms = now - last;
   last = now;
   if (!world || !renderer) return;
@@ -275,10 +277,14 @@ if (initial && initial in loaders && !startupError) void enter(initial);
 else if (params.has('proofs')) showProofs();
 else showTitle();
 
-// Probe for the end-to-end tests: read-only, apart from freezing time.
+// Probe for the end-to-end tests: read-only, apart from freezing and stepping time.
 (window as unknown as { slowlight: object }).slowlight = {
   pause(on: boolean) {
     paused = on;
+  },
+  /** While paused, run the next frame dt seconds on. */
+  step(dt: number) {
+    step = dt;
   },
   get world() {
     return world?.id ?? null;

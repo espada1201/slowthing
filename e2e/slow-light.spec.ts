@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { measureFlashes } from './flash';
 import { clockSeconds, expectRendered, frames, openWorld, readout, switchDiff, watchErrors } from './helpers';
 
 test('renders the town, and every effect switch changes what you see', async ({ page }) => {
@@ -62,4 +63,15 @@ test('the tour advances and resetting to the real universe restores c', async ({
   await expect(page.locator('.tour-title')).toHaveText('The real universe');
   expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
   await expect(page.locator('[data-tour-next]')).toBeDisabled();
+});
+
+test('the carousel lamps flash within the WCAG 2.3.1 limit', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openWorld(page, 'slow-light');
+  for (let i = 0; i < 6; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Moving clocks');
+  const { flashes, area } = await measureFlashes(page, 2);
+  // Light delay bunches some lamps' flashes past three a second; what keeps them safe is their small area.
+  expect(flashes).toBeGreaterThan(3);
+  expect(area).toBeLessThan(0.25);
 });
