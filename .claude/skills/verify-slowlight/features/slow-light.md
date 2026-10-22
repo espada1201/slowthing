@@ -1,6 +1,6 @@
 # World I, Slow Light
 
-A town where light travels at 12 m/s. The visitor walks, runs or cruises at 0.9 c, and the view shows aberration, Doppler colour, searchlight beaming, light delay, length contraction and eye adaptation, each behind a switch. The instruments compare the visitor's watch with the town clock, and above half of c a level reticle steadies the eye.
+A town where light travels at 12 m/s. The visitor walks, runs or cruises at 0.9 c, and the view shows aberration, Doppler colour, searchlight beaming, light delay, length contraction and eye adaptation, each behind a switch. The instruments compare the visitor's watch with the town clock, and above half of c a level reticle steadies the eye. `Measured` adds a map of where everything is and what every clock reads at the visitor's now, in their own frame, with a spacetime diagram along their motion.
 
 ## Sub-features
 
@@ -13,6 +13,10 @@ A town where light travels at 12 m/s. The visitor walks, runs or cruises at 0.9 
 - `sl-clocks` your watch falls behind the town clock while you move.
 - `sl-edge` at the edge of town the status line says to turn round.
 - `sl-reticle` faster than half of c, a level mark sits fixed at the centre of the view; `Level reticle` under Comfort turns it off, and the choice is remembered.
+- `sl-measured` `Measured`, beside Sound (on a phone, on the tour card), shows the map and the diagram, tags the view `Seen`, and folds the panel behind `Dials`.
+- `sl-measured-rest` at rest the map's tower clock reads the `Town clock t` readout, the diagram shows the tower's light 5.4 s older, and a tram car measures 3.22 m.
+- `sl-measured-cruise` at a steady 0.9 c (tour stop `Whose now?`) each street clock 20 m further ahead reads 1.5 s later; stopping (`Stopping`) makes them all read the town clock again.
+- `sl-measured-carousel` at the carousel the map's eight lamps flash together, every 0.885 s.
 
 ## How to get to it (user POV)
 
@@ -34,6 +38,12 @@ Preconditions:
 - **Reticle off.** Run `ctl click '.switch:has([data-toggle="reticle"])'`, then reload with `ctl go "?world=slow-light&quality=low"`, `ctl press KeyN` twice and `ctl frames 40`. `toggles.reticle` is still false, and at `β` 0.899 `ctl text '.reticle'` prints `[]`. Click the switch again: `ctl text '.reticle'` prints `[""]`.
 - **Switches.** Reopen with `ctl go "?world=slow-light&quality=low&e2e"`, press N twice and wait 40 frames (the `Aberration` stop cruises), then for each of `aberration`, `doppler`, `beaming`, `adapt`: `ctl pause on`, `ctl sample`, `ctl click '.switch:has([data-toggle="<id>"])'`, `ctl frames 2`, `ctl sample`, click it back, `ctl pause off`. Each pair of means differs by more than 4.
 - **Tram.** Press T. Run `ctl press KeyT`, `ctl frames 30`, `ctl shot sl-tram`. The tram is in view; with `delay` or `contraction` switched off while paused, the picture changes visibly.
+- **Measured.** Reopen with `ctl go "?world=slow-light&quality=low&e2e"`, then run `ctl click --role button --name "Measured"` and `ctl frames 4`. `ctl aria sl-measured` lists the images `Map of the town at your now, in your frame: …` and `Spacetime diagram along your motion: …` and the `Measured` button as pressed. `ctl text '.m-car'` prints `3.22 m`, the tram car nearest you, contracted from 7.2 m. `ctl text '.seen-tag'` prints `Seen the light reaching you now`, and `ctl text '#panel'` prints `[]` until `ctl click --role button --name "Dials"`.
+- **Measured at rest.** Press N until `tour.title` is `Seen and measured` (six presses from the first stop), then run `ctl click --role button --name "Just show me"`. Run `ctl pause on`, then `ctl text '.m-map [data-clock="tower"]'`: the same time as `Town clock t` in the printed readouts. `ctl text '.m-diagram [data-clock="tower"]'` prints the tower's reading at your now and the one its arriving light shows, 5.4 s apart (±0.1 s from rounding; 64.8 m at 12 m/s). Take `ctl shot sl-measured-rest`, then `ctl pause off`.
+- **Measured carousel.** Run `ctl press KeyN`: `tour.title` is `Moving clocks` and the map stays on. Take `ctl shot sl-measured-carousel-1`, `ctl frames 6`, `ctl shot sl-measured-carousel-2`: in each, the eight lamp dots on the map are the same size and shade.
+- **Measured cruise.** Run `ctl press KeyN` and `ctl click --role button --name "Just show me"`: `tour.title` is `Whose now?` and `β = v/c` reads 0.900 at once (the stop coasts north from z = 250 m at full speed). Run `ctl frames 50` twice (each wait gives up after 60 s), which coasts you to about z = 120 m, then `ctl pause on`, `ctl text '.m-map [data-clock="street-1"]'` and `ctl text '.m-map [data-clock="street-2"]'` (the street clocks at z = 100 and 80 m): the second, further ahead, reads 1.5 s later (±0.1 s). Take `ctl shot sl-measured-cruise`.
+- **Measured stop.** Still paused, run `ctl press KeyN` and `ctl frames 2`: `tour.title` is `Stopping`, `β = v/c` is 0.000, and the same two labels both show the minutes and seconds of `Town clock t`. Take `ctl shot sl-measured-stop`, then `ctl pause off`.
+- **Measured on a phone.** On a phone instance in World I, run `ctl click '.quick [data-view="measured"]'` and `ctl frames 4`. The map and diagram fill the top of the screen above the readouts and the tour card, nothing spills sideways, and the top bar has no `Measured` button. Take `ctl shot sl-measured-phone`.
 - **Proof.** Run `ctl aria sl-final` and `ctl errors`.
 
 ## Gotchas
@@ -44,3 +54,7 @@ Preconditions:
 - Cruising runs to the edge of town after a while. Then the status line reads `Edge of town. Turn round and cruise back through it (F).`
 - Pressing F at the first stop drives into the carousel hub 30 m ahead, which ends the cruise within a second; cruise from a stop that faces an open street, such as `Aberration`.
 - The reticle is on screen only above 0.5 c, so walking (at most 0.45 c) never shows it; sprinting and cruising do.
+- A map label is left out when it would overlap another or fall off the map, so `ctl text` prints `[]` for a clock out of range or a tram car whose label has no room; the tower is labelled first.
+- While a tour stop asks its prediction the map is hidden with the other instruments.
+- Pressing F from rest swings your now while you speed up: for a moment the clocks behind you run backwards on the map. Read the cruise numbers once β is steady.
+- A cruise along the middle of the avenue (x = 0) stops at the carousel's hub; the tour's cruises and coast run 4 m to the east of it.

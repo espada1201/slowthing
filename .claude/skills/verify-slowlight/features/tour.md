@@ -22,14 +22,14 @@ Preconditions:
 
 - A desktop instance is in World I (see slow-light.md, step Enter).
 
-- **First stop.** Run `ctl probe`. `tour.stop` is `1 / 9` and the `Previous tour stop` button is disabled (`ctl aria tour-first`).
-- **Next by button.** Run `ctl click --role button --name "Next tour stop"`. `tour.stop` is `2 / 9`, `tour.title` is `The late clock`, and `tour.predicting` is true.
+- **First stop.** Run `ctl probe`. `tour.stop` is `1 / 12` and the `Previous tour stop` button is disabled (`ctl aria tour-first`).
+- **Next by button.** Run `ctl click --role button --name "Next tour stop"`. `tour.stop` is `2 / 12`, `tour.title` is `The late clock`, and `tour.predicting` is true.
 - **Hidden text.** Run `ctl text '.tour-text'` and `ctl text '.readouts'`. Both print `[]`: the stop's text and the instruments wait for an answer.
 - **Answer wrong.** Run `ctl click '.choice[data-choice="2"]'`, then `ctl text '.predict-reveal'`. The reveal starts `Not quite.` and mentions `5.4 s`. `ctl text '.choice[data-state="right"]'` prints `about 5 s behind` and `ctl text '.choice[data-state="wrong"]'` prints `about 5 s ahead`. Take `ctl shot tour-answered` and `ctl aria tour-answered`: the buttons are named `about 5 s behind (right answer)` and `about 5 s ahead (your answer, wrong)`, all disabled.
 - **Next by key.** Run `ctl press KeyN`. `tour.title` is `Aberration` and the cruise starts.
 - **Skip.** Run `ctl click --role button --name "Just show me"`. The reveal shows without `Right.` or `Not quite.`.
-- **Back by key.** Run `ctl press KeyB`. `tour.stop` is `2 / 9`.
-- **Last stop.** Press N until `tour.stop` is `9 / 9`. `Next tour stop` is disabled and `constants.c` is 299792458.
+- **Back by key.** Run `ctl press KeyB`. `tour.stop` is `2 / 12`.
+- **Last stop.** Press N until `tour.stop` is `12 / 12`. `Next tour stop` is disabled and `constants.c` is 299792458.
 - **Proof.** Run `ctl shot tour-final` and `ctl errors`.
 
 ## Gotchas

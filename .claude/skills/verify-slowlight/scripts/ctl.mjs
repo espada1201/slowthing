@@ -209,11 +209,11 @@ const commands = {
       print(await snapshot(page));
     }),
   probe: () => withPage(async (page) => print(await snapshot(page))),
-  /** Text of every match the visitor can see; hidden matches are left out. */
+  /** Text of every match the visitor can see; hidden matches are left out. SVG text (the Measured map) has no innerText. */
   text: () =>
     withPage(async (page) => {
       const out = [];
-      for (const el of await target(page, args).all()) if (await el.isVisible()) out.push(await el.innerText());
+      for (const el of await target(page, args).all()) if (await el.isVisible()) out.push(await el.evaluate((e) => (e instanceof HTMLElement ? e.innerText : e.textContent)));
       print(out);
     }),
   select: () =>

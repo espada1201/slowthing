@@ -32,7 +32,7 @@ Each file starts with an H1 and one paragraph on the visible behaviour, then fou
 ## Features
 
 - [Title screen](./title.md): the three world plates, keyboard entry, back to the worlds, quality.
-- [World I, Slow Light](./slow-light.md): the c dial, six effect switches, walking and running, cruise, tram, clocks, the level reticle.
+- [World I, Slow Light](./slow-light.md): the c dial, six effect switches, walking and running, cruise, tram, clocks, the Measured map, the level reticle.
 - [World II, Big ħ](./big-hbar.md): the ħ dial, rolling a wave-ball, measuring it, the detector walls, rapid fire.
 - [World III, Big G](./big-g.md): the G dial, light bending, gravitational shift, the shadow edge, flying in, the sky ruler, weighing the hole, the Einstein ring.
 - [Guided tour](./tour.md): stops, keyboard and button navigation, predict-then-reveal questions.
