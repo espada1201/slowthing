@@ -53,7 +53,30 @@ let frames = 0;
 
 function pixelRatio() {
   const dpr = window.devicePixelRatio || 1;
-  return quality === 'low' ? Math.min(dpr, 1) * 0.7 : quality === 'medium' ? Math.min(dpr, 1.5) : Math.min(dpr, 2);
+  return (quality === 'low' ? Math.min(dpr, 1) * 0.7 : quality === 'medium' ? Math.min(dpr, 1.5) : Math.min(dpr, 2)) * autoRes.scale;
+}
+
+/**
+ * Dynamic resolution: when frames run long, draw fewer pixels; when there is headroom again, creep back up,
+ * but not past a level that was just too slow. Off in end-to-end runs, which compare pixels.
+ */
+const autoRes = { scale: 1, ceiling: 1, avg: 1000 / 60, clock: 0, settle: 2000 };
+function adaptResolution(ms: number) {
+  if (params.has('e2e') || ms > 250) return;
+  autoRes.avg += (ms - autoRes.avg) * 0.05;
+  autoRes.clock += ms;
+  if ((autoRes.settle -= ms) > 0 || autoRes.clock < 1000) return;
+  autoRes.clock = 0;
+  autoRes.ceiling = Math.min(1, autoRes.ceiling * 1.01);
+  let next = autoRes.scale;
+  if (autoRes.avg > 21) {
+    autoRes.ceiling = autoRes.scale * 0.95;
+    next = Math.max(0.5, autoRes.scale * 0.85);
+  } else if (autoRes.avg < 17.5) next = Math.min(autoRes.ceiling, autoRes.scale * 1.06);
+  if (Math.abs(next - autoRes.scale) > 0.01) {
+    autoRes.scale = next;
+    resize();
+  }
 }
 
 function resize() {
@@ -67,6 +90,7 @@ const ctx = (): WorldContext => ({ renderer: renderer!, constants, quality });
 
 function setQuality(q: Quality) {
   quality = q;
+  Object.assign(autoRes, { scale: 1, ceiling: 1, settle: 2000 });
   try {
     localStorage.setItem('slowlight-quality', q);
   } catch {
@@ -77,6 +101,7 @@ function setQuality(q: Quality) {
 }
 
 function showTitle() {
+  const returning = world !== null;
   world?.dispose();
   world = null;
   chrome = null;
@@ -84,7 +109,8 @@ function showTitle() {
   if (document.pointerLockElement) document.exitPointerLock();
   ui.replaceChildren(titleScreen(enter, showProofs, quality, setQuality, startupError));
   history.replaceState(null, '', location.pathname + (params.has('quality') ? `?quality=${quality}` : ''));
-  document.querySelector<HTMLButtonElement>('.plate')?.focus({ preventScroll: true });
+  // Coming back from a world, keep keyboard users on the plates; on first load, nothing looks pre-selected.
+  if (returning) document.querySelector<HTMLButtonElement>('.plate')?.focus({ preventScroll: true });
 }
 
 function showProofs() {
@@ -113,6 +139,7 @@ async function enter(id: string) {
   }
   const w = world;
   const card = WORLD_CARDS.find((c) => c.id === id)!;
+  autoRes.settle = 2000;
   Object.assign(constants, REAL, w.preset);
   chrome = worldChrome(w, card, constants, {
     quality,
@@ -155,7 +182,7 @@ async function enter(id: string) {
   history.replaceState(null, '', `?world=${id}${params.has('quality') ? `&quality=${quality}` : ''}`);
   goTour(0, true);
   if (pendingShare && params.get('world') === id) {
-    Object.assign(constants, pendingShare);
+    for (const k of w.dials) if (pendingShare[k] !== undefined) constants[k] = pendingShare[k];
     chrome.syncDials(constants);
   }
   pendingShare = null;
@@ -175,7 +202,7 @@ let pendingShare: Partial<Constants> | null = sharedConstants();
 
 function shareUrl(id: string) {
   const q = new URLSearchParams({ world: id });
-  for (const k of Object.keys(DIALS) as ConstantKey[]) q.set(k, constants[k].toPrecision(4));
+  for (const k of world?.dials ?? []) q.set(k, constants[k].toPrecision(4));
   return `${location.origin}${location.pathname}?${q}`;
 }
 
@@ -199,12 +226,15 @@ function goTour(i: number, initial = false) {
 
 let last = performance.now();
 let hudTimer = 0;
+/** End-to-end tests freeze time to compare a switch on and off on the very same moment. */
+let paused = false;
 function loop(now: number) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = paused ? 0 : Math.min(0.05, (now - last) / 1000);
+  adaptResolution(now - last);
   last = now;
   if (!world || !renderer) return;
-  input.poll();
+  input.poll(dt);
   world.frame(dt, input.state, ctx());
   frames++;
   hudTimer -= dt;
@@ -221,8 +251,11 @@ if (initial && initial in loaders && !startupError) void enter(initial);
 else if (params.has('proofs')) showProofs();
 else showTitle();
 
-// Read-only probe for the end-to-end tests.
+// Probe for the end-to-end tests: read-only, apart from freezing time.
 (window as unknown as { slowlight: object }).slowlight = {
+  pause(on: boolean) {
+    paused = on;
+  },
   get world() {
     return world?.id ?? null;
   },

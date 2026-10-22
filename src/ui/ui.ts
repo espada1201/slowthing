@@ -49,7 +49,7 @@ export const WORLD_CARDS: WorldCard[] = [
     id: 'big-g',
     plate: 'Plate III',
     title: 'Big G',
-    dial: 'G = 10²² × real',
+    dial: 'G = 3.4×10²² × real',
     blurb: 'Turn up gravity until a boulder collapses into a black hole, then watch the sky bend around its shadow.',
     art: `<svg viewBox="0 0 120 80" aria-hidden="true"><circle cx="60" cy="40" r="11" fill="currentColor"/><circle cx="60" cy="40" r="17" fill="none" stroke="var(--accent)" stroke-width="1.6"/><g fill="none" stroke="currentColor" stroke-width="0.9" stroke-dasharray="2 3"><path d="M4 30 Q60 -6 116 30"/><path d="M4 50 Q60 86 116 50"/><circle cx="60" cy="40" r="26"/></g><g fill="currentColor"><circle cx="16" cy="12" r="1"/><circle cx="100" cy="70" r="1.2"/><circle cx="108" cy="16" r="0.8"/><circle cx="20" cy="66" r="0.8"/></g></svg>`,
   },
@@ -137,6 +137,14 @@ export function worldChrome(
     return { t, box, el: h('label', { class: 'switch', title: t.hint }, box, h('span', { class: 'track' }), h('span', { class: 'switch-label' }, t.label)) };
   });
   const actions = world.actions.map((a) => h('button', { class: 'btn', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label, h('kbd', {}, a.key.replace('Key', ''))));
+  // On a phone the panel hides behind a toggle, so the main actions also sit on the tour card.
+  const quick = h('div', { class: 'quick' }, ...world.actions.slice(0, 2).map((a) => h('button', { class: 'btn ghost', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label)));
+  const selects = [0, 1].map(() =>
+    qualitySelect(opts.quality, (q) => {
+      for (const s of selects) s.value = q;
+      opts.onQuality(q);
+    }),
+  );
 
   const panel = h(
     'aside',
@@ -147,6 +155,7 @@ export function worldChrome(
     toggles.length ? h('h2', { class: 'panel-h' }, 'Effects') : null,
     toggles.length ? h('div', { class: 'switches' }, ...toggles.map((t) => t.el)) : null,
     actions.length ? h('div', { class: 'row actions' }, ...actions) : null,
+    h('label', { class: 'panel-quality' }, 'Quality ', selects[1]),
   );
   const readoutList = h('dl', { class: 'readouts' });
   const statusLine = h('p', { class: 'status' });
@@ -158,7 +167,7 @@ export function worldChrome(
   const predictBox = h('div', { class: 'predict', hidden: true });
   const prev = h('button', { class: 'btn ghost', 'aria-label': 'Previous tour stop', onclick: () => opts.onTour(current - 1) }, '←');
   const next = h('button', { class: 'btn', 'data-tour-next': true, 'aria-label': 'Next tour stop', onclick: () => opts.onTour(current + 1) }, 'Next →');
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, prev, next));
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, h('div', { class: 'row' }, quick, prev, next));
   let current = 0;
 
   const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials');
@@ -176,7 +185,7 @@ export function worldChrome(
     'div',
     { class: 'help', hidden: true, role: 'dialog', 'aria-label': 'Controls' },
     h('p', {}, h('kbd', {}, 'Click'), ' the view to look around (Esc releases the mouse).'),
-    h('p', {}, h('kbd', {}, 'W A S D'), ' or arrows move, ', h('kbd', {}, 'Shift'), ' runs.'),
+    h('p', {}, h('kbd', {}, 'W A S D'), ' move, ', h('kbd', {}, '← →'), ' turn, ', h('kbd', {}, 'Shift'), ' runs.'),
     world.id === 'big-g' ? h('p', {}, h('kbd', {}, 'Space'), ' / ', h('kbd', {}, 'Q'), ' fly up and down.') : null,
     ...world.actions.map((a) => h('p', {}, h('kbd', {}, a.key.replace('Key', '')), ` ${a.label.toLowerCase()}.`)),
     h('p', {}, h('kbd', {}, 'N'), ' next tour stop, ', h('kbd', {}, 'B'), ' previous.'),
@@ -191,11 +200,17 @@ export function worldChrome(
   const top = h(
     'header',
     { class: 'topbar' },
-    h('button', { class: 'btn ghost', 'data-back': true, onclick: opts.onBack }, '← Worlds'),
+    h('button', { class: 'btn ghost', 'data-back': true, onclick: opts.onBack }, '←', h('span', { class: 'wide-only' }, ' Worlds')),
     h('div', { class: 'world-name' }, h('span', { class: 'plate-no' }, card.plate), h('span', {}, world.title)),
-    h('div', { class: 'top-right' }, panelToggle, soundBtn, qualitySelect(opts.quality, opts.onQuality), helpBtn),
+    h('div', { class: 'top-right' }, panelToggle, soundBtn, selects[0], helpBtn),
   );
   const root = h('div', { class: 'chrome', 'data-world': world.id }, top, help, panel, hud, tour, toast);
+  // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
+  // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
+  root.addEventListener('pointerup', (e) => {
+    const el = (e.target as Element).closest('input, button');
+    if (el instanceof HTMLElement) setTimeout(() => el.blur());
+  });
 
   let toastTimer = 0;
   return {

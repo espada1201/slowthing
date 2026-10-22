@@ -23,15 +23,37 @@ test('a shared link restores the dial settings', async ({ page }) => {
   await expect(page.locator('.dial-value').first()).toContainText('50 m/s');
 });
 
-test('phone layout keeps the dials behind a toggle', async ({ page }) => {
+test('phone layout keeps the dials behind a toggle, on top of the instruments', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('./?world=slow-light&quality=low&e2e');
   await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
   await expect(page.locator('#panel')).toBeHidden();
   await page.getByRole('button', { name: 'Dials' }).click();
   await expect(page.locator('#panel')).toBeVisible();
+  // Every control in the open panel must be the thing a tap actually lands on.
+  for (const sel of ['[data-dial="c"]', '[data-reset="real"]', '.switch:has([data-toggle="doppler"])']) {
+    const control = page.locator(sel);
+    await control.scrollIntoViewIfNeeded();
+    const onTop = await control.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return !!hit && (el === hit || el.contains(hit));
+    });
+    expect(onTop, `${sel} should not be covered`).toBe(true);
+  }
+  await page.locator('[data-reset="real"]').click();
+  expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
+});
+
+test('on a phone the main actions are one tap away, outside the dials', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('./?world=big-hbar&quality=low&e2e');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
+  await expect(page.locator('#panel')).toBeHidden();
+  await expect(page.locator('.quick [data-action="measure"]')).toBeVisible();
+  await expect(page.locator('.panel-quality select')).toBeAttached();
 });
 
 test('every proof passes in the browser, including the GPU shader checks', async ({ page }) => {

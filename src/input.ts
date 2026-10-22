@@ -13,11 +13,24 @@ type KeyHandler = (key: string) => void;
 const MOVE_KEYS: Record<string, [number, number, number]> = {
   KeyW: [0, 0, 1], ArrowUp: [0, 0, 1],
   KeyS: [0, 0, -1], ArrowDown: [0, 0, -1],
-  KeyA: [-1, 0, 0], ArrowLeft: [-1, 0, 0],
-  KeyD: [1, 0, 0], ArrowRight: [1, 0, 0],
+  KeyA: [-1, 0, 0],
+  KeyD: [1, 0, 0],
   Space: [0, 1, 0], KeyE: [0, 1, 0],
   KeyQ: [0, -1, 0], KeyC: [0, -1, 0],
 };
+/** ← and → turn the view, so it can be steered without a mouse. Radians per second. */
+const TURN_KEYS: Record<string, number> = { ArrowLeft: 1.8, ArrowRight: -1.8 };
+
+/** Keys a focused control needs for itself: typing, a slider's arrows, Space or Enter on a switch or button. */
+function ownedByControl(target: EventTarget | null, code: string) {
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  if (target instanceof HTMLInputElement) {
+    if (target.type === 'range') return /^(Arrow|Home|End|Page)/.test(code);
+    if (target.type === 'checkbox') return code === 'Space';
+    return true;
+  }
+  return target instanceof HTMLButtonElement && (code === 'Space' || code === 'Enter');
+}
 
 export class Input {
   readonly state: InputState = { move: { x: 0, y: 0, z: 0 }, sprint: false, yaw: 0, pitch: 0 };
@@ -26,10 +39,9 @@ export class Input {
   private onKey: KeyHandler = () => {};
 
   constructor(canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
-    const isField = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement;
     this.listen(window, 'keydown', (e: KeyboardEvent) => {
-      if (isField(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.code in MOVE_KEYS || e.code.startsWith('Shift')) {
+      if (e.metaKey || e.ctrlKey || e.altKey || ownedByControl(e.target, e.code)) return;
+      if (e.code in MOVE_KEYS || e.code in TURN_KEYS || e.code.startsWith('Shift')) {
         this.held.add(e.code);
         if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
       }
@@ -55,9 +67,9 @@ export class Input {
     this.state.pitch = Math.max(-1.5, Math.min(1.5, this.state.pitch - dy));
   }
 
-  /** Refresh `move` from held keys and the joystick. Call once per frame. */
-  poll() {
-    let x = this.joy.x, y = 0, z = this.joy.y;
+  /** Refresh `move` from held keys and the joystick, and turn for held arrows. Call once per frame. */
+  poll(dt: number) {
+    let x = this.joy.x, y = 0, z = this.joy.y, turn = 0;
     for (const k of this.held) {
       const m = MOVE_KEYS[k];
       if (m) {
@@ -65,7 +77,9 @@ export class Input {
         y += m[1];
         z += m[2];
       }
+      turn += TURN_KEYS[k] ?? 0;
     }
+    if (turn) this.look(-turn * dt, 0);
     const clamp = (v: number) => Math.max(-1, Math.min(1, v));
     this.state.move = { x: clamp(x), y: clamp(y), z: clamp(z) };
     this.state.sprint = this.held.has('ShiftLeft') || this.held.has('ShiftRight') || Math.hypot(this.joy.x, this.joy.y) > 0.92;
