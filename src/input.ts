@@ -94,7 +94,7 @@ export class Input {
     let last = { x: 0, y: 0 };
     const R = 56;
     this.touchLayer.addEventListener('pointerdown', (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' || (e.target as HTMLElement).closest('button')) return;
+      if (e.pointerType === 'mouse') return;
       const left = e.clientX < window.innerWidth * 0.45;
       if (left && stickId === null) {
         stickId = e.pointerId;

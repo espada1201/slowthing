@@ -721,7 +721,6 @@ export class BigHbarWorld extends BigHbarLesson implements World {
 
   frame(dt: number, input: InputState, ctx: WorldContext) {
     const r = ctx.renderer;
-    if (ctx.quality !== this.quality) this.setQuality(ctx.quality, ctx);
     // The wave lived in the solver's state textures, which a restored context brings back empty: a roll in flight
     // starts over, as it does on a new grid.
     if (this.restored && this.mode === 'wave' && this.lastThrow) this.launch(this.lastThrow, ctx);
