@@ -32,9 +32,9 @@ export interface Change {
   readonly dials?: Readonly<Partial<Constants>>;
 }
 
-/** A stop's name in links: its `key`, else the first four words of its title ('The late clock' → 'the-late-clock'). */
+/** A stop's name in links: its `key`, else the first four words of its title ('The late clock' → 'the-late-clock', 'Turn ħ up' → 'turn-hbar-up'). */
 export function stopKey(stop: TourStop): string {
-  return stop.key ?? stop.title.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0, 4).join('-');
+  return stop.key ?? stop.title.normalize('NFKD').toLowerCase().replace(/ħ/g, 'hbar').replace(/\p{M}/gu, '').split(/[^a-z0-9]+/).filter(Boolean).slice(0, 4).join('-');
 }
 
 /** The state stop `stop` opens in from its link, with `change` on top. */

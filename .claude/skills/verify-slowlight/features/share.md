@@ -32,5 +32,5 @@ Preconditions:
 
 - Headless Chromium may refuse clipboard writes; the second toast is then the expected one.
 - A link is read against its stop as authored (the world's preset, the switches as declared, then the stop's own settings), not against the stops walked before it. A link shared after walking the tour can therefore list a switch that the walk, not the visitor, changed.
-- A stop's key is its `key`, else the first four words of its title as a slug. Renaming a stop without setting `key` sends its old links to the first stop.
+- A stop's key is its `key`, else the first four words of its title as a slug, with ħ spelt hbar (`turn-hbar-up`). Renaming a stop without setting `key` sends its old links to the first stop.
 - Only the current world's switches and dials go into the link. Share leaves `&quality=` out.

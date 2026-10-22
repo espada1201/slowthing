@@ -122,6 +122,8 @@ describe('links', () => {
     expect(stopKey({ title: 'The late clock', text: '' })).toBe('the-late-clock');
     expect(stopKey({ title: 'Colours you cannot normally see', text: '' })).toBe('colours-you-cannot-normally');
     expect(stopKey({ title: 'Ça marche, à côté!', text: '' })).toBe('ca-marche-a-cote');
+    expect(stopKey({ title: 'Turn ħ up', text: '' })).toBe('turn-hbar-up');
+    expect(stopKey({ title: 'Big Ħ', text: '' })).toBe('big-hbar');
     expect(stopKey({ title: 'Renamed for clarity', key: 'the-late-clock', text: '' })).toBe('the-late-clock');
   });
 
