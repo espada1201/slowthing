@@ -51,10 +51,12 @@ export function glassTheory(hbar: number) {
 }
 
 export type Lane = 'doorway' | 'slits' | 'glass';
+/** The two lane dividers: walls from |x| = inner to |x| = outer, either side of the two openings' lane. */
+export const DIVIDER = { inner: 7.875, outer: 8.25 };
 export const LANES: { id: Lane; x0: number; x1: number }[] = [
-  { id: 'doorway', x0: -HALF, x1: -8.25 },
-  { id: 'slits', x0: -7.875, x1: 7.875 },
-  { id: 'glass', x0: 8.25, x1: HALF },
+  { id: 'doorway', x0: -HALF, x1: -DIVIDER.outer },
+  { id: 'slits', x0: -DIVIDER.inner, x1: DIVIDER.inner },
+  { id: 'glass', x0: DIVIDER.outer, x1: HALF },
 ];
 
 export interface Block {
@@ -72,17 +74,17 @@ const OB = [OBSTACLE_Z, OBSTACLE_Z + 0.375] as const;
 
 export const BLOCKS: Block[] = [
   // Lane dividers.
-  wall(-8.25, -7.875, -HALF, PORCH_Z, 3.6),
-  wall(7.875, 8.25, -HALF, PORCH_Z, 3.6),
+  wall(-DIVIDER.outer, -DIVIDER.inner, -HALF, PORCH_Z, 3.6),
+  wall(DIVIDER.inner, DIVIDER.outer, -HALF, PORCH_Z, 3.6),
   // I. A single doorway, 1.5 m wide.
   wall(-HALF, -16.875, ...OB, 0.6),
-  wall(-15.375, -8.25, ...OB, 0.6),
+  wall(-15.375, -DIVIDER.outer, ...OB, 0.6),
   // II. Two openings 1.5 m wide, 5.25 m apart (centre to centre).
-  wall(-7.875, -3.375, ...OB, 0.6),
+  wall(-DIVIDER.inner, -3.375, ...OB, 0.6),
   wall(-1.875, 1.875, ...OB, 0.6),
-  wall(3.375, 7.875, ...OB, 0.6),
+  wall(3.375, DIVIDER.inner, ...OB, 0.6),
   // III. A pane of glass the ball cannot classically cross.
-  { x0: 8.25, x1: HALF, z0: OB[0], z1: OB[1], kind: 'glass', height: 1.6 },
+  { x0: DIVIDER.outer, x1: HALF, z0: OB[0], z1: OB[1], kind: 'glass', height: 1.6 },
 ];
 
 /** Absorbing edges: the outer rim of the floor, and the divider faces beyond the obstacles. */
@@ -92,7 +94,7 @@ export function spongeRate(x: number, z: number): number {
   const d = Math.min(x + HALF, HALF - x, z + HALF, HALF - z);
   let s = d < SPONGE.rim ? ((SPONGE.rim - d) / SPONGE.rim) ** 2 : 0;
   if (z < OBSTACLE_Z) {
-    const dd = Math.min(Math.abs(x - 7.875), Math.abs(x - 8.25), Math.abs(x + 7.875), Math.abs(x + 8.25));
+    const dd = Math.min(Math.abs(x - DIVIDER.inner), Math.abs(x - DIVIDER.outer), Math.abs(x + DIVIDER.inner), Math.abs(x + DIVIDER.outer));
     if (dd < SPONGE.divider) s = Math.max(s, ((SPONGE.divider - dd) / SPONGE.divider) ** 2);
   }
   return s * SPONGE.rate;
@@ -131,7 +133,11 @@ export function rasterize(n: number): Field {
   return { n, dx, potential, open, sponge };
 }
 
-export const laneOf = (x: number): Lane => (x < -8.0625 ? 'doorway' : x > 8.0625 ? 'glass' : 'slits');
+/** The lane x lies in, each divider split down its middle. */
+export const laneOf = (x: number): Lane => {
+  const mid = (DIVIDER.inner + DIVIDER.outer) / 2;
+  return x < -mid ? 'doorway' : x > mid ? 'glass' : 'slits';
+};
 
 /** Where an absorbed ball ends up: on the back screen, on a side absorber past the obstacle, or back out. */
 export function absorberOf(z: number): 'screen' | 'side' | 'back' {

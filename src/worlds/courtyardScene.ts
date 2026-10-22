@@ -7,7 +7,7 @@ import paletteGlsl from '../shaders/hbar-palette.glsl?raw';
 import skyFrag from '../shaders/hbar-sky.frag?raw';
 import surfaceFrag from '../shaders/hbar-surface.frag?raw';
 import surfaceVert from '../shaders/hbar-surface.vert?raw';
-import { BALL, BLOCKS, ENERGY, GLASS_V0, HALF, LANES, type Lane, OBSTACLE_Z, PORCH_Z } from './courtyard';
+import { BALL, BLOCKS, DIVIDER, ENERGY, GLASS_V0, HALF, LANES, type Lane, OBSTACLE_Z, PORCH_Z } from './courtyard';
 import { seeded } from './shared';
 import type { Quality } from './types';
 
@@ -305,9 +305,9 @@ export class CourtyardScene {
     for (const l of LANES) box(l.x0 + 0.02, l.x1 - 0.02, -HALF, -HALF + 0.04, 0.05, 4, felt, false);
     box(-HALF, -HALF + 0.04, -HALF, PORCH_Z - 0.2, 0.05, 4, felt, false);
     box(HALF - 0.04, HALF, -HALF, PORCH_Z - 0.2, 0.05, 4, felt, false);
-    for (const x of [-8.25, 7.875]) {
-      box(x - 0.04, x, -HALF, OBSTACLE_Z, 0.05, 3.1, felt, false);
-      box(x + 0.375, x + 0.415, -HALF, OBSTACLE_Z, 0.05, 3.1, felt, false);
+    for (const [x0, x1] of [[-DIVIDER.outer, -DIVIDER.inner], [DIVIDER.inner, DIVIDER.outer]]) {
+      box(x0 - 0.04, x0, -HALF, OBSTACLE_Z, 0.05, 3.1, felt, false);
+      box(x1, x1 + 0.04, -HALF, OBSTACLE_Z, 0.05, 3.1, felt, false);
     }
 
     // The viewing terrace, with a stair up each end.

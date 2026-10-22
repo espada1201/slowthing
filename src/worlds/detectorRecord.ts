@@ -2,7 +2,7 @@
 // and a mark and a fading flash on the floor where the floor detector fired.
 
 import * as THREE from 'three';
-import { DETECTOR_SIGMA, HALF } from './courtyard';
+import { DETECTOR_SIGMA, DIVIDER, HALF } from './courtyard';
 import { gaussian } from './shared';
 
 const MAX_DOTS = 6000;
@@ -107,7 +107,7 @@ export class DetectorRecord {
       o.position.set(x, y, -HALF + 0.12);
       o.lookAt(x, y, 0);
     } else {
-      const faces = [-HALF, -8.25, -7.875, 7.875, 8.25, HALF];
+      const faces = [-HALF, -DIVIDER.outer, -DIVIDER.inner, DIVIDER.inner, DIVIDER.outer, HALF];
       const face = faces.reduce((best, f) => (Math.abs(f - x) < Math.abs(best - x) ? f : best));
       const into = x > face ? 1 : -1;
       o.position.set(face + into * 0.12, y, z);
