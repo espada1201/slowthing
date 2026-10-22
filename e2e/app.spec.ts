@@ -105,3 +105,21 @@ test('with reduced motion, a world holds still until a key press, and a cruise w
   await expect(start).toBeHidden();
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
 });
+
+test('Auto quality drops to the low preset at half resolution on a slow GPU, and a preset chosen by hand stays', async ({ page }) => {
+  // No e2e flag here: that switches Auto quality off. The software renderer draws every frame far too slowly.
+  await page.goto('./?world=slow-light');
+  const menu = page.locator('.top-right select');
+  const width = () => page.evaluate(() => document.querySelector<HTMLCanvasElement>('#view')!.width);
+  await expect(menu.locator('option[value="auto"]')).toHaveText('Auto (medium)');
+  await expect(menu.locator('option[value="auto"]')).toHaveText('Auto (low)', { timeout: 60_000 });
+  await expect.poll(width, { timeout: 30_000 }).toBeCloseTo(1280 * 0.7 * 0.5, -1);
+  await page.waitForTimeout(5000);
+  await expect(menu.locator('option[value="auto"]')).toHaveText('Auto (low)');
+
+  await menu.selectOption('high');
+  await expect(menu.locator('option[value="auto"]')).toHaveText('Auto');
+  await expect.poll(width, { timeout: 60_000 }).toBeCloseTo(1280 * 0.5, -1);
+  await page.reload();
+  await expect(page.locator('.top-right select')).toHaveValue('high');
+});
