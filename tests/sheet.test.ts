@@ -1,12 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CLASSROOM } from '../src/kit/classroom';
 import { readLink, setupAt } from '../src/kit/link';
 import { guideOf, sheetOf } from '../src/kit/sheet';
 import { WORLDS, author, isWorldId } from '../src/worlds';
 import { SlowLightLesson } from '../src/worlds/slowLight';
 import type { Authored } from '../src/worlds/types';
-
-vi.mock('../src/audio', () => ({ soundOn: () => false, setSound: () => {}, chime: () => {}, click: () => {}, tick: () => {} }));
 
 const lessons = await Promise.all(Object.values(WORLDS).map(async (load) => (await load()).lesson));
 const open = (lesson: Authored, link: string) => readLink(lesson, new URL(link, 'https://school.example/slowlight/teach.html?sheet=x').searchParams) ?? setupAt(lesson, 0);

@@ -138,7 +138,19 @@ test.describe('the kit pages, in a browser without WebGL', () => {
 
   /** Open teach.html with a query and wait until it is drawn, fonts and all. */
   async function kitPage(baseURL: string | undefined, query: string, options: BrowserContextOptions = {}) {
-    const page = await (await browser.newContext({ baseURL, ...options })).newPage();
+    const context = await browser.newContext({ baseURL, ...options });
+    // With sound left on in the app, a page that armed audio would start it on the first click, and throw here.
+    await context.addInitScript(() => {
+      localStorage.setItem('slowlight-sound', 'on');
+      Object.defineProperty(window, 'AudioContext', {
+        value: class {
+          constructor() {
+            throw new Error('a kit page started audio');
+          }
+        },
+      });
+    });
+    const page = await context.newPage();
     const errors = watchErrors(page);
     await page.goto(`./teach.html?${query}`);
     await page.waitForSelector('body[data-ready]');

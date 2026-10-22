@@ -4,6 +4,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import './ui/style.css';
 import * as THREE from 'three';
+import { restoreSound } from './audio';
 import { AutoQuality } from './autoQuality';
 import { type Constants, REAL } from './constants';
 import { Input } from './input';
@@ -57,6 +58,7 @@ canvas.addEventListener('webglcontextrestored', () => {
   gpuReset.textContent = '';
 });
 const input = new Input(canvas, document.querySelector('#touch')!);
+restoreSound();
 
 let world: World | null = null;
 let chrome: Chrome | null = null;

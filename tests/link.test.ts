@@ -1,12 +1,10 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { type ConstantKey, type Constants, DIALS, REAL, SLIDER_STEPS, fromSlider, toSlider } from '../src/constants';
 import { type Setup, applySetup, readLink, setupAt, setupOf, stopKey, writeLink } from '../src/kit/link';
 import { WORLDS } from '../src/worlds';
 import { seeded } from '../src/worlds/shared';
 import { SlowLightLesson } from '../src/worlds/slowLight';
 import type { Authored } from '../src/worlds/types';
-
-vi.mock('../src/audio', () => ({ soundOn: () => false, setSound: () => {}, chime: () => {}, click: () => {}, tick: () => {} }));
 
 const lessons = await Promise.all(Object.values(WORLDS).map(async (load) => (await load()).lesson));
 const [slowLight, bigHbar, bigG] = lessons;

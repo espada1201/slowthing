@@ -5,19 +5,26 @@ let master: GainNode | null = null;
 let enabled = false;
 
 const STORE = 'slowlight-sound';
-try {
-  enabled = localStorage.getItem(STORE) === 'on';
-} catch {
-  /* storage blocked: start muted */
+
+/**
+ * Take up the sound setting from the visitor's last visit. The app calls this once; importing this module does nothing
+ * by itself, so a page that loads a world only to print its lesson (teach.html) never starts audio.
+ */
+export function restoreSound() {
+  try {
+    enabled = localStorage.getItem(STORE) === 'on';
+  } catch {
+    /* storage blocked: start muted */
+  }
+  // Browsers only let audio start inside a user gesture; if sound was left on last visit, start on the first one.
+  const unlock = () => {
+    if (enabled) ensure();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
 }
-// Browsers only let audio start inside a user gesture; if sound was left on last visit, start on the first one.
-const unlock = () => {
-  if (enabled) ensure();
-  window.removeEventListener('pointerdown', unlock);
-  window.removeEventListener('keydown', unlock);
-};
-window.addEventListener('pointerdown', unlock);
-window.addEventListener('keydown', unlock);
 
 export function soundOn() {
   return enabled;
