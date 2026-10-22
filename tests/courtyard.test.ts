@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Schrodinger2D, correctSteps, meanWavevector, stableTimeStep } from '../src/physics/schrodinger';
-import { BALL, BLOCKS, GLASS_SIGMA, GLASS_THICKNESS, GLASS_V0, HBAR, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, glassTheory, rasterize, spongeRate } from '../src/worlds/courtyard';
+import { BALL, BLOCKS, DETECTOR, GLASS_SIGMA, GLASS_THICKNESS, GLASS_V0, HBAR, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, glassTheory, rasterize, spongeRate } from '../src/worlds/courtyard';
 
 describe('courtyard floor plan', () => {
   for (const n of [256, 384, 512]) {
@@ -78,5 +78,51 @@ describe('courtyard floor plan', () => {
     expect(absorberOf(-10)).toBe('side');
     expect(absorberOf(23)).toBe('back');
     expect(cellCentre(cellIndex(1.3, 0.125, 384), 0.125)).toBeCloseTo(1.3125, 9);
+  });
+});
+
+describe('the floor detector', () => {
+  it('leaves a lump no wider than its resolution, which spreads faster than the wave did and never turns back into it', () => {
+    // The tour's measurement on open floor: a ball rolled at the courtyard's ħ, caught 1.2 s out, and the same roll uncaught.
+    const p = { mass: BALL.mass, hbar: HBAR }, grid = { nx: 128, ny: 128, dx: 0.1875, stencil: 4 as const };
+    const roll = () => {
+      const sim = new Schrodinger2D(grid, p, stableTimeStep(grid, p, 0));
+      sim.setGaussian(5, 12, 0.8, (BALL.mass * BALL.speed) / HBAR, 0);
+      sim.step(Math.round(1.2 / sim.dt));
+      return sim;
+    };
+    const wave = roll(), caught = roll();
+    // The detector fires 0.4 m off the middle and multiplies |ψ|² by its Gaussian there, as hbar-copy.frag does to ψ.
+    const at = wave.moments(), fx = at.x + 0.4, fy = at.y;
+    const cells = grid.nx * grid.ny, xy = (k: number) => [(k % grid.nx) * grid.dx, Math.floor(k / grid.nx) * grid.dx];
+    const states = [caught.re, caught.im, caught.imPrev];
+    for (let k = 0; k < cells; k++) {
+      const [x, y] = xy(k), w = Math.exp(-((x - fx) ** 2 + (y - fy) ** 2) / (4 * DETECTOR.sigma ** 2));
+      for (const s of states) s[k] *= w;
+    }
+    const scale = 1 / Math.sqrt(caught.norm());
+    for (const s of states) for (let k = 0; k < cells; k++) s[k] *= scale;
+    // Spread as the panel measures it, and |⟨wave|caught⟩|² (Im ψ midway between its half steps).
+    const spread = (sim: Schrodinger2D) => Math.hypot(sim.moments().sx, sim.moments().sy);
+    const overlap = () => {
+      let re = 0, im = 0;
+      for (let k = 0; k < cells; k++) {
+        const a = wave.re[k], b = 0.5 * (wave.im[k] + wave.imPrev[k]), c = caught.re[k], d = 0.5 * (caught.im[k] + caught.imPrev[k]);
+        re += a * c + b * d;
+        im += a * d - b * c;
+      }
+      return (re * re + im * im) * grid.dx ** 4;
+    };
+    // One step on, Im ψ half a step behind is the solver's own again rather than a windowed copy.
+    wave.step(1);
+    caught.step(1);
+    const was = { wave: spread(wave), caught: spread(caught), overlap: overlap() };
+    expect(was.caught).toBeLessThanOrEqual(DETECTOR.resolution);
+    expect(was.overlap).toBeLessThan(0.5);
+    wave.step(Math.round(1.2 / wave.dt));
+    caught.step(Math.round(1.2 / caught.dt));
+    expect(spread(caught) - was.caught).toBeGreaterThan(2 * (spread(wave) - was.wave));
+    // Both evolve by the same Schrödinger equation, which keeps their overlap: the lump never becomes the wave again.
+    expect(overlap()).toBeCloseTo(was.overlap, 4);
   });
 });

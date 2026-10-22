@@ -15,6 +15,7 @@ import surfaceVert from '../shaders/hbar-surface.vert?raw';
 import {
   BALL,
   BLOCKS,
+  DETECTOR,
   ENERGY,
   type Field,
   GLASS_SIGMA,
@@ -65,6 +66,10 @@ const READ_INTERVAL = 0.2;
 const SUN_DIR = new THREE.Vector3(-0.45, 0.78, 0.43).normalize();
 const INK = 0x15171c;
 const VERMILION = new THREE.Color(0xd2442b);
+/** The floor detector's flash: a cold cyan, unlike anything the wave or the courtyard shows; how long it lasts; its beam's height. */
+const DETECTOR_GLOW = new THREE.Color(0.2, 0.9, 1);
+const FLASH_TIME = 1.5;
+const BEAM_H = 2.4;
 const VIEW = TERRACE_H + EYE;
 const terrace = (x: number, pitch = -0.2): Pose => ({ position: [x, VIEW, 25.05], yaw: 0, pitch });
 /** Standing just behind a launch mark, looking down the lane. */
@@ -176,6 +181,24 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+/**
+ * The floor detector's response, white with the strength in alpha, spanning ±3σ of it: the Gaussian it multiplies
+ * |ψ|² by, as a round spot for the floor or, for a beam standing over it, across and fading with height.
+ */
+function detectorTexture(beam: boolean) {
+  const data = new Uint8Array(64 * 64 * 4).fill(255);
+  for (let row = 0; row < 64; row++) {
+    for (let col = 0; col < 64; col++) {
+      const u = (col + 0.5) / 32 - 1, v = (row + 0.5) / 32 - 1;
+      data[(row * 64 + col) * 4 + 3] = 255 * (beam ? Math.exp(-4.5 * u * u) * (1 - (row + 0.5) / 64) : Math.exp(-4.5 * (u * u + v * v)));
+    }
+  }
+  const t = new THREE.DataTexture(data, 64, 64);
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** A standard normal deviate (Box–Muller). */
 const gaussian = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
 /** One decimal place, without a stray "-0.0". */
@@ -278,8 +301,8 @@ export class BigHbarWorld implements World {
       },
     },
     {
-      title: 'Looking collapses it',
-      text: 'Press Measure (M) while it rolls. The wave collapses to one spot drawn from |ψ|², and the narrow lump then spreads faster than the wide one did: that is the uncertainty principle.',
+      title: 'A detector pins it down',
+      text: `Press Measure (M) while it rolls: a detector in the floor interacts with the ball and fires at one spot, drawn at random from |ψ|². That interaction, not anyone looking, leaves a lump as wide as the flash (the detector's ${DETECTOR.resolution.toFixed(2)} m resolution), which spreads again faster than before but never turns back into the wave it was.`,
       pose: porch(0),
       toggles: { rapid: false },
       action: 'roll@0+measure@1.2',
@@ -339,7 +362,9 @@ export class BigHbarWorld implements World {
   private ballMesh: THREE.Mesh;
   private ghost: THREE.Mesh;
   private spreadRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-  private flashRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  /** Where the floor detector last fired: a spot on the floor and a beam standing over it, as wide as its resolution. */
+  private flashSpot: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private flashBeam: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   /** A brief glow where the latest ball was caught, so a landing reads from across the courtyard. */
   private pulse: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
   private pulseAge = 1;
@@ -382,7 +407,7 @@ export class BigHbarWorld implements World {
   private counts = emptyCounts();
   private dotCount = 0;
   private markCount = 0;
-  private flashAge = 1;
+  private flashAge = FLASH_TIME;
   /**
    * A glass roll still crossing: the wave past the glass at its fullest so far, as a share of the ball, and its mean
    * speed then (see readGlass). Null once read, for any other roll, and after a measurement.
@@ -433,10 +458,16 @@ export class BigHbarWorld implements World {
       new THREE.RingGeometry(0.96, 1, 96).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: VERMILION, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }),
     );
-    this.flashRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.8, 1, 64).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0xfff3dc, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }),
-    );
+    const detectorGlow = (beam: boolean) => {
+      const map = detectorTexture(beam);
+      this.textures.push(map);
+      return new THREE.MeshBasicMaterial({ map, color: DETECTOR_GLOW, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 });
+    };
+    const across = 6 * DETECTOR.sigma;
+    this.flashSpot = new THREE.Mesh(new THREE.PlaneGeometry(across, across).rotateX(-Math.PI / 2), detectorGlow(false));
+    this.flashBeam = new THREE.Mesh(new THREE.PlaneGeometry(across, BEAM_H).translate(0, BEAM_H / 2, 0), detectorGlow(true));
+    // Drawn after the wave's sheet, which writes no depth, so the flash shows over the lump it leaves.
+    this.flashSpot.renderOrder = this.flashBeam.renderOrder = 3;
     this.pulse = new THREE.Mesh(
       new THREE.CircleGeometry(0.5, 32),
       new THREE.MeshBasicMaterial({ color: 0xffb27a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
@@ -453,12 +484,12 @@ export class BigHbarWorld implements World {
       new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }),
       64,
     );
-    for (const m of [this.ballMesh, this.ghost, this.spreadRing, this.flashRing, this.pulse]) m.visible = false;
+    for (const m of [this.ballMesh, this.ghost, this.spreadRing, this.flashSpot, this.flashBeam, this.pulse]) m.visible = false;
     for (const m of [this.dots, this.marks]) {
       m.count = 0;
       m.frustumCulled = false;
     }
-    this.scene.add(this.ballMesh, this.ghost, this.spreadRing, this.flashRing, this.pulse, this.dots, this.marks);
+    this.scene.add(this.ballMesh, this.ghost, this.spreadRing, this.flashSpot, this.flashBeam, this.pulse, this.dots, this.marks);
     r.domElement.addEventListener('mousedown', this.onMouseDown);
   }
 
@@ -888,7 +919,7 @@ export class BigHbarWorld implements World {
     this.gpu.requestRead(r, true);
   }
 
-  /** The held wave has been read back: observe it as a classical ball if ħ is still too small, else measure it. */
+  /** The held wave has been read back: hand it over to a classical ball if ħ is still too small, else let the detector catch it. */
   private settle(r: THREE.WebGLRenderer) {
     const why = this.held;
     this.held = null;
@@ -903,15 +934,14 @@ export class BigHbarWorld implements World {
     const k = Math.hypot(kx, kz);
     const [dx, dz] = this.hbar * k > 0.2 * BALL.mass * BALL.speed ? [kx / k, kz / k] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
     this.startBall(pick[0], pick[1], dx, dz);
-    this.say('The wavelength fell below what the grid can carry: the wave was observed, and rolls on as a classical ball.');
+    this.say('The wavelength fell below what the grid can carry: the ball rolls on as a classical ball, from a spot drawn from |ψ|².');
   }
 
-  /** Measure the ball's position: from a wave, once a read-back of it as it is now has arrived (see collapse). */
+  /** Fire the floor detector at the ball: at a wave, once a read-back of it as it is now has arrived (see collapse). */
   private measure(ctx: WorldContext) {
     if (this.mode === 'ball') {
-      this.flash(this.ball.x, this.ball.z);
-      this.mark(this.ball.x, this.ball.z);
-      this.say('A classical ball already has a definite position: measuring it changes nothing.');
+      this.fire(this.ball.x, this.ball.z);
+      this.say('A classical ball already has a definite position: the detector fires where it is, and it rolls on as before.');
       return;
     }
     if (this.mode !== 'wave') {
@@ -922,22 +952,24 @@ export class BigHbarWorld implements World {
   }
 
   /**
-   * Position measurement: draw a spot from |ψ|², then multiply ψ by a narrow Gaussian there
-   * (an unsharp measurement). The local phase survives, so the lump keeps rolling while it spreads.
+   * The floor detector catches the ball, an unsharp position measurement. It fires at a spot drawn from |ψ|² and
+   * blurred by its own Gaussian response, and catching the ball multiplies |ψ|² by that Gaussian about the spot. The
+   * local phase survives, so the lump keeps rolling while it spreads.
    */
   private collapse(r: THREE.WebGLRenderer) {
     const pick = this.sampleCell();
     if (!pick) return;
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    const ci = pick[2] % n, cj = Math.floor(pick[2] / n);
-    const sigma = Math.max(0.3, 2 * dx) / dx;
-    // What survives is |ψ|² times the window: its total sets the rescaling, its moments the new summary.
+    const fx = pick[0] + DETECTOR.sigma * gaussian(), fz = pick[1] + DETECTOR.sigma * gaussian();
+    // The spot and the response in cells (cell i is centred on i).
+    const ci = (fx + HALF) / dx - 0.5, cj = (fz + HALF) / dx - 0.5, sigma = DETECTOR.sigma / dx;
+    // What survives is |ψ|² times the response: its total sets the rescaling, its moments the new summary.
     let kept = 0, mx = 0, mz = 0, mrr = 0, peak = 0, beyond = 0;
-    const reach = Math.ceil(6 * sigma);
-    for (let j = Math.max(0, cj - reach); j <= Math.min(n - 1, cj + reach); j++) {
+    const reach = 6 * sigma;
+    for (let j = Math.max(0, Math.ceil(cj - reach)); j <= Math.min(n - 1, cj + reach); j++) {
       const z = cellCentre(j, dx);
-      for (let i = Math.max(0, ci - reach); i <= Math.min(n - 1, ci + reach); i++) {
+      for (let i = Math.max(0, Math.ceil(ci - reach)); i <= Math.min(n - 1, ci + reach); i++) {
         const k = (j * n + i) * 4;
         const x = cellCentre(i, dx);
         const d2 = (i - ci) ** 2 + (j - cj) ** 2;
@@ -959,12 +991,12 @@ export class BigHbarWorld implements World {
     // What lies past the glass from now on was put there by the detector, not by tunnelling.
     this.crossing = null;
     const ex = mx / kept, ez = mz / kept;
-    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread: Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez)), beyond: beyond / kept, beyondOnFloor: beyond / kept };
-    this.flash(pick[0], pick[1]);
-    this.mark(pick[0], pick[1]);
-    this.lastEvent = `Measured at x ${fix1(pick[0])}, z ${fix1(pick[1])} m`;
-    this.ghost.position.set(pick[0], BALL.radius + 0.02, pick[1]);
-    this.spreadRing.scale.setScalar(0.3);
+    const spread = Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez));
+    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread, beyond: beyond / kept, beyondOnFloor: beyond / kept };
+    this.fire(fx, fz);
+    this.lastEvent = `Detector fired at x ${fix1(fx)}, z ${fix1(fz)} m`;
+    this.ghost.position.set(ex, BALL.radius + 0.02, ez);
+    this.spreadRing.scale.setScalar(spread);
   }
 
   /** A ball has been absorbed somewhere: record where, and draw its dot. */
@@ -994,9 +1026,7 @@ export class BigHbarWorld implements World {
       o.lookAt(face + into * 2, y, z);
     }
     o.updateMatrix();
-    // Each detection clicks like a Geiger counter, panned toward where it landed.
-    const to = o.position.clone().sub(this.pos).setY(0).normalize();
-    click(Math.min(1, 6 / (1 + o.position.distanceTo(this.pos))), to.dot(rightFlat(this.yaw)));
+    this.clickAt(o.position);
     this.pulse.position.copy(o.position).add(new THREE.Vector3(0, 0, 0.01).applyQuaternion(o.quaternion));
     this.pulse.quaternion.copy(o.quaternion);
     this.pulseAge = 0;
@@ -1013,9 +1043,19 @@ export class BigHbarWorld implements World {
     this.marks.instanceMatrix.needsUpdate = true;
   }
 
-  private flash(x: number, z: number) {
+  /** Each detection clicks like a Geiger counter, panned toward where it happened. */
+  private clickAt(p: THREE.Vector3) {
+    const to = p.clone().sub(this.pos).setY(0).normalize();
+    click(Math.min(1, 6 / (1 + p.distanceTo(this.pos))), to.dot(rightFlat(this.yaw)));
+  }
+
+  /** The floor detector fires at (x, z): it flashes and clicks there, and leaves a mark on the floor. */
+  private fire(x: number, z: number) {
     this.flashAge = 0;
-    this.flashRing.position.set(x, 0.02, z);
+    this.flashSpot.position.set(x, 0.03, z);
+    this.flashBeam.position.set(x, 0, z);
+    this.mark(x, z);
+    this.clickAt(this.flashSpot.position);
   }
 
   private toggle(id: string) {
@@ -1266,10 +1306,11 @@ export class BigHbarWorld implements World {
       this.pulse.material.opacity = 1 - this.pulseAge / 0.5;
     }
     this.flashAge += dt;
-    this.flashRing.visible = this.flashAge < 0.8;
-    if (this.flashRing.visible) {
-      this.flashRing.scale.setScalar(0.2 + this.flashAge * 2.2);
-      this.flashRing.material.opacity = 1 - this.flashAge / 0.8;
+    this.flashSpot.visible = this.flashBeam.visible = this.flashAge < FLASH_TIME;
+    if (this.flashSpot.visible) {
+      // The beam turns to face the eye; both hold their width (the detector's response) and fade.
+      this.flashBeam.rotation.y = this.yaw;
+      this.flashSpot.material.opacity = this.flashBeam.material.opacity = 1 - this.flashAge / FLASH_TIME;
     }
 
     const size = r.getDrawingBufferSize(new THREE.Vector2());

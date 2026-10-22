@@ -147,7 +147,7 @@ export class GpuSchrodinger {
     r.setClearColor(prev, alpha);
   }
 
-  /** Multiply ψ by a Gaussian window (std σ cells for |ψ|²) centred on a cell and rescale it. */
+  /** Multiply ψ by a Gaussian window (std σ cells for |ψ|²) centred at (ci, cj) in cells, which need not be whole, and rescale it. */
   collapse(r: THREE.WebGLRenderer, ci: number, cj: number, sigmaCells: number, scale: number) {
     this.dropRead(r);
     const u = this.copyMat.uniforms;

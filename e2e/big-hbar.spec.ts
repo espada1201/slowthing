@@ -25,6 +25,21 @@ const waveShare = (page: Page): Promise<number> =>
     return warm / (64 * 40);
   });
 
+/** Full-resolution count of pixels in the floor detector's cold cyan: green and blue well above red. */
+const detectorGlow = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const src = document.querySelector<HTMLCanvasElement>('#view')!;
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(src, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 1] - d[i] > 70 && d[i + 2] - d[i] > 50) n++;
+    return n;
+  });
+
 test('at the real ħ the ball is a point; turned up, it rolls out as a wave', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'big-hbar');
@@ -88,18 +103,25 @@ test('rapid fire repeats a roll, and the detector walls decide which landings ar
   expect(errors).toEqual([]);
 });
 
-test('measuring the wave pins it down to one spot', async ({ page }) => {
+test('measuring fires a floor detector, which flashes and leaves a lump no wider than its resolution', async ({ page }) => {
   await openWorld(page, 'big-hbar');
   for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Looking collapses it');
-  // The stop measures 1.2 s into the roll, when the packet is about 1.3 m across.
-  const spread = await page
-    .waitForFunction(() => {
-      const s = (window as any).slowlight;
-      return s.status().includes('Measured at') && parseFloat(s.readouts().find((r: any) => r.label === 'Spread Δx').value);
-    }, null, { timeout: 150_000 })
-    .then((h) => h.jsonValue());
-  expect(spread).toBeLessThan(0.8);
+  await expect(page.locator('.tour-title')).toHaveText('A detector pins it down');
+  const resolution = parseFloat(/([\d.]+) m resolution/.exec((await page.locator('.tour-text').textContent()) ?? '')![1]);
+  // The stop measures 1.2 s into the roll, when the packet is about 1.3 m across. Freeze the moment the detector fires.
+  await page.waitForFunction(() => (window as any).slowlight.status().includes('Detector fired at'), null, { timeout: 150_000, polling: 50 });
+  await page.evaluate(() => (window as any).slowlight.pause(true));
+  const spread = parseFloat(await readout(page, 'Spread Δx'));
+  expect(spread).toBeGreaterThan(0.3);
+  expect(spread).toBeLessThanOrEqual(resolution);
+  await frames(page, 2);
+  const flash = await detectorGlow(page);
+  expect(flash).toBeGreaterThan(100);
+  // The flash fades (it lasts 1.5 s), and nothing else in the courtyard is that colour.
+  await page.evaluate(() => (window as any).slowlight.pause(false));
+  await page.waitForTimeout(1600);
+  await frames(page, 31);
+  expect(await detectorGlow(page)).toBeLessThan(flash / 10);
 });
 
 test('rapid fire at the glass: once every outcome is arriving, about as many get through as theory says, no slower', async ({ page }) => {

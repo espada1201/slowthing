@@ -25,6 +25,13 @@ export const GLASS_THICKNESS = 0.375;
  */
 export const GLASS_SIGMA = 2;
 /**
+ * The floor detector that Measure fires. Where it catches the ball it multiplies |ψ|² by a Gaussian of standard
+ * deviation σ along each axis (two cells on the coarsest grid), so it leaves a wide wave as a lump whose spread, as
+ * the panel measures it (√(Δx² + Δz²)), is its resolution: √2 σ.
+ */
+export const DETECTOR = { sigma: 0.375, resolution: Math.SQRT2 * 0.375 };
+
+/**
  * The glass experiment in theory. A slab only cares about the wavenumber k across it, so the plane-wave transmission
  * T(k) is averaged over the packet's spread of k: the share of the packet below the barrier (too slow to cross the
  * glass classically), the share that gets through, and the mean speed of what gets through.
