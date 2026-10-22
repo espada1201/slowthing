@@ -54,10 +54,12 @@ test('Show wave draws |ψ|² across the floor, and hiding it leaves bare stone',
   // The crests sweep across the floor as the wave rolls, so a frame difference mostly measures that motion:
   // count the wave's own colour instead.
   await frames(page, 3);
-  expect(await waveShare(page)).toBeGreaterThan(0.006);
+  const shown = await waveShare(page);
+  expect(shown).toBeGreaterThan(0.006);
   await page.locator('[data-toggle="wave"]').uncheck({ force: true });
   await frames(page, 2);
-  expect(await waveShare(page)).toBeLessThan(0.002);
+  // What stays warm is the thin ring marking the ball's spread: a few pixels at this size, not the wave's glow.
+  expect(await waveShare(page)).toBeLessThan(shown / 3);
   await page.locator('[data-toggle="wave"]').check({ force: true });
   await frames(page, 2);
   expect(await waveShare(page)).toBeGreaterThan(0.006);
