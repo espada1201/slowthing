@@ -13,7 +13,7 @@ import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
 import { MeasuredView } from '../ui/measuredView';
 import staticVert from '../shaders/slow-static.vert?raw';
-import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
+import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded, switchOn } from './shared';
 import { type Rider, type Town, measure, ride } from './measured';
 import { compositeFragment, groundFragment, movingFragment, movingUniforms, movingVertex, skyFragment, staticFragment } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
@@ -376,10 +376,6 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     this.movers.push({ mesh, phase0, radius, properSpeed, direction, tram });
   }
 
-  private toggle(id: string) {
-    return this.toggles.find((t) => t.id === id)!.value;
-  }
-
   setPose(p: Pose) {
     this.pos.set(...p.position);
     this.yaw = p.yaw;
@@ -443,17 +439,17 @@ export class SlowLightWorld extends SlowLightLesson implements World {
       u.uGamma.value = g;
       u.uBeta.value = beta;
       u.uTauNow.value = (this.t / g) % (BLINK_PERIOD * 1000);
-      u.uRetard.value = this.toggle('delay') ? 1 : 0;
-      u.uContract.value = this.toggle('contraction') ? 1 : 0;
-      u.uAberrationOn.value = this.toggle('aberration') ? 1 : 0;
-      u.uDopplerOn.value = this.toggle('doppler') ? 1 : 0;
-      u.uBeamingOn.value = this.toggle('beaming') ? 1 : 0;
+      u.uRetard.value = switchOn(this.toggles, 'delay') ? 1 : 0;
+      u.uContract.value = switchOn(this.toggles, 'contraction') ? 1 : 0;
+      u.uAberrationOn.value = switchOn(this.toggles, 'aberration') ? 1 : 0;
+      u.uDopplerOn.value = switchOn(this.toggles, 'doppler') ? 1 : 0;
+      u.uBeamingOn.value = switchOn(this.toggles, 'beaming') ? 1 : 0;
     }
     this.ringLamps(c);
     const clock = this.clockMaterial.uniforms;
     clock.uTownTime.value = CLOCK_START + this.t;
     clock.uC.value = c;
-    clock.uDelay.value = this.toggle('delay') ? 1 : 0;
+    clock.uDelay.value = switchOn(this.toggles, 'delay') ? 1 : 0;
     this.sky.position.copy(this.pos);
 
     const u = this.composite.material.uniforms;
@@ -465,23 +461,23 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     const tanY = Math.tan(THREE.MathUtils.degToRad(this.fov / 2));
     u.uTan.value.set(tanY * (size.x / size.y), tanY);
     u.uCamRot.value.copy(cameraRotation(this.yaw, this.pitch));
-    u.uAberration.value = this.toggle('aberration') ? 1 : 0;
-    u.uDoppler.value = this.toggle('doppler') ? 1 : 0;
-    u.uBeaming.value = this.toggle('beaming') ? 1 : 0;
+    u.uAberration.value = switchOn(this.toggles, 'aberration') ? 1 : 0;
+    u.uDoppler.value = switchOn(this.toggles, 'doppler') ? 1 : 0;
+    u.uBeaming.value = switchOn(this.toggles, 'beaming') ? 1 : 0;
     this.adaptEyes(dt, u.uCamRot.value, this.beta, u.uTan.value);
-    u.uExposure.value = this.toggle('adapt') ? Math.exp(this.logExposure) : 1;
+    u.uExposure.value = switchOn(this.toggles, 'adapt') ? Math.exp(this.logExposure) : 1;
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
 
     // Touch the DOM only when the switch changes, not every frame.
-    if (this.overlay.hidden === this.toggle('measured')) this.overlay.hidden = !this.toggle('measured');
+    if (this.overlay.hidden === switchOn(this.toggles, 'measured')) this.overlay.hidden = !switchOn(this.toggles, 'measured');
     if (!this.overlay.hidden) this.measuredView.update(this.measured(c), c);
   }
 
   /** A mover's path as slow-moving.vert draws it. */
   private rider(m: Mover, c: number): Rider {
     const { v, gamma } = motion(m.properSpeed, c);
-    return { radius: m.radius, phase: m.phase0 + (m.tram ? this.tramOffset : 0), omega: (m.direction * v) / m.radius, squash: this.toggle('contraction') ? 1 / gamma : 1 };
+    return { radius: m.radius, phase: m.phase0 + (m.tram ? this.tramOffset : 0), omega: (m.direction * v) / m.radius, squash: switchOn(this.toggles, 'contraction') ? 1 / gamma : 1 };
   }
 
   /** The Measured view's model: the town at your now, in your frame. */
@@ -509,7 +505,7 @@ export class SlowLightWorld extends SlowLightLesson implements World {
       if (m.tram) continue;
       const { gamma } = motion(m.properSpeed, c);
       const { path, velocity: vel } = ride(this.rider(m, c), [0, 3, 0]);
-      const tr = this.toggle('delay') ? retardedTime(path, vel, obs, this.t, c, 8) : simultaneousTime(path, vel, { x: obs, t: this.t, beta: betaObs }, c);
+      const tr = switchOn(this.toggles, 'delay') ? retardedTime(path, vel, obs, this.t, c, 8) : simultaneousTime(path, vel, { x: obs, t: this.t, beta: betaObs }, c);
       const flash = Math.floor(tr / gamma / BLINK_PERIOD);
       const note = LAMP_NOTES[lamp++ % LAMP_NOTES.length];
       if (m.seenFlash !== undefined && flash > m.seenFlash) {
@@ -521,10 +517,10 @@ export class SlowLightWorld extends SlowLightLesson implements World {
         const dSrc = sourceDopplerFactor([u[0] / c, u[1] / c, u[2] / c], k);
         const nW: Vec3 = [-k[0], -k[1], -k[2]];
         const dObs = dopplerFactor(nW, betaObs);
-        const D = this.toggle('doppler') ? dSrc * dObs : 1;
-        const seen = this.toggle('aberration') ? observerToWorldDirection(nW, [-betaObs[0], -betaObs[1], -betaObs[2]]) : nW;
+        const D = switchOn(this.toggles, 'doppler') ? dSrc * dObs : 1;
+        const seen = switchOn(this.toggles, 'aberration') ? observerToWorldDirection(nW, [-betaObs[0], -betaObs[1], -betaObs[2]]) : nW;
         const right = rightFlat(this.yaw);
-        chime(note * D, (0.8 / (1 + dist / 12)) * Math.min(3, this.toggle('beaming') ? D * D : 1), seen[0] * right.x + seen[2] * right.z);
+        chime(note * D, (0.8 / (1 + dist / 12)) * Math.min(3, switchOn(this.toggles, 'beaming') ? D * D : 1), seen[0] * right.x + seen[2] * right.z);
       }
       m.seenFlash = flash;
     }
@@ -544,9 +540,9 @@ export class SlowLightWorld extends SlowLightLesson implements World {
         const x = (i / 8 - 0.5) * 2 * tan.x, y = (j / 6 - 0.5) * 2 * tan.y;
         const l = Math.hypot(x, y, 1);
         const nObs: Vec3 = [(e[0] * x + e[3] * y - e[6]) / l, (e[1] * x + e[4] * y - e[7]) / l, (e[2] * x + e[5] * y - e[8]) / l];
-        const nW = this.toggle('aberration') ? observerToWorldDirection(nObs, b) : nObs;
+        const nW = switchOn(this.toggles, 'aberration') ? observerToWorldDirection(nObs, b) : nObs;
         const D = dopplerFactor(nW, b);
-        const L = (this.toggle('doppler') ? whiteLuminance(D) : 1) * (this.toggle('beaming') ? D ** 5 : 1);
+        const L = (switchOn(this.toggles, 'doppler') ? whiteLuminance(D) : 1) * (switchOn(this.toggles, 'beaming') ? D ** 5 : 1);
         sum += Math.log(Math.max(L, 1e-4));
         n++;
       }

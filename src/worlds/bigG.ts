@@ -12,7 +12,7 @@ import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, einsteinRingRadius
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
-import { cameraRotation, facing, fullscreenPass, readBack, viewRay } from './shared';
+import { cameraRotation, facing, fullscreenPass, readBack, switchOn, viewRay } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, View, World, WorldContext } from './types';
 
 /** A granite boulder: 2 m radius, 2700 kg/m³. */
@@ -245,10 +245,6 @@ export class BigGWorld extends BigGLesson implements World<HoleState> {
   /** Phase of a far-away beacon that pulses once per second of its own time. */
   private beacon = 0;
 
-  private toggle(id: string) {
-    return this.toggles.find((t) => t.id === id)!.value;
-  }
-
   private get collapsed() {
     return this.rs >= COLLAPSE_RS;
   }
@@ -322,7 +318,7 @@ export class BigGWorld extends BigGLesson implements World<HoleState> {
     u.uCamPos.value.copy(this.pos).divideScalar(S);
     u.uScale.value = S;
     u.uRs.value = this.rs / S;
-    u.uBend.value = this.toggle('lensing') ? 1 : 0;
+    u.uBend.value = switchOn(this.toggles, 'lensing') ? 1 : 0;
     u.uHorizon.value = this.collapsed ? this.rs / S : 0;
     u.uRock.value = this.collapsed ? 0 : ROCK_R / S;
     u.uDeck.value.set(DECK[0] / S, DECK[1] / S);
@@ -334,8 +330,8 @@ export class BigGWorld extends BigGLesson implements World<HoleState> {
     u.uSteps.value = q.steps;
     u.uK.value = q.k;
     u.uFar.value = Math.max(30 * this.rs, 1.2 * r, 60) / S;
-    u.uRedshift.value = this.toggle('redshift') ? 1 : 0;
-    u.uGuide.value = this.toggle('guide') ? 1 : 0;
+    u.uRedshift.value = switchOn(this.toggles, 'redshift') ? 1 : 0;
+    u.uGuide.value = switchOn(this.toggles, 'guide') ? 1 : 0;
     u.uShadow.value = this.collapsed ? shadowAngularRadius(r, this.rs) : -1;
     ctx.renderer.setRenderTarget(null);
     ctx.renderer.render(this.pass.scene, this.pass.camera);

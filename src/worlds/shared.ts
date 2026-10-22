@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import common from '../shaders/common.glsl?raw';
 import fullscreenVert from '../shaders/fullscreen.vert?raw';
 import { lutUniforms } from '../lut';
-import type { Pose, View } from './types';
+import type { Pose, Toggle, View } from './types';
+
+/** Whether the switch called `id` is on. */
+export function switchOn(toggles: readonly Toggle[], id: string): boolean {
+  return toggles.find((t) => t.id === id)!.value;
+}
 
 /** Rotation from camera space (−z forward) to world space for a yaw/pitch pair. */
 export function cameraRotation(yaw: number, pitch: number): THREE.Matrix3 {

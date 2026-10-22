@@ -32,7 +32,7 @@ import {
 import { CourtyardScene, GALLERY_X, LAUNCH_Z, SOLIDS, TERRACE_H, TERRACE_Z1, floorHeight } from './courtyardScene';
 import { DetectorRecord } from './detectorRecord';
 import { GpuSchrodinger } from './hbarSolver';
-import { forwardFlat, gaussian, rightFlat } from './shared';
+import { forwardFlat, gaussian, rightFlat, switchOn } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 import { type WaveStats, analyse, collapsed, sampleCell, wavevector } from './waveAnalysis';
 
@@ -341,7 +341,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
     this.rapid = null;
     this.resetCounts();
     // Rapid fire tallies one experiment, so a roll in flight starts over under the new ħ.
-    if (this.toggle('rapid') && this.lastThrow && this.mode !== 'idle') this.launch(this.lastThrow, ctx);
+    if (switchOn(this.toggles, 'rapid') && this.lastThrow && this.mode !== 'idle') this.launch(this.lastThrow, ctx);
     else if (this.mode === 'wave' && !this.resolvable) this.hold('classical', ctx.renderer);
     else if (this.mode === 'ball' && this.resolvable && !wasResolvable) {
       const v = Math.hypot(this.ball.vx, this.ball.vz) || 1;
@@ -527,7 +527,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
       return;
     }
     this.lastEvent = where === 'screen' ? `Last ball landed at x = ${fix1(x)} m` : 'Last ball hit a side absorber';
-    if (!this.toggle('detector')) return;
+    if (!switchOn(this.toggles, 'detector')) return;
     this.counts[lane].dots++;
     this.clickAt(this.record.dot(x, z, where));
   }
@@ -538,10 +538,6 @@ export class BigHbarWorld extends BigHbarLesson implements World {
     click(Math.min(1, 6 / (1 + p.distanceTo(this.pos))), to.dot(rightFlat(this.yaw)));
   }
 
-  private toggle(id: string) {
-    return this.toggles.find((t) => t.id === id)!.value;
-  }
-
   /**
    * Rapid fire: a stream of identical rolls, RAPID_RATE a second. Balls of every age are in flight, so
    * they are caught at RAPID_RATE times the share of one ball's wave absorbed so far, each at a spot
@@ -549,7 +545,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
    */
   private rapidStream(dt: number) {
     const src = this.rapid;
-    if (!src || !this.toggle('rapid')) {
+    if (!src || !switchOn(this.toggles, 'rapid')) {
       this.rapidAcc = 0;
       return;
     }
@@ -648,7 +644,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
       if (spongeRate(b.x, b.z) > 0.02 * SPONGE.rate || this.age > 40) {
         this.mode = 'idle';
         this.land(b.x, b.z);
-        if (this.toggle('rapid')) {
+        if (switchOn(this.toggles, 'rapid')) {
           this.rapid ??= { point: [b.x, b.z] };
           this.relaunchIn = 0.8;
         }
@@ -691,7 +687,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
     const finished = st.inField < 0.03 || this.age > 60;
-    if (this.toggle('rapid')) {
+    if (switchOn(this.toggles, 'rapid')) {
       const absorbed = cumulative(n * n, (k) => b[k * 4 + 3]);
       if (!this.rapid) this.rapid = { cdf: absorbed, n, complete: false };
       else if ('cdf' in this.rapid && !this.rapid.complete) this.rapid.cdf = absorbed;
@@ -739,7 +735,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
     else if (this.mode === 'ball') this.stepBall(dt);
     if (this.relaunchIn !== null && this.mode === 'idle') {
       this.relaunchIn -= dt;
-      if (this.relaunchIn <= 0 && this.lastThrow && this.toggle('rapid')) this.launch(this.lastThrow, ctx);
+      if (this.relaunchIn <= 0 && this.lastThrow && switchOn(this.toggles, 'rapid')) this.launch(this.lastThrow, ctx);
     }
     this.rapidStream(dt);
 
@@ -748,8 +744,8 @@ export class BigHbarWorld extends BigHbarLesson implements World {
     const { surface, ballMesh, ghost, spreadRing } = this.courtyard;
     u.uState.value = this.gpu.texture;
     u.uPeak.value = this.shownPeak;
-    u.uWave.value = this.toggle('wave') ? 1 : 0;
-    surface.visible = wave && this.toggle('wave');
+    u.uWave.value = switchOn(this.toggles, 'wave') ? 1 : 0;
+    surface.visible = wave && switchOn(this.toggles, 'wave');
     ballMesh.visible = this.mode === 'ball';
     ballMesh.position.set(this.ball.x, BALL.radius, this.ball.z);
     const st = this.stats;
@@ -817,7 +813,7 @@ export class BigHbarWorld extends BigHbarLesson implements World {
       const pace = this.mode !== 'wave' ? '' : this.slowmo < 0.95 ? `, slow motion ×${this.slowmo.toFixed(2)}` : ', real time';
       out.push(`Wave on a ${this.field.n}² grid of ${Math.round(this.field.dx * 100)} cm cells${pace}.`);
     }
-    if (this.toggle('rapid')) out.push('Rapid fire: each repeat lands one dot from the same |ψ|².');
+    if (switchOn(this.toggles, 'rapid')) out.push('Rapid fire: each repeat lands one dot from the same |ψ|².');
     else if (this.lastEvent) out.push(`${this.lastEvent}.`);
     return out.join(' ');
   }
