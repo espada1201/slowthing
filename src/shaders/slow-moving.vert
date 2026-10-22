@@ -1,6 +1,7 @@
 // Objects on circular paths, drawn where they were when the light now reaching the eye left them (boost.glsl prepended).
 // Solves c·(t − t_r) = |x_obs − x(t_r)| per vertex by Newton's method kept inside a bracket around the
 // root (as physics/relativity.ts does): unguarded, Newton overshoots and cycles for a fast object seen from afar.
+// With light delay off, they are drawn at the observer's now instead (physics/simultaneity.ts), solved the same way.
 attribute vec3 aColor;
 attribute float aPattern;
 #ifdef PROOF
@@ -14,7 +15,8 @@ uniform float uRadius;
 uniform vec3 uCenter;
 uniform float uGamma;     // Lorentz factor of the object's speed
 uniform float uBeta;      // object's speed / c
-uniform float uRetard;    // 1 = finite light speed, 0 = instantaneous
+uniform float uRetard;    // 1 = finite light speed, 0 = at the observer's now
+uniform vec3 uObsBeta;    // the observer's velocity / c
 uniform float uContract;  // 1 = Lorentz contraction
 uniform float uTauNow;    // object's proper time at the observer's current world time
 uniform vec3 uSun;
@@ -82,6 +84,22 @@ void main() {
       if (!(next >= lo)) next = loSeen ? 0.5 * (lo + hi) : lo;
       else if (!(next <= hi)) next = hiSeen ? 0.5 * (lo + hi) : hi;
       delta = next;
+    }
+  } else {
+    // The event at the observer's now: delta = β·(x − x_obs)/c. On its circle of radius rho the vertex is within
+    // |β|·rho of the centre along β, which brackets delta; the slope 1 − β·v/c is positive below light speed.
+    vec3 centre = uCenter + vec3(0.0, position.y, 0.0);
+    float rho = length(pathPos(0.0, position).xz - uCenter.xz);
+    float mid = dot(uObsBeta, centre - uObs) / uC;
+    float lo = mid - length(uObsBeta) * rho / uC;
+    float hi = mid + length(uObsBeta) * rho / uC;
+    delta = mid;
+    for (int i = 0; i < 12; i++) {
+      float a = uPhase + uOmega * delta;
+      float f = delta - dot(uObsBeta, pathPos(a, position) - uObs) / uC;
+      if (f > 0.0) hi = delta; else lo = delta;
+      float next = delta - f / (1.0 - dot(uObsBeta, pathVel(a, position)) / uC);
+      delta = next >= lo && next <= hi ? next : 0.5 * (lo + hi);
     }
   }
   float a = uPhase + uOmega * delta;

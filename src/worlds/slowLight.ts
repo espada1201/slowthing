@@ -7,6 +7,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { formatSI } from '../constants';
 import { chime } from '../audio';
 import { dopplerFactor, observerToWorldDirection, retardedTime, sourceDopplerFactor, velocityFromProper } from '../physics/relativity';
+import { simultaneousTime } from '../physics/simultaneity';
 import { whiteLuminance } from '../physics/spectrum';
 import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
@@ -73,7 +74,7 @@ export class SlowLightWorld implements World {
     { id: 'aberration', label: 'Aberration', hint: 'Light from the side arrives from ahead when you move', value: true },
     { id: 'doppler', label: 'Doppler colour', hint: 'Spectral shift, including infrared and ultraviolet', value: true },
     { id: 'beaming', label: 'Searchlight', hint: 'Brightness piles up ahead (D⁵ beaming)', value: true },
-    { id: 'delay', label: 'Light delay', hint: 'See moving things where they were when light left', value: true },
+    { id: 'delay', label: 'Light delay', hint: 'See things as they were when their light left (off: as they are at your now)', value: true },
     { id: 'contraction', label: 'Contraction', hint: 'Moving things are shorter along their motion', value: true },
     { id: 'adapt', label: 'Eye adaptation', hint: 'Your eyes adjust to the glare, as real ones would', value: true },
   ];
@@ -159,18 +160,18 @@ export class SlowLightWorld implements World {
     this.composite.material.uniforms.uCube.value = this.cubeTarget.texture;
   }
 
-  /** Clock faces show the town time at which the light reaching you left each point of the face. */
+  /** Clock faces show the town time at which the light reaching you left each point of the face (light delay off: the time there at your now). */
   private buildClockMaterial() {
     return this.material(
       staticVert,
-      `uniform float uTownTime; uniform vec3 uObs; uniform float uC; uniform float uDelay;
+      `uniform float uTownTime; uniform vec3 uObs; uniform vec3 uObsBeta; uniform float uC; uniform float uDelay;
       varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vPattern;
       float seg(vec2 p, vec2 dir, float len, float w) {
         float t = clamp(dot(p, dir), 0.0, len);
         return smoothstep(w, w * 0.6, length(p - dir * t));
       }
       void main() {
-        float uClockTime = uTownTime - uDelay * length(uObs - vWorld) / uC;
+        float uClockTime = uTownTime + (uDelay > 0.5 ? -length(uObs - vWorld) : dot(uObsBeta, vWorld - uObs)) / uC;
         vec2 p = vColor.xy;
         float r = length(p);
         vec3 col = vec3(0.95, 0.92, 0.84);
@@ -185,7 +186,7 @@ export class SlowLightWorld implements World {
         col = mix(col, vec3(0.4, 0.3, 0.15), smoothstep(0.96, 0.98, r));
         gl_FragColor = vec4(col * 1.05, 1.0);
       }`,
-      { uTownTime: { value: CLOCK_START }, uObs: { value: this.pos }, uC: { value: 12 }, uDelay: { value: 1 } },
+      { uTownTime: { value: CLOCK_START }, uObs: { value: this.pos }, uObsBeta: { value: this.composite.material.uniforms.uBeta.value }, uC: { value: 12 }, uDelay: { value: 1 } },
     );
   }
 
@@ -472,7 +473,7 @@ export class SlowLightWorld implements World {
       const omega = (m.direction * v) / m.radius;
       const path = (t: number): Vec3 => [m.radius * Math.cos(m.phase0 + omega * t), 3, m.radius * Math.sin(m.phase0 + omega * t)];
       const vel = (t: number): Vec3 => [-m.radius * omega * Math.sin(m.phase0 + omega * t), 0, m.radius * omega * Math.cos(m.phase0 + omega * t)];
-      const tr = this.toggle('delay') ? retardedTime(path, vel, obs, this.t, c, 8) : this.t;
+      const tr = this.toggle('delay') ? retardedTime(path, vel, obs, this.t, c, 8) : simultaneousTime(path, vel, { x: obs, t: this.t, beta: betaObs }, c);
       const flash = Math.floor(tr / gamma / BLINK_PERIOD);
       const note = LAMP_NOTES[lamp++ % LAMP_NOTES.length];
       if (m.seenFlash !== undefined && flash > m.seenFlash) {
