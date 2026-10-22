@@ -12,7 +12,7 @@ import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
 import { cameraRotation, facing, fullscreenPass } from './shared';
-import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
+import type { Pose, Quality, Readout, Toggle, TourStop, View, World, WorldContext } from './types';
 
 /** A granite boulder: 2 m radius, 2700 kg/m³. */
 const MASS = 9.0e4;
@@ -304,6 +304,11 @@ export class BigGWorld implements World {
     if (!this.collapsed) return `Still a rock: rs is ${Math.round((100 * rs) / ROCK_R)}% of its radius. It collapses past rs = ${COLLAPSE_RS.toFixed(2)} m.`;
     if (rs > DECK[1]) return 'The horizon has swallowed the whole scene. Only the sky is left outside.';
     return `Black hole. Light can orbit at 1.5 rs = ${formatSI(PHOTON_SPHERE * rs)} m.`;
+  }
+
+  view(): View {
+    const u = this.pass.material.uniforms;
+    return { rot: u.uCamRot.value, tan: u.uTan.value };
   }
 
   dispose() {

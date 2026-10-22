@@ -3,6 +3,7 @@
 import { setSound, soundOn } from '../audio';
 import { type ConstantKey, type Constants, DIALS, SLIDER_STEPS, formatSI, fromSlider, ratioLabel, toSlider } from '../constants';
 import type { Quality, Readout, World } from '../worlds/types';
+import type { Ruler } from './ruler';
 
 type Attrs = Record<string, string | boolean | number | ((e: Event) => void)>;
 
@@ -119,8 +120,11 @@ export function worldChrome(
     onAction: (id: string) => void;
     onTour: (i: number) => void;
     onQuality: (q: Quality) => void;
+    /** The sky ruler, for a world that reports its view. */
+    ruler: Ruler | null;
   },
 ): Chrome {
+  const { ruler } = opts;
   const dialRows = world.dials.map((k) => {
     const d = DIALS[k];
     const input = h('input', { type: 'range', min: 0, max: SLIDER_STEPS, step: 1, value: toSlider(d, constants[k]), 'aria-label': `${d.name} (${d.symbol})`, 'data-dial': k });
@@ -137,8 +141,9 @@ export function worldChrome(
     return { t, box, el: h('label', { class: 'switch', title: t.hint }, box, h('span', { class: 'track' }), h('span', { class: 'switch-label' }, t.label)) };
   });
   const actions = world.actions.map((a) => h('button', { class: 'btn', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label, h('kbd', {}, a.key.replace('Key', ''))));
+  if (ruler) actions.push(ruler.button('btn', h('kbd', {}, 'R')));
   // On a phone the panel hides behind a toggle, so the main actions also sit on the tour card.
-  const quick = h('div', { class: 'quick' }, ...world.actions.slice(0, 2).map((a) => h('button', { class: 'btn ghost', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label)));
+  const quick = h('div', { class: 'quick' }, ...world.actions.slice(0, 2).map((a) => h('button', { class: 'btn ghost', 'data-action': a.id, onclick: () => opts.onAction(a.id) }, a.label)), ruler?.button('btn ghost') ?? null);
   const selects = [0, 1].map(() =>
     qualitySelect(opts.quality, (q) => {
       for (const s of selects) s.value = q;
@@ -188,6 +193,7 @@ export function worldChrome(
     h('p', {}, h('kbd', {}, 'W A S D'), ' move, ', h('kbd', {}, '← →'), ' turn, ', h('kbd', {}, 'Shift'), ' runs.'),
     world.id === 'big-g' ? h('p', {}, h('kbd', {}, 'Space'), ' / ', h('kbd', {}, 'Q'), ' fly up and down.') : null,
     ...world.actions.map((a) => h('p', {}, h('kbd', {}, a.key.replace('Key', '')), ` ${a.label.toLowerCase()}.`)),
+    ruler ? h('p', {}, h('kbd', {}, 'R'), ' ruler: click two points to measure the angle between them, or move with the arrows and mark with Enter.') : null,
     h('p', {}, h('kbd', {}, 'N'), ' next tour stop, ', h('kbd', {}, 'B'), ' previous.'),
     h('p', {}, 'On a phone: drag the left side to walk, the right side to look.'),
   );
@@ -204,7 +210,8 @@ export function worldChrome(
     h('div', { class: 'world-name' }, h('span', { class: 'plate-no' }, card.plate), h('span', {}, world.title)),
     h('div', { class: 'top-right' }, panelToggle, soundBtn, selects[0], helpBtn),
   );
-  const root = h('div', { class: 'chrome', 'data-world': world.id }, top, help, panel, hud, tour, toast);
+  // The ruler goes first so that it lies under the panels: they stay usable while it is on.
+  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, top, help, panel, hud, tour, toast);
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {

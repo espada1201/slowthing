@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { type ConstantKey, type Constants, DIALS, REAL } from './constants';
 import { Input } from './input';
 import { proofsView } from './ui/proofsView';
+import { type Ruler, skyRuler } from './ui/ruler';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
 import type { Quality, World, WorldContext } from './worlds/types';
 
@@ -48,6 +49,7 @@ const input = new Input(canvas, document.querySelector('#touch')!);
 
 let world: World | null = null;
 let chrome: Chrome | null = null;
+let ruler: Ruler | null = null;
 let tourIndex = 0;
 let frames = 0;
 
@@ -105,6 +107,7 @@ function showTitle() {
   world?.dispose();
   world = null;
   chrome = null;
+  ruler = null;
   document.body.dataset.mode = 'title';
   if (document.pointerLockElement) document.exitPointerLock();
   ui.replaceChildren(titleScreen(enter, showProofs, quality, setQuality, startupError));
@@ -117,6 +120,7 @@ function showProofs() {
   world?.dispose();
   world = null;
   chrome = null;
+  ruler = null;
   document.body.dataset.mode = 'title';
   ui.replaceChildren(proofsView(startupError ? null : renderer, showTitle));
   history.replaceState(null, '', '?proofs');
@@ -141,6 +145,8 @@ async function enter(id: string) {
   const card = WORLD_CARDS.find((c) => c.id === id)!;
   autoRes.settle = 2000;
   Object.assign(constants, REAL, w.preset);
+  const view = w.view?.bind(w);
+  ruler = view ? skyRuler(canvas, view, (on) => on && chrome?.flash('Ruler: tap or click two points to measure the angle between them')) : null;
   chrome = worldChrome(w, card, constants, {
     quality,
     onBack: showTitle,
@@ -168,6 +174,7 @@ async function enter(id: string) {
     onAction: (a) => w.runAction(a, ctx()),
     onTour: goTour,
     onQuality: setQuality,
+    ruler,
   });
   document.body.dataset.mode = 'world';
   ui.replaceChildren(chrome.root);
@@ -175,7 +182,11 @@ async function enter(id: string) {
   input.setKeyHandler((code) => {
     if (code === 'KeyN') goTour(tourIndex + 1);
     else if (code === 'KeyB') goTour(tourIndex - 1);
-    else if (code === 'Escape') document.querySelector<HTMLElement>('.help')?.setAttribute('hidden', '');
+    else if (code === 'KeyR') ruler?.toggle();
+    else if (code === 'Escape') {
+      document.querySelector<HTMLElement>('.help')?.setAttribute('hidden', '');
+      ruler?.toggle(false);
+    }
     const a = w.actions.find((x) => x.key === code);
     if (a) w.runAction(a.id, ctx());
   });
@@ -219,6 +230,8 @@ function goTour(i: number, initial = false) {
     input.state.pitch = pose.pitch;
   }
   if (stop.action) world.runAction(stop.action, ctx());
+  // Marks made at the last stop would point at nothing in particular here.
+  ruler?.clear();
   chrome.setTour(tourIndex);
   chrome.syncDials(constants);
   chrome.syncToggles();
@@ -236,6 +249,7 @@ function loop(now: number) {
   if (!world || !renderer) return;
   input.poll(dt);
   world.frame(dt, input.state, ctx());
+  ruler?.update();
   frames++;
   hudTimer -= dt;
   if (hudTimer <= 0 && chrome) {
