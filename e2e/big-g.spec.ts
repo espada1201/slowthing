@@ -299,7 +299,7 @@ test.describe('on a phone held sideways', () => {
     // A tap on each control lands on it, once it is scrolled into view.
     for (const control of [
       page.locator('[data-back]'),
-      page.getByRole('button', { name: 'Dials' }),
+      page.getByRole('button', { name: 'Dials', exact: true }),
       page.locator('[data-sound]'),
       page.getByRole('combobox', { name: 'Rendering quality' }),
       page.getByRole('button', { name: 'Controls help' }),
@@ -313,9 +313,9 @@ test.describe('on a phone held sideways', () => {
       expect(await tappable(control), `${control} should be tappable`).toBe(true);
 
     // Held sideways the ruler is behind Dials, with the rest of the panel.
-    await page.getByRole('button', { name: 'Dials' }).tap();
+    await page.getByRole('button', { name: 'Dials', exact: true }).tap();
     await page.locator('.panel [data-ruler]').tap();
-    await page.getByRole('button', { name: 'Dials' }).tap();
+    await page.getByRole('button', { name: 'Dials', exact: true }).tap();
     await expect(page.locator('#panel')).toBeHidden();
     await page.touchscreen.tap(shadow.left, shadow.y);
     await page.touchscreen.tap(shadow.right, shadow.y);

@@ -78,12 +78,22 @@ test('after the dials are turned, the tour card says the stop may not look as de
   await expect(page.locator('.tour-turned')).toBeHidden();
 });
 
+test('opened from a link with other dials, the tour card says the stop may not look as described', async ({ page }) => {
+  // A teacher opened a link with c = 6 m/s and read "A town at 12 m/s" with nothing to say otherwise.
+  await page.goto('./?world=slow-light&c=6&quality=low&e2e');
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
+  await expect(page.locator('.tour-turned')).toBeVisible();
+  await page.getByRole('button', { name: 'Use this stop’s dials' }).click();
+  expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(12);
+  await expect(page.locator('.tour-turned')).toBeHidden();
+});
+
 test('Real universe switches the effects back on, and leaves the Measured map as it was', async ({ page }) => {
   // In user testing, most testers who pressed Real universe then switched the effects back on by hand to be sure.
   await page.goto('./?world=slow-light&c=6&off=aberration,delay,adapt&on=measured&quality=low&e2e');
   await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
   await expect(page.locator('[data-toggle="aberration"]')).not.toBeChecked();
-  await page.getByRole('button', { name: 'Dials' }).click();
+  await page.getByRole('button', { name: 'Dials', exact: true }).click();
   await page.locator('[data-reset="real"]').click();
   expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
   for (const id of ['aberration', 'doppler', 'beaming', 'delay', 'contraction', 'adapt']) await expect(page.locator(`[data-toggle="${id}"]`)).toBeChecked();

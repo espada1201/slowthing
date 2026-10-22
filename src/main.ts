@@ -250,6 +250,8 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   tourIndex = world.tour.indexOf(stop);
   if (stop.constants) Object.assign(constants, stop.constants);
   if (stop.toggles) for (const t of world.toggles) if (t.id in stop.toggles) t.value = stop.toggles[t.id];
+  // The stop's own dials, before a link turns them, so the card can say when they differ.
+  stopDials = { ...constants };
   if (shared) applySetup(world, constants, shared);
   const pose = stop.pose ?? (initial ? world.start : undefined);
   if (pose) {
@@ -270,7 +272,6 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   }
   // Marks made at the last stop would point at nothing in particular here.
   ruler?.clear();
-  stopDials = { ...constants };
   chrome.setTour(tourIndex, pending !== null);
   chrome.syncDials(constants);
   chrome.syncToggles();

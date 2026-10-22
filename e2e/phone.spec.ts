@@ -22,7 +22,7 @@ for (const world of ['slow-light', 'big-hbar', 'big-g']) {
     for (const sel of ['[data-tour-next]', '[data-back]', '.panel-toggle']) expect(await onTop(page, sel), `${sel} should be tappable`).toBe(true);
     await expect(page.locator('.quick [data-action]').first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Dials' }).click();
+    await page.getByRole('button', { name: 'Dials', exact: true }).click();
     await expect(page.locator('#panel')).toBeVisible();
     const controls = await page.locator('#panel').evaluate((panel) =>
       [...panel.querySelectorAll<HTMLElement>('[data-dial], [data-reset], [data-share], [data-toggle], [data-action], select')].map((el) =>

@@ -80,7 +80,7 @@ test('phone layout keeps the dials behind a toggle, on top of the instruments', 
   await page.goto('./?world=slow-light&quality=low&e2e');
   await page.waitForFunction(() => (window as any).slowlight?.frames > 3);
   await expect(page.locator('#panel')).toBeHidden();
-  await page.getByRole('button', { name: 'Dials' }).click();
+  await page.getByRole('button', { name: 'Dials', exact: true }).click();
   await expect(page.locator('#panel')).toBeVisible();
   // Every control in the open panel must be the thing a tap actually lands on.
   for (const sel of ['[data-dial="c"]', '[data-reset="real"]', '.switch:has([data-toggle="doppler"])']) {

@@ -181,7 +181,7 @@ export function worldChrome(
     start.hidden = true;
     opts.onStart();
   });
-  const turned = h('p', { class: 'tour-turned', hidden: true }, 'You have turned the dials since this stop began, so it may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
+  const turned = h('p', { class: 'tour-turned', hidden: true }, 'The dials differ from this stop’s, so it may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
   const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, turned, h('div', { class: 'row' }, quick, start, prev, next));
   let current = 0;
   /** The readouts left up while a measurement waits for its answer. */

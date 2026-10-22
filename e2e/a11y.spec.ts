@@ -98,7 +98,7 @@ test.describe('on a phone', () => {
 
   test('a world with its dials open passes axe', async ({ page }) => {
     await openWorld(page, 'slow-light');
-    await page.getByRole('button', { name: 'Dials' }).click();
+    await page.getByRole('button', { name: 'Dials', exact: true }).click();
     await expect(page.locator('#panel')).toBeVisible();
     expect(await problems(page)).toEqual([]);
   });

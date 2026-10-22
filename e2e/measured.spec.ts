@@ -34,7 +34,7 @@ test('the Measured button shows the map and the diagram, from the keyboard too, 
   await expect(page.getByRole('img', { name: /^Spacetime diagram along your motion/ })).toBeVisible();
   await expect(page.locator('.seen-tag')).toBeVisible();
   await expect(page.locator('#panel')).toBeHidden();
-  await page.getByRole('button', { name: 'Dials' }).click();
+  await page.getByRole('button', { name: 'Dials', exact: true }).click();
   await expect(page.locator('#panel')).toBeVisible();
   await button.focus();
   await page.keyboard.press('Space');
