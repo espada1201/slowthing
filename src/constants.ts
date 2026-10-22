@@ -51,11 +51,16 @@ export function formatSI(v: number, digits = 3): string {
   return `${m.toFixed(digits - 1)}×10${sup(e)}`;
 }
 
-/** How many times larger than reality, e.g. "×10²¹" or "real". */
+/** How many times larger or smaller than reality: "×3.4×10²²", "÷2.5×10⁷", "×1.5" or "real". */
 export function ratioLabel(key: ConstantKey, v: number): string {
   const r = v / REAL[key];
   if (Math.abs(Math.log10(r)) < 0.01) return 'real';
-  const e = Math.log10(r);
-  if (Math.abs(e) < 2) return `×${r.toPrecision(2)}`;
-  return `×10${sup(Math.round(e))}`;
+  const big = r >= 1 ? r : 1 / r;
+  let e = Math.floor(Math.log10(big));
+  let m = Number((big / 10 ** e).toFixed(1));
+  if (m >= 10) {
+    m /= 10;
+    e++;
+  }
+  return (r >= 1 ? '×' : '÷') + (e < 2 ? big.toPrecision(2) : `${m.toFixed(1)}×10${sup(e)}`);
 }

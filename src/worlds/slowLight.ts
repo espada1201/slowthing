@@ -6,9 +6,9 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { formatSI } from '../constants';
 import { chime } from '../audio';
-import { observerToWorldDirection, retardedTime } from '../physics/relativity';
+import { dopplerFactor, observerToWorldDirection, retardedTime, sourceDopplerFactor, velocityFromProper } from '../physics/relativity';
 import { whiteLuminance } from '../physics/spectrum';
-import type { Vec3 } from '../physics/vec';
+import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
 import compositeFrag from '../shaders/slow-composite.frag?raw';
 import groundFrag from '../shaders/slow-ground.frag?raw';
@@ -25,9 +25,13 @@ const CAROUSEL_R = 7;
 const CAROUSEL_PROPER_SPEED = 13;
 const BLINK_PERIOD = 0.6;
 const EYE = 1.7;
-const BOUND = 140;
+/** How far from the centre you can go: room for a cruise through town at 0.9 c. */
+const BOUND = 260;
 const CLOCK_TOWER = new THREE.Vector3(0, 0, -26);
 const CLOCK_START = 10 * 3600 + 8 * 60;
+/** Tour cruises start out of town and run straight through it. */
+const CRUISE_NORTH: Pose = { position: [4, EYE, 200], yaw: 0, pitch: 0 };
+const CRUISE_WEST: Pose = { position: [200, EYE, -4], yaw: Math.PI / 2, pitch: 0 };
 const CUBE_SIZE: Record<Quality, number> = { low: 256, medium: 512, high: 1024 };
 
 interface Mover {
@@ -56,6 +60,7 @@ export class SlowLightWorld implements World {
   readonly preset = { c: 12 };
   readonly start: Pose = { position: [0, EYE, 30], yaw: 0, pitch: 0.04 };
   readonly actions = [
+    { id: 'cruise', label: 'Cruise', key: 'KeyF' },
     { id: 'stop', label: 'Stop', key: 'KeyX' },
     { id: 'tram', label: 'Tram', key: 'KeyT' },
   ];
@@ -70,12 +75,12 @@ export class SlowLightWorld implements World {
   readonly tour: TourStop[] = [
     { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
     { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop', predict: { question: 'The clock face is 65 m away and light moves at 12 m/s. Compared with your watch, it reads…', options: ['the same time', 'about 5 s behind', 'about 5 s ahead'], answer: 1, reveal: 'Its light needed 65 m ÷ 12 m/s ≈ 5.4 s to reach you, so you see the clock as it was 5.4 s ago.' } },
-    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: { position: [4, EYE, 135], yaw: 0, pitch: 0 }, action: 'cruise', predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
-    { title: 'Colours you cannot normally see', text: 'Ahead, light is blueshifted: visible colours slide into ultraviolet while infrared, even the 300 K warmth of stone, slides into view. Behind you everything reddens and fades.', action: 'cruise' },
-    { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', action: 'cruise' },
-    { title: 'Terrell rotation', text: 'Stand by the track. The tram is Lorentz-contracted, yet you see it turned, not squashed: light from its far side left earlier than light from its near side. It comes round every half minute.', pose: { position: [6, EYE, 41], yaw: -1.35, pitch: 0.02 }, action: 'tram', predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
-    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.74 c its clock runs at two-thirds speed, and the light delay bunches or spreads what you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop' },
-    { title: 'You are younger', text: 'Compare the town clock with your watch in the panel. Every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
+    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: CRUISE_NORTH, action: 'cruise', predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
+    { title: 'Colours you cannot normally see', text: 'Ahead, blues slide into ultraviolet and vanish while infrared sunlight climbs into view; behind you everything reddens and fades. Sprint past 0.98 c (hold Shift) and even the 300 K warmth of the stone begins to glow.', pose: CRUISE_WEST, action: 'cruise' },
+    { title: 'Searchlight', text: 'Brightness ahead rises as D⁵. Switch Searchlight off to keep only the colour shift and see how much of the glare is beaming.', pose: CRUISE_NORTH, action: 'cruise' },
+    { title: 'Terrell rotation', text: 'The tram is Lorentz-contracted, yet you see it turned rather than squashed, because light from its far side set off earlier than light from its near side. It comes round every half minute; press T to call it now.', pose: { position: [25, EYE, 0], yaw: -Math.PI / 2, pitch: 0.02 }, action: 'tram', predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
+    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.73 c its clock runs at two-thirds speed, and light delay bunches or spreads the flashes you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop' },
+    { title: 'You are younger', text: 'Compare the town clock with your watch: every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];
 
@@ -103,6 +108,7 @@ export class SlowLightWorld implements World {
   private pos = new THREE.Vector3(...this.start.position);
   private properVel = new THREE.Vector3();
   private cruise: THREE.Vector3 | null = null;
+  private atEdge = false;
   private yaw = this.start.yaw;
   private pitch = this.start.pitch;
   /** World (town) coordinate time and the player's proper time, seconds. */
@@ -113,7 +119,7 @@ export class SlowLightWorld implements World {
   constructor(ctx: WorldContext) {
     this.buildCube(ctx.quality);
     this.sky = new THREE.Mesh(
-      new THREE.SphereGeometry(900, 48, 24),
+      new THREE.SphereGeometry(1200, 48, 24),
       this.material(staticVert, skyFrag, { uObs: { value: this.pos } }, THREE.BackSide),
     );
     this.scene.add(this.sky);
@@ -148,16 +154,18 @@ export class SlowLightWorld implements World {
     this.composite.material.uniforms.uCube.value = this.cubeTarget.texture;
   }
 
+  /** Clock faces show the town time at which the light reaching you left each point of the face. */
   private buildClockMaterial() {
     return this.material(
       staticVert,
-      `uniform float uClockTime;
+      `uniform float uTownTime; uniform vec3 uObs; uniform float uC; uniform float uDelay;
       varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vPattern;
       float seg(vec2 p, vec2 dir, float len, float w) {
         float t = clamp(dot(p, dir), 0.0, len);
         return smoothstep(w, w * 0.6, length(p - dir * t));
       }
       void main() {
+        float uClockTime = uTownTime - uDelay * length(uObs - vWorld) / uC;
         vec2 p = vColor.xy;
         float r = length(p);
         vec3 col = vec3(0.95, 0.92, 0.84);
@@ -172,7 +180,7 @@ export class SlowLightWorld implements World {
         col = mix(col, vec3(0.4, 0.3, 0.15), smoothstep(0.96, 0.98, r));
         gl_FragColor = vec4(col * 1.05, 1.0);
       }`,
-      { uClockTime: { value: CLOCK_START } },
+      { uTownTime: { value: CLOCK_START }, uObs: { value: this.pos }, uC: { value: 12 }, uDelay: { value: 1 } },
     );
   }
 
@@ -408,9 +416,11 @@ export class SlowLightWorld implements World {
       u.uRetard.value = this.toggle('delay') ? 1 : 0;
       u.uContract.value = this.toggle('contraction') ? 1 : 0;
     }
-    this.ringLamps(c, gamma);
-    const delay = this.toggle('delay') ? this.pos.distanceTo(new THREE.Vector3(CLOCK_TOWER.x, 14.5, CLOCK_TOWER.z)) / c : 0;
-    this.clockMaterial.uniforms.uClockTime.value = CLOCK_START + this.t - delay;
+    this.ringLamps(c);
+    const clock = this.clockMaterial.uniforms;
+    clock.uTownTime.value = CLOCK_START + this.t;
+    clock.uC.value = c;
+    clock.uDelay.value = this.toggle('delay') ? 1 : 0;
     this.sky.position.copy(this.pos);
 
     const r = ctx.renderer;
@@ -422,12 +432,12 @@ export class SlowLightWorld implements World {
     const u = this.composite.material.uniforms;
     u.uTan.value.set(tanY * (size.x / size.y), tanY);
     u.uCamRot.value.copy(cameraRotation(this.yaw, this.pitch));
-    u.uBeta.value.copy(this.properVel).divideScalar(c * gamma);
+    u.uBeta.value.set(...velocityFromProper(this.properVel.toArray(), c)).divideScalar(c);
     u.uAberration.value = this.toggle('aberration') ? 1 : 0;
     u.uDoppler.value = this.toggle('doppler') ? 1 : 0;
     u.uBeaming.value = this.toggle('beaming') ? 1 : 0;
     this.adaptEyes(dt, u.uCamRot.value, u.uBeta.value, u.uTan.value);
-    u.uExposure.value = Math.exp(this.logExposure);
+    u.uExposure.value = this.toggle('adapt') ? Math.exp(this.logExposure) : 1;
     r.setRenderTarget(null);
     r.render(this.composite.scene, this.composite.camera);
   }
@@ -436,8 +446,8 @@ export class SlowLightWorld implements World {
    * Each lamp rings when its flash *reaches you*: the flash happens on the lamp's own (dilated) clock at the
    * retarded time, and the bell is pitched by the same Doppler factor that shifts the lamp's colour.
    */
-  private ringLamps(c: number, gammaObs: number) {
-    const betaObs: Vec3 = [this.properVel.x / (c * gammaObs), this.properVel.y / (c * gammaObs), this.properVel.z / (c * gammaObs)];
+  private ringLamps(c: number) {
+    const betaObs = scale(velocityFromProper(this.properVel.toArray(), c), 1 / c);
     const obs: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
     let lamp = 0;
     for (const m of this.movers) {
@@ -455,9 +465,9 @@ export class SlowLightWorld implements World {
         const dist = Math.hypot(...d);
         const k: Vec3 = [d[0] / dist, d[1] / dist, d[2] / dist];
         const u = vel(tr);
-        const dSrc = 1 / (gamma * (1 - (u[0] * k[0] + u[2] * k[2]) / c));
+        const dSrc = sourceDopplerFactor([u[0] / c, u[1] / c, u[2] / c], k);
         const nW: Vec3 = [-k[0], -k[1], -k[2]];
-        const dObs = gammaObs * (1 + betaObs[0] * nW[0] + betaObs[1] * nW[1] + betaObs[2] * nW[2]);
+        const dObs = dopplerFactor(nW, betaObs);
         const D = this.toggle('doppler') ? dSrc * dObs : 1;
         const seen = this.toggle('aberration') ? observerToWorldDirection(nW, [-betaObs[0], -betaObs[1], -betaObs[2]]) : nW;
         const right = rightFlat(this.yaw);
@@ -470,28 +480,25 @@ export class SlowLightWorld implements World {
   /**
    * Eye adaptation: estimate the scene's log-average brightness from the Doppler factor across the view
    * (a white surface seen through the same aberration, colour shift and beaming) and ease exposure toward it.
+   * The eyes keep adapting while the switch is off; the switch only decides whether you see through them.
    */
   private adaptEyes(dt: number, rot: THREE.Matrix3, beta: THREE.Vector3, tan: THREE.Vector2) {
-    let target = 0;
-    if (this.toggle('adapt')) {
-      const b: Vec3 = [beta.x, beta.y, beta.z];
-      const g = 1 / Math.sqrt(1 - beta.lengthSq());
-      const e = rot.elements;
-      let sum = 0, n = 0;
-      for (let i = 0; i < 9; i++) {
-        for (let j = 0; j < 7; j++) {
-          const x = (i / 8 - 0.5) * 2 * tan.x, y = (j / 6 - 0.5) * 2 * tan.y;
-          const l = Math.hypot(x, y, 1);
-          const nObs: Vec3 = [(e[0] * x + e[3] * y - e[6]) / l, (e[1] * x + e[4] * y - e[7]) / l, (e[2] * x + e[5] * y - e[8]) / l];
-          const nW = this.toggle('aberration') ? observerToWorldDirection(nObs, b) : nObs;
-          const D = g * (1 + b[0] * nW[0] + b[1] * nW[1] + b[2] * nW[2]);
-          const L = (this.toggle('doppler') ? whiteLuminance(D) : 1) * (this.toggle('beaming') ? D ** 5 : 1);
-          sum += Math.log(Math.max(L, 1e-4));
-          n++;
-        }
+    const b: Vec3 = [beta.x, beta.y, beta.z];
+    const e = rot.elements;
+    let sum = 0, n = 0;
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 7; j++) {
+        const x = (i / 8 - 0.5) * 2 * tan.x, y = (j / 6 - 0.5) * 2 * tan.y;
+        const l = Math.hypot(x, y, 1);
+        const nObs: Vec3 = [(e[0] * x + e[3] * y - e[6]) / l, (e[1] * x + e[4] * y - e[7]) / l, (e[2] * x + e[5] * y - e[8]) / l];
+        const nW = this.toggle('aberration') ? observerToWorldDirection(nObs, b) : nObs;
+        const D = dopplerFactor(nW, b);
+        const L = (this.toggle('doppler') ? whiteLuminance(D) : 1) * (this.toggle('beaming') ? D ** 5 : 1);
+        sum += Math.log(Math.max(L, 1e-4));
+        n++;
       }
-      target = Math.max(-9, Math.min(4, -sum / n));
     }
+    const target = Math.max(-9, Math.min(4, -sum / n));
     this.logExposure += (target - this.logExposure) * (1 - Math.exp(-3 * dt));
   }
 
@@ -506,15 +513,21 @@ export class SlowLightWorld implements World {
       this.properVel.multiplyScalar(0.5);
       this.cruise = null;
     }
-    if (p2.length() > BOUND) p2.setLength(BOUND);
+    if (p2.length() > BOUND) {
+      p2.setLength(BOUND);
+      // The edge of the world: stop dead rather than slide along it with the clocks still running fast.
+      if (this.properVel.dot(this.pos.clone().setY(0)) > 0) this.properVel.set(0, 0, 0);
+      this.cruise = null;
+      this.atEdge = true;
+    } else if (p2.length() < BOUND - 1) this.atEdge = false;
     this.pos.set(p2.x, EYE, p2.y);
   }
 
   readouts(ctx: WorldContext): Readout[] {
     const c = ctx.constants.c;
-    const gamma = Math.sqrt(1 + this.properVel.lengthSq() / (c * c));
-    const v = this.properVel.length() / gamma;
+    const v = len(velocityFromProper(this.properVel.toArray(), c));
     const beta = v / c;
+    const gamma = 1 / Math.sqrt(1 - beta * beta);
     return [
       { label: 'Speed', value: `${formatSI(v)} m/s` },
       { label: 'β = v/c', value: beta.toFixed(3), gauge: beta },
@@ -526,6 +539,7 @@ export class SlowLightWorld implements World {
   }
 
   status(ctx: WorldContext) {
+    if (this.atEdge) return 'Edge of town. Turn round and cruise back through it (F).';
     const tram = motion(TRAM_PROPER_SPEED, ctx.constants.c);
     return `Tram ${tram.beta.toFixed(2)} c · carousel ${motion(CAROUSEL_PROPER_SPEED, ctx.constants.c).beta.toFixed(2)} c`;
   }

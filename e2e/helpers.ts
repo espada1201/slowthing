@@ -53,3 +53,43 @@ export async function expectRendered(page: Page) {
 export async function readout(page: Page, label: string): Promise<string> {
   return page.evaluate((l) => (window as any).slowlight.readouts().find((r: any) => r.label === l)?.value ?? '', label);
 }
+
+/** Full-resolution luminance of the WebGL canvas, kept in the page for `changedPixels`. */
+const grab = () => {
+  const src = document.querySelector<HTMLCanvasElement>('#view')!;
+  const c = document.createElement('canvas');
+  c.width = src.width;
+  c.height = src.height;
+  const g = c.getContext('2d')!;
+  g.drawImage(src, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const out = new Float32Array(c.width * c.height);
+  for (let i = 0; i < out.length; i++) out[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+  return out;
+};
+
+/**
+ * Flip an effect switch and back with time frozen. Returns the mean change on the coarse grid and how many
+ * full-resolution pixels changed visibly (for switches that only draw thin lines).
+ */
+export async function switchDiff(page: Page, id: string): Promise<{ mean: number; changed: number }> {
+  const box = page.locator(`[data-toggle="${id}"]`);
+  const was = await box.isChecked();
+  await page.evaluate(() => (window as any).slowlight.pause(true));
+  await frames(page, 2);
+  const before = await sample(page);
+  await page.evaluate(`window.__before = (${grab})()`);
+  await box.setChecked(!was, { force: true });
+  await frames(page, 2);
+  const after = await sample(page);
+  const changed = await page.evaluate(`(() => { const a = (${grab})(), b = window.__before; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 24) n++; return n; })()`);
+  await box.setChecked(was, { force: true });
+  await page.evaluate(() => (window as any).slowlight.pause(false));
+  return { mean: meanDiff(before, after), changed: changed as number };
+}
+
+/** Town or world time shown by a clock readout ("10:08:23.4"), in seconds. */
+export async function clockSeconds(page: Page, label: string): Promise<number> {
+  const [h, m, s] = (await readout(page, label)).split(':').map(Number);
+  return h * 3600 + m * 60 + s;
+}

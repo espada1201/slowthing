@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { expectRendered, frames, meanDiff, openWorld, readout, sample, watchErrors } from './helpers';
+import { expectRendered, frames, meanDiff, openWorld, readout, sample, switchDiff, watchErrors } from './helpers';
 
 // Every pixel marches a light ray, which software rendering in CI draws at well under one frame a second.
 test.slow();
@@ -31,18 +31,12 @@ test('the G dial turns the black hole back into a rock, or makes it bigger', asy
   expect(errors).toEqual([]);
 });
 
-test('light bending and the gravitational shift each change the picture', async ({ page }) => {
+test('light bending, the gravitational shift and the shadow guide each change the picture', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'big-g');
-  for (const id of ['lensing', 'redshift']) {
-    await frames(page, 2);
-    const on = await sample(page);
-    await page.locator(`[data-toggle="${id}"]`).uncheck({ force: true });
-    await frames(page, 2);
-    const off = await sample(page);
-    expect(meanDiff(on, off), `${id} toggle should change the image`).toBeGreaterThan(4);
-    await page.locator(`[data-toggle="${id}"]`).check({ force: true });
-  }
+  for (const id of ['lensing', 'redshift']) expect((await switchDiff(page, id)).mean, `${id} should change the image`).toBeGreaterThan(4);
+  // The guide is a thin dashed circle at the shadow's edge.
+  expect((await switchDiff(page, 'guide')).changed).toBeGreaterThan(150);
   expect(errors).toEqual([]);
 });
 

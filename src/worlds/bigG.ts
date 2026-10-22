@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { tick } from '../audio';
 import { REAL, formatSI } from '../constants';
 import type { InputState } from '../input';
-import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
+import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, gravitationalShift, schwarzschildRadius, shadowAngularRadius, timeDilation, traceRay } from '../physics/schwarzschild';
 import { REFLECTION_LOG_RANGE, buildReflectionLUT } from '../physics/reflection';
 import { type Vec3, dot, normalize } from '../physics/vec';
 import frag from '../shaders/big-g.frag?raw';
@@ -106,7 +106,7 @@ const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-200).toArray() as [nu
 export class BigGWorld implements World {
   readonly id = 'big-g';
   readonly title = 'Big G';
-  readonly dials = ['G' as const, 'c' as const];
+  readonly dials = ['G' as const];
   readonly preset = { G: gFor(4.5) };
   readonly start = START;
   readonly actions = [{ id: 'face', label: 'Face the hole', key: 'KeyF' }];
@@ -118,16 +118,16 @@ export class BigGWorld implements World {
   readonly tour: TourStop[] = [
     {
       title: 'A black hole from a boulder',
-      text: 'This was a 90-tonne granite boulder. With G turned up 3×10²² times it has collapsed into a black hole 9 m across, and everything around it is light bent by its gravity.',
+      text: 'This was a 90-tonne granite boulder. With G turned up 3.4×10²² times it has collapsed into a black hole 9 m across, and everything around it is light bent by its gravity.',
       pose: START,
-      constants: { G: gFor(4.5), c: REAL.c },
+      constants: { G: gFor(4.5) },
       toggles: { guide: false },
     },
     {
       title: 'The real universe',
       text: 'The same boulder with the real G. Light passes it dead straight, and a clock on its surface loses one second in a million billion years.',
       pose: facing([2.5, 1.5, 8]),
-      constants: { G: REAL.G, c: REAL.c },
+      constants: { G: REAL.G },
       predict: {
         question: 'With the real G, how big is this boulder’s Schwarzschild radius?',
         options: ['About a millimetre', 'About the size of an atom', 'Far smaller than a proton'],
@@ -176,7 +176,7 @@ export class BigGWorld implements World {
     },
     {
       title: 'Slow clocks, blue sky',
-      text: 'At 1.2 rs your clock runs at 41% of a distant one: one minute here is 2.4 minutes far away. Looking outward, the whole universe is squeezed into a window ahead of you; the shadow fills almost three-quarters of your sky. With Sound on, a distant beacon that pulses once a second ticks 2.4 times a second here.',
+      text: 'At 1.2 rs your clock runs at 41% of a distant one, so a far-off beacon pulsing once a second ticks 2.4 times a second here (turn Sound on). Looking outward, the whole universe is squeezed into a window ahead; the shadow fills almost three-quarters of your sky.',
       pose: facing([0, 0.6, 5.4], [0, 0.6, 30]),
       constants: { G: gFor(4.5) },
       toggles: { guide: false },
@@ -306,7 +306,7 @@ export class BigGWorld implements World {
       { label: 'r / rs', value: formatSI(r / rs), gauge: Math.min(1, rs / r) },
       { label: 'Your clock rate', value: rate.toFixed(4), gauge: rate },
       { label: '1 min here', value: `${formatSI(1 / rate)} min far away` },
-      { label: 'Starlight', value: `×${(1 / rate).toFixed(3)} frequency` },
+      { label: 'Starlight', value: `×${gravitationalShift(Infinity, r, rs).toFixed(3)} frequency` },
       { label: 'Shadow', value: shadow },
     ];
   }
