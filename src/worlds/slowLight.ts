@@ -177,7 +177,7 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     return this.material(
       staticVert,
       `uniform float uTownTime; uniform vec3 uObs; uniform vec3 uObsBeta; uniform float uC; uniform float uDelay;
-      varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor; varying float vPattern;
+      varying vec3 vWorld; varying vec3 vColor;
       float seg(vec2 p, vec2 dir, float len, float w) {
         float t = clamp(dot(p, dir), 0.0, len);
         return smoothstep(w, w * 0.6, length(p - dir * t));
