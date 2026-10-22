@@ -29,7 +29,11 @@ export class GpuSchrodinger {
   private quad: THREE.Mesh;
   private scene = new THREE.Scene();
   private camera = new THREE.Camera();
+  /** The last state read back (or loaded). */
   readonly buffer: Float32Array;
+  /** A read-back on its way: the GPU copies the state into `pbo` in its own time and signals `fence`. */
+  private pbo: WebGLBuffer | null = null;
+  private fence: WebGLSync | null = null;
 
   constructor(readonly field: Field) {
     const n = (this.n = field.n);
@@ -111,6 +115,7 @@ export class GpuSchrodinger {
 
   /** Replace the state with Re ψ, Im ψ(t+½), Im ψ(t−½) from the CPU (absorbed probability reset). */
   load(r: THREE.WebGLRenderer, re: ArrayLike<number>, im: ArrayLike<number>, imPrev: ArrayLike<number>) {
+    this.dropRead(r);
     const b = this.buffer;
     for (let k = 0; k < this.n * this.n; k++) {
       b[k * 4] = re[k];
@@ -126,6 +131,7 @@ export class GpuSchrodinger {
   }
 
   clear(r: THREE.WebGLRenderer) {
+    this.dropRead(r);
     const prev = r.getClearColor(new THREE.Color());
     const alpha = r.getClearAlpha();
     r.setClearColor(0x000000, 0);
@@ -139,6 +145,7 @@ export class GpuSchrodinger {
 
   /** Multiply ψ by a Gaussian window (std σ cells for |ψ|²) centred on a cell and rescale it. */
   collapse(r: THREE.WebGLRenderer, ci: number, cj: number, sigmaCells: number, scale: number) {
+    this.dropRead(r);
     const u = this.copyMat.uniforms;
     u.uSrc.value = this.texture;
     u.uCentre.value.set(ci, cj);
@@ -148,13 +155,59 @@ export class GpuSchrodinger {
     r.setRenderTarget(null);
   }
 
-  /** Read the state back into `buffer` (RGBA per cell, row j = z). */
+  /** Read the state back into `buffer` (RGBA per cell, row j = z), waiting for the GPU: for one-off checks only. */
   read(r: THREE.WebGLRenderer): Float32Array {
     r.readRenderTargetPixels(this.targets[this.current], 0, 0, this.n, this.n, this.buffer);
     return this.buffer;
   }
 
-  dispose() {
+  /**
+   * Start reading the state back without waiting: the GPU copies it into a pixel-pack buffer once it has
+   * finished the work before it, and poll() hands it over. False while an earlier read is still on its way,
+   * unless `restart`, which abandons that one for the state as it is now.
+   */
+  requestRead(r: THREE.WebGLRenderer, restart = false): boolean {
+    if (this.fence && !restart) return false;
+    this.dropRead(r);
+    const gl = r.getContext() as WebGL2RenderingContext;
+    if (!this.pbo) {
+      this.pbo = gl.createBuffer();
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
+      gl.bufferData(gl.PIXEL_PACK_BUFFER, this.buffer.byteLength, gl.STREAM_READ);
+    } else gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
+    r.setRenderTarget(this.targets[this.current]);
+    gl.readPixels(0, 0, this.n, this.n, gl.RGBA, gl.FLOAT, 0);
+    r.setRenderTarget(null);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    return true;
+  }
+
+  /** True once the state asked for by requestRead has arrived in `buffer`; it never waits. */
+  poll(r: THREE.WebGLRenderer): boolean {
+    if (!this.fence) return false;
+    const gl = r.getContext() as WebGL2RenderingContext;
+    const status = gl.clientWaitSync(this.fence, 0, 0);
+    if (status === gl.TIMEOUT_EXPIRED) return false;
+    this.dropRead(r);
+    if (status === gl.WAIT_FAILED) return false;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.buffer);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    return true;
+  }
+
+  /** Forget a read still on its way (the state it copied is being replaced). */
+  private dropRead(r: THREE.WebGLRenderer) {
+    if (!this.fence) return;
+    (r.getContext() as WebGL2RenderingContext).deleteSync(this.fence);
+    this.fence = null;
+  }
+
+  dispose(r: THREE.WebGLRenderer) {
+    this.dropRead(r);
+    if (this.pbo) (r.getContext() as WebGL2RenderingContext).deleteBuffer(this.pbo);
     this.targets.forEach((t) => t.dispose());
     this.potTex.dispose();
     this.upload.dispose();
@@ -199,7 +252,7 @@ export function compareWithCpu(r: THREE.WebGLRenderer, steps = 300) {
     }
     return { steps, relative: maxDiff / maxAmp, normBefore, cpuNorm: cpu.norm(), gpuNorm: gpuNorm * dx * dx };
   } finally {
-    gpu.dispose();
+    gpu.dispose(r);
     r.setRenderTarget(previous);
   }
 }

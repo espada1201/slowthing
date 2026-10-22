@@ -78,14 +78,14 @@ interface Throw {
 
 interface WaveStats {
   inField: number;
+  /** Probability the absorbing walls have taken so far. */
+  absorbed: number;
   /** Highest |ψ|² on the floor (1/m²). */
   peak: number;
   x: number;
   z: number;
   spread: number;
   beyond: number;
-  px: number;
-  pz: number;
 }
 
 /** What a stream of identical rolls lands on: a fixed point (classical), or the wave's absorbed distribution so far. */
@@ -341,6 +341,8 @@ export class BigHbarWorld implements World {
   private ball = { x: 0, z: 0, vx: 0, vz: 0 };
   private lastThrow: Throw | null = null;
   private measureAt: number | null = null;
+  /** What the wave is held still for until its read-back arrives: a measurement, or turning into a classical ball. */
+  private held: 'measure' | 'classical' | null = null;
   private relaunchIn: number | null = null;
   private queuedThrow = false;
   private rapid: Source | null = null;
@@ -675,16 +677,8 @@ export class BigHbarWorld implements World {
     this.resetCounts();
     // Rapid fire tallies one experiment, so a roll in flight starts over under the new ħ.
     if (this.toggle('rapid') && this.lastThrow && this.mode !== 'idle') this.launch(this.lastThrow, ctx);
-    else if (this.mode === 'wave' && !this.resolvable) {
-      const st = this.analyse(ctx.renderer);
-      const pick = this.sampleCell();
-      if (pick && st) {
-        const p = Math.hypot(st.px, st.pz);
-        const [dx, dz] = p > 0.2 * BALL.mass * BALL.speed ? [st.px / p, st.pz / p] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
-        this.startBall(pick[0], pick[1], dx, dz);
-        this.say('The wavelength fell below what the grid can carry: the wave was observed, and rolls on as a classical ball.');
-      } else this.stopAll();
-    } else if (this.mode === 'ball' && this.resolvable && !wasResolvable) {
+    else if (this.mode === 'wave' && !this.resolvable) this.hold('classical', ctx.renderer);
+    else if (this.mode === 'ball' && this.resolvable && !wasResolvable) {
       const v = Math.hypot(this.ball.vx, this.ball.vz) || 1;
       this.startWave(ctx.renderer, this.ball.x, this.ball.z, this.ball.vx / v, this.ball.vz / v);
       this.say('ħ is big enough now: the ball dissolves into a wave.');
@@ -702,6 +696,7 @@ export class BigHbarWorld implements World {
     this.mode = 'idle';
     this.stats = null;
     this.measureAt = null;
+    this.held = null;
     this.gpu.clear(this.renderer);
   }
 
@@ -760,24 +755,23 @@ export class BigHbarWorld implements World {
     this.stepAcc = 0;
     this.readTimer = READ_INTERVAL;
     this.measureAt = null;
-    this.stats = { inField: 1, peak, x, z, spread: sigma * Math.SQRT2, beyond: 0, px: 0, pz: 0 };
+    this.held = null;
+    this.stats = { inField: 1, absorbed: 0, peak, x, z, spread: sigma * Math.SQRT2, beyond: 0 };
     this.ghost.position.set(x, BALL.radius + 0.02, z);
     this.spreadRing.scale.setScalar(sigma * Math.SQRT2);
   }
 
-  /** Read the wave back and summarise it: probability left on the floor, mean, spread, momentum. */
-  private analyse(r: THREE.WebGLRenderer): WaveStats | null {
-    if (this.mode !== 'wave') return null;
-    const b = this.gpu.read(r);
+  /** Summarise the last read-back: probability left on the floor and absorbed, its mean and spread, and how much is past the obstacle. */
+  private analyse(): WaveStats {
+    const b = this.gpu.buffer;
     const { n, dx } = this.field;
     const cell = dx * dx;
-    let m = 0, mx = 0, mz = 0, mxx = 0, mzz = 0, ab = 0, beyond = 0, jx = 0, jz = 0, peak = 0;
+    let m = 0, mx = 0, mz = 0, mxx = 0, mzz = 0, ab = 0, beyond = 0, peak = 0;
     for (let j = 0; j < n; j++) {
       const z = cellCentre(j, dx);
       for (let i = 0; i < n; i++) {
         const k = (j * n + i) * 4;
-        const re = b[k], im = b[k + 1];
-        const rho = Math.max(0, re * re + im * b[k + 2]);
+        const rho = Math.max(0, b[k] * b[k] + b[k + 1] * b[k + 2]);
         ab += b[k + 3];
         if (z < OBSTACLE_Z) beyond += rho * cell + b[k + 3];
         if (rho === 0) continue;
@@ -788,28 +782,40 @@ export class BigHbarWorld implements World {
         mz += rho * z;
         mxx += rho * x * x;
         mzz += rho * z * z;
-        if (i > 0 && i < n - 1 && j > 0 && j < n - 1) {
-          // Probability current Re ∂ψ·Im − …: central differences, 2dx apart.
-          jx += re * (b[k + 5] - b[k - 3]) - im * (b[k + 4] - b[k - 4]);
-          jz += re * (b[k + 4 * n + 1] - b[k - 4 * n + 1]) - im * (b[k + 4 * n] - b[k - 4 * n]);
-        }
       }
     }
     const inField = m * cell;
-    if (m <= 0) return (this.stats = { inField: 0, peak: 0, x: 0, z: 0, spread: 0, beyond: 1, px: 0, pz: 0 });
+    if (m <= 0) return (this.stats = { inField: 0, absorbed: ab, peak: 0, x: 0, z: 0, spread: 0, beyond: 1 });
     const ex = mx / m, ez = mz / m;
-    const pScale = this.hbar / (2 * dx * m);
     this.stats = {
       inField,
+      absorbed: ab,
       peak,
       x: ex,
       z: ez,
       spread: Math.sqrt(Math.max(0, mxx / m - ex * ex + mzz / m - ez * ez)),
       beyond: beyond / Math.max(1e-9, inField + ab),
-      px: jx * pScale,
-      pz: jz * pScale,
     };
     return this.stats;
+  }
+
+  /** Mean momentum of the wave in the last read-back, from the probability current. */
+  private momentum(): [number, number] {
+    const b = this.gpu.buffer;
+    const { n, dx } = this.field;
+    let m = 0, jx = 0, jz = 0;
+    for (let j = 1; j < n - 1; j++) {
+      for (let i = 1; i < n - 1; i++) {
+        const k = (j * n + i) * 4;
+        const re = b[k], im = b[k + 1];
+        m += Math.max(0, re * re + im * b[k + 2]);
+        // Probability current Re ∂ψ·Im − …: central differences, 2dx apart.
+        jx += re * (b[k + 5] - b[k - 3]) - im * (b[k + 4] - b[k - 4]);
+        jz += re * (b[k + 4 * n + 1] - b[k - 4 * n + 1]) - im * (b[k + 4 * n] - b[k - 4 * n]);
+      }
+    }
+    const pScale = m > 0 ? this.hbar / (2 * dx * m) : 0;
+    return [jx * pScale, jz * pScale];
   }
 
   /** Draw a cell from the last read-back with probability |ψ|². */
@@ -822,10 +828,31 @@ export class BigHbarWorld implements World {
     return [cellCentre(k % n, dx), cellCentre(Math.floor(k / n), dx), k];
   }
 
-  /**
-   * Position measurement: draw a spot from |ψ|², then multiply ψ by a narrow Gaussian there
-   * (an unsharp measurement). The local phase survives, so the lump keeps rolling while it spreads.
-   */
+  /** Hold the wave still and read it back; once the read-back arrives, settle() does what it was held for. */
+  private hold(why: 'measure' | 'classical', r: THREE.WebGLRenderer) {
+    this.held = why;
+    this.gpu.requestRead(r, true);
+  }
+
+  /** The held wave has been read back: observe it as a classical ball if ħ is still too small, else measure it. */
+  private settle(r: THREE.WebGLRenderer) {
+    const why = this.held;
+    this.held = null;
+    if (!this.resolvable) this.becomeBall();
+    else if (why === 'measure') this.collapse(r);
+  }
+
+  private becomeBall() {
+    const pick = this.sampleCell();
+    if (!pick) return this.stopAll();
+    const [px, pz] = this.momentum();
+    const p = Math.hypot(px, pz);
+    const [dx, dz] = p > 0.2 * BALL.mass * BALL.speed ? [px / p, pz / p] : [this.lastThrow?.dirX ?? 0, this.lastThrow?.dirZ ?? -1];
+    this.startBall(pick[0], pick[1], dx, dz);
+    this.say('The wavelength fell below what the grid can carry: the wave was observed, and rolls on as a classical ball.');
+  }
+
+  /** Measure the ball's position: from a wave, once a read-back of it as it is now has arrived (see collapse). */
   private measure(ctx: WorldContext) {
     if (this.mode === 'ball') {
       this.flash(this.ball.x, this.ball.z);
@@ -837,30 +864,49 @@ export class BigHbarWorld implements World {
       this.say('Roll a ball first (F), then measure it while it rolls.');
       return;
     }
-    const r = ctx.renderer;
-    this.analyse(r);
+    this.hold('measure', ctx.renderer);
+  }
+
+  /**
+   * Position measurement: draw a spot from |ψ|², then multiply ψ by a narrow Gaussian there
+   * (an unsharp measurement). The local phase survives, so the lump keeps rolling while it spreads.
+   */
+  private collapse(r: THREE.WebGLRenderer) {
     const pick = this.sampleCell();
     if (!pick) return;
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
     const ci = pick[2] % n, cj = Math.floor(pick[2] / n);
     const sigma = Math.max(0.3, 2 * dx) / dx;
-    let kept = 0;
+    // What survives is |ψ|² times the window: its total sets the rescaling, its moments the new summary.
+    let kept = 0, mx = 0, mz = 0, mrr = 0, peak = 0, beyond = 0;
     const reach = Math.ceil(6 * sigma);
     for (let j = Math.max(0, cj - reach); j <= Math.min(n - 1, cj + reach); j++) {
+      const z = cellCentre(j, dx);
       for (let i = Math.max(0, ci - reach); i <= Math.min(n - 1, ci + reach); i++) {
         const k = (j * n + i) * 4;
+        const x = cellCentre(i, dx);
         const d2 = (i - ci) ** 2 + (j - cj) ** 2;
-        kept += Math.exp(-d2 / (2 * sigma * sigma)) * Math.max(0, b[k] ** 2 + b[k + 1] * b[k + 2]);
+        const rho = Math.exp(-d2 / (2 * sigma * sigma)) * Math.max(0, b[k] ** 2 + b[k + 1] * b[k + 2]);
+        kept += rho;
+        mx += rho * x;
+        mz += rho * z;
+        mrr += rho * (x * x + z * z);
+        if (rho > peak) peak = rho;
+        if (z < OBSTACLE_Z) beyond += rho;
       }
     }
-    kept *= dx * dx;
-    if (kept <= 1e-12) return;
-    this.gpu.collapse(r, ci, cj, sigma, 1 / Math.sqrt(kept));
+    const norm = kept * dx * dx;
+    if (norm <= 1e-12) return;
+    this.gpu.collapse(r, ci, cj, sigma, 1 / Math.sqrt(norm));
+    // The collapse empties the absorbed tally, so the detectors start counting again from nothing.
+    this.seen.fill(0);
+    this.seenTotal = 0;
+    const ex = mx / kept, ez = mz / kept;
+    this.stats = { inField: 1, absorbed: 0, peak: peak / norm, x: ex, z: ez, spread: Math.sqrt(Math.max(0, mrr / kept - ex * ex - ez * ez)), beyond: beyond / kept };
     this.flash(pick[0], pick[1]);
     this.mark(pick[0], pick[1]);
     this.lastEvent = `Measured at x ${fix1(pick[0])}, z ${fix1(pick[1])} m`;
-    this.analyse(r);
     this.ghost.position.set(pick[0], BALL.radius + 0.02, pick[1]);
     this.spreadRing.scale.setScalar(0.3);
   }
@@ -1054,6 +1100,13 @@ export class BigHbarWorld implements World {
 
   private stepWave(dt: number, ctx: WorldContext) {
     const r = ctx.renderer;
+    // Read-backs arrive a frame or more after they are asked for, so neither side ever waits for the other.
+    if (this.gpu.poll(r)) {
+      this.detect();
+      if (this.mode === 'wave' && this.held) this.settle(r);
+      if (this.mode !== 'wave') return;
+    }
+    if (this.held) return;
     const h = this.waveDt();
     this.stepAcc += dt;
     let steps = Math.floor(this.stepAcc / h);
@@ -1069,16 +1122,17 @@ export class BigHbarWorld implements World {
       this.measure(ctx);
     }
     this.readTimer -= dt;
-    if (this.readTimer > 0) return;
-    this.readTimer = READ_INTERVAL;
-    const st = this.analyse(r);
-    if (!st) return;
+    if (this.readTimer <= 0 && this.gpu.requestRead(r)) this.readTimer = READ_INTERVAL;
+  }
+
+  /** A read-back has arrived: summarise the wave, and give the detector walls their chance to catch it. */
+  private detect() {
+    const st = this.analyse();
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    const absorbed = cumulative(n * n, (k) => b[k * 4 + 3]);
-    const total = absorbed[n * n - 1];
     const finished = st.inField < 0.03 || this.age > 60;
     if (this.toggle('rapid')) {
+      const absorbed = cumulative(n * n, (k) => b[k * 4 + 3]);
       if (!this.rapid) this.rapid = { cdf: absorbed, n, complete: false };
       else if ('cdf' in this.rapid && !this.rapid.complete) this.rapid.cdf = absorbed;
       if (finished) {
@@ -1090,19 +1144,19 @@ export class BigHbarWorld implements World {
     } else {
       // The absorbing walls are detectors. In each interval the ball is caught with the probability its
       // wave just lost to them (given it was not caught before), at a spot drawn from where that went.
-      const gained = total - this.seenTotal;
+      const gained = st.absorbed - this.seenTotal;
       const caught = gained > 0 && Math.random() * Math.max(1e-9, 1 - this.seenTotal) < gained;
       if (caught || finished) {
         const seen = this.seen;
-        const fresh = cumulative(n * n, (k) => b[k * 4 + 3] - seen[k]);
-        const pick = caught && fresh[n * n - 1] > 0 ? sampleIndex(fresh, Math.random()) : this.sampleCell()?.[2];
+        const fresh = caught ? cumulative(n * n, (k) => b[k * 4 + 3] - seen[k]) : null;
+        const pick = fresh && fresh[n * n - 1] > 0 ? sampleIndex(fresh, Math.random()) : this.sampleCell()?.[2];
         this.stopAll();
         if (pick !== undefined) this.land(cellCentre(pick % n, dx), cellCentre(Math.floor(pick / n), dx));
         return;
       }
     }
     for (let k = 0; k < n * n; k++) this.seen[k] = b[k * 4 + 3];
-    this.seenTotal = total;
+    this.seenTotal = st.absorbed;
   }
 
   frame(dt: number, input: InputState, ctx: WorldContext) {
@@ -1218,7 +1272,7 @@ export class BigHbarWorld implements World {
     if (q === this.quality && this.field.n === GRID[q]) return;
     const rolling = this.mode !== 'idle';
     this.quality = q;
-    this.gpu.dispose();
+    this.gpu.dispose(ctx.renderer);
     this.field = rasterize(GRID[q]);
     this.gpu = new GpuSchrodinger(this.field);
     this.gpu.clear(ctx.renderer);
@@ -1227,6 +1281,7 @@ export class BigHbarWorld implements World {
     this.rapid = null;
     this.mode = 'idle';
     this.stats = null;
+    this.held = null;
     const old = this.surface;
     this.scene.remove(old);
     old.geometry.dispose();
@@ -1241,7 +1296,7 @@ export class BigHbarWorld implements World {
   dispose() {
     const r = this.renderer;
     r.domElement.removeEventListener('mousedown', this.onMouseDown);
-    this.gpu.dispose();
+    this.gpu.dispose(r);
     this.sun.shadow.map?.dispose();
     this.textures.forEach((t) => t.dispose());
     this.scene.traverse((o) => {
