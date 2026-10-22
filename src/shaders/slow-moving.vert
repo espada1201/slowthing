@@ -43,10 +43,16 @@ vec2 sinCos(float a) {
   return k == 0 ? vec2(s, c) : k == 1 ? vec2(c, -s) : k == 2 ? vec2(-s, -c) : vec2(-c, s);
 }
 
-vec3 pathPos(float a, vec3 local) {
+// The track's outward and forward directions at path angle a.
+void pathFrame(float a, out vec3 radial, out vec3 forward) {
   vec2 sc = sinCos(a);
-  vec3 radial = vec3(sc.y, 0.0, sc.x);
-  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
+  radial = vec3(sc.y, 0.0, sc.x);
+  forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
+}
+
+vec3 pathPos(float a, vec3 local) {
+  vec3 radial, forward;
+  pathFrame(a, radial, forward);
   float k = uContract > 0.5 ? 1.0 / uGamma : 1.0;
   return uCenter + uRadius * radial + forward * local.x * k + vec3(0.0, local.y, 0.0) + radial * local.z;
 }
@@ -54,9 +60,8 @@ vec3 pathPos(float a, vec3 local) {
 // That point's velocity, d pathPos / dt: the object turns as it goes round, so its outer and leading
 // points move faster than the track's centre line.
 vec3 pathVel(float a, vec3 local) {
-  vec2 sc = sinCos(a);
-  vec3 radial = vec3(sc.y, 0.0, sc.x);
-  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
+  vec3 radial, forward;
+  pathFrame(a, radial, forward);
   float k = uContract > 0.5 ? 1.0 / uGamma : 1.0;
   return abs(uOmega) * ((uRadius + local.z) * forward - radial * local.x * k);
 }
@@ -104,9 +109,8 @@ void main() {
   }
   float a = uPhase + uOmega * delta;
   vec3 wp = pathPos(a, position);
-  vec2 sc = sinCos(a);
-  vec3 radial = vec3(sc.y, 0.0, sc.x);
-  vec3 forward = vec3(-sc.x, 0.0, sc.y) * sign(uOmega);
+  vec3 radial, forward;
+  pathFrame(a, radial, forward);
   vNormal = normalize(forward * normal.x + vec3(0.0, normal.y, 0.0) + radial * normal.z);
   vec3 k = normalize(uObs - wp);
   vDsrc = 1.0 / (uGamma * (1.0 - dot(forward * uBeta, k)));

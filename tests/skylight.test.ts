@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SKY_BEAM, SKY_HALF, SKY_LAMBDAS, SKY_STEP, SKY_TEXELS, buildSkyLUT, hemisphereWeight, skyLambda, skyLight } from '../src/physics/skylight';
-import { KNOTS, reflectionTransform, sun } from '../src/physics/spectrum';
+import { KNOTS, apply3, luminance, reflectionTransform, sun } from '../src/physics/spectrum';
 import { reflectKnots, skyBeam, skyKnots } from './shaderLookups';
 
-const apply = (m: number[], c: number[]) => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]);
-const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 const identity = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const eta = (b: number) => Math.atanh(b);
 
@@ -35,13 +33,13 @@ describe('sky light on a moving surface, in its own frame', () => {
   });
   it('lights a fast tram from ahead: front bright and blue, side as bright as at rest but bluer, back dark', () => {
     const colour = (D: number) => reflectionTransform(1, D);
-    const [front, side, back] = [1, 0, -1].map((x) => apply(skyLight(x, eta(0.9), 5, colour), [1, 1, 1]));
-    expect(lum(front)).toBeGreaterThan(5);
+    const [front, side, back] = [1, 0, -1].map((x) => apply3(skyLight(x, eta(0.9), 5, colour), [1, 1, 1]));
+    expect(luminance(front)).toBeGreaterThan(5);
     expect(front[2] / front[0]).toBeGreaterThan(2);
-    expect(lum(side)).toBeGreaterThan(0.8);
-    expect(lum(side)).toBeLessThan(1.3);
+    expect(luminance(side)).toBeGreaterThan(0.8);
+    expect(luminance(side)).toBeLessThan(1.3);
     expect(side[2] / side[0]).toBeGreaterThan(1.5);
-    expect(lum(back)).toBeLessThan(0.01);
+    expect(luminance(back)).toBeLessThan(0.01);
   });
 });
 
@@ -50,7 +48,7 @@ describe('sky light reflected on to the eye, as the shader looks it up', () => {
     reflectKnots(dOut, skyKnots(dOut, x, eta, searchlight).map((v) => rgb.map((c) => c * v)));
   // What the display shows: out-of-gamut channels clipped at zero, as the shaders do.
   const exact = (x: number, eta: number, dOut: number, rgb: number[], power: number) =>
-    apply(skyLight(x, eta, power, (D) => reflectionTransform(dOut, D * dOut), 128), rgb).map((v) => Math.max(v, 0));
+    apply3(skyLight(x, eta, power, (D) => reflectionTransform(dOut, D * dOut), 128), rgb).map((v) => Math.max(v, 0));
 
   it('is the sky at rest, unshifted, for a face at rest seen at rest', () => {
     for (const x of [1, 0.3, -1]) shaded(x, 0, 1, [0.9, 0.82, 0.62], true).forEach((v, j) => expect(v).toBeCloseTo([0.9, 0.82, 0.62][j], 2));
@@ -65,10 +63,10 @@ describe('sky light reflected on to the eye, as the shader looks it up', () => {
       const b = 0.3 + 0.6864 * rnd(), x = -1 + 2 * rnd(), dOut = Math.exp(-1.7 + 3.4 * rnd()), rgb = colours[n % 5];
       for (const searchlight of [true, false]) {
         const want = exact(x, eta(b), dOut, rgb, searchlight ? 5 : 0);
-        const seen = lum(want) * (searchlight ? dOut ** 5 : 1);
+        const seen = luminance(want) * (searchlight ? dOut ** 5 : 1);
         if (seen < 0.01) continue;
         const got = shaded(x, eta(b), dOut, rgb, searchlight);
-        const err = Math.max(...[0, 1, 2].map((j) => Math.abs(got[j] - want[j]) / lum(want)));
+        const err = Math.max(...[0, 1, 2].map((j) => Math.abs(got[j] - want[j]) / luminance(want)));
         if (seen >= 0.2) worst.bright = Math.max(worst.bright, err);
         else worst.dim = Math.max(worst.dim, err);
       }

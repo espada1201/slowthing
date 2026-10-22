@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { dopplerFactor, lorentzFactor, observerToWorldDirection, retardedTime, sourceDopplerFactor } from '../physics/relativity';
 import { simultaneousTime } from '../physics/simultaneity';
 import { skyLight } from '../physics/skylight';
-import { applyDoppler, reflectionTransform } from '../physics/spectrum';
+import { apply3, applyDoppler, luminance, reflectionTransform } from '../physics/spectrum';
 import { type Vec3, add, dot, len, normalize, scale, sub } from '../physics/vec';
 import { type ProofResult, deg, fmt, within } from '../proofs';
 import { cameraRotation, fullscreenPass } from './shared';
@@ -245,13 +245,6 @@ function tramShifts({ velocity, eye, eyeBeta }: TramDraw, at: Vec3) {
 }
 type TramShifts = ReturnType<typeof tramShifts>;
 
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-const apply3 = (m: number[], c: Vec3): Vec3 => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]) as Vec3;
-const luminance = (c: Vec3) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-
 /**
  * The colour a tram face sends to the eye, from the full spectral sums: sunlight aberrated into the tram's frame and
  * shifted by D_in, sky light integrated over the half of the sky the face sees, each reflected and shifted by D_out on
@@ -264,7 +257,7 @@ function exactTramColour({ velocity, colourOn, beamOn }: TramDraw, f: TramFace, 
     const glow = scale(f.colour, 2.4);
     return seen(colourOn ? (applyDoppler(glow, dOut).map((v) => Math.max(v, 0)) as Vec3) : glow);
   }
-  const ao = 0.72 + 0.28 * smoothstep(0, 2.5, f.at[1]);
+  const ao = 0.72 + 0.28 * THREE.MathUtils.smoothstep(f.at[1], 0, 2.5);
   const hemi = 0.5 + 0.5 * f.normal[1];
   const sunlit = f.colour.map((c, k) => c * Math.max(dot(f.normal, sunLocal), 0) * [1, 0.95, 0.86][k] * 0.9 * ao) as Vec3;
   const skylit = f.colour.map((c, k) => c * ([0.32, 0.28, 0.24][k] + ([0.55, 0.66, 0.82][k] - [0.32, 0.28, 0.24][k]) * hemi) * 0.42 * ao) as Vec3;

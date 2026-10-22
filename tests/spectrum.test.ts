@@ -1,13 +1,10 @@
 import { Color } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  KNOTS, LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, buildKnotLUT, cieXYZ, planck, reflectionKnots,
-  reflectionTransform, sun, wavelengthToRGB, whiteLuminance,
+  KNOTS, LUT_LOG_D_RANGE, SAMPLES, STEP, apply3, applyDoppler, buildDopplerLUT, buildKnotLUT, cieXYZ, luminance, planck,
+  reflectionKnots, reflectionTransform, sun, wavelengthToRGB, whiteLuminance,
 } from '../src/physics/spectrum';
 import { reflectKnots } from './shaderLookups';
-
-const apply = (m: ArrayLike<number>, c: number[]) => [0, 1, 2].map((r) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2]);
-const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
 describe('CIE 1931 colour matching fit', () => {
   it('reproduces tabulated values within 3%', () => {
@@ -47,7 +44,7 @@ describe('wavelength → RGB, as every spectral integration sums it', () => {
     expect(hues[hues.length - 1]).toBeLessThan(15);
   });
   it('has the luminance of the eye’s sensitivity curve V(λ)', () => {
-    for (const [l, v] of [[510, 0.503], [555, 1.0], [610, 0.503]]) expect(Math.abs(lum(wavelengthToRGB(l)) - v)).toBeLessThan(0.01);
+    for (const [l, v] of [[510, 0.503], [555, 1.0], [610, 0.503]]) expect(Math.abs(luminance(wavelengthToRGB(l)) - v)).toBeLessThan(0.01);
   });
   it('integrates an equal-energy spectrum to the white of illuminant E, and 6500 K light to near-neutral', () => {
     // E (x = y = 1/3) in linear sRGB is R : G : B = 1.270 : 1 : 0.958, a touch warmer than the sRGB (D65) white.
@@ -87,8 +84,8 @@ describe('Doppler colour shift', () => {
     expect(red[0]).toBeGreaterThan(g[0] + 0.2);
   });
   it('strong blueshift reveals room-temperature thermal glow (infrared made visible)', () => {
-    expect(lum(applyDoppler([0, 0, 0], 1))).toBeLessThan(1e-9);
-    expect(lum(applyDoppler([0, 0, 0], 18))).toBeGreaterThan(0.002);
+    expect(luminance(applyDoppler([0, 0, 0], 1))).toBeLessThan(1e-9);
+    expect(luminance(applyDoppler([0, 0, 0], 18))).toBeGreaterThan(0.002);
   });
   it('keeps white white (just dimmer) under a small shift', () => {
     const c = applyDoppler([1, 1, 1], 1.05);
@@ -100,7 +97,7 @@ describe('Doppler colour shift', () => {
     expect(lut.every(Number.isFinite)).toBe(true);
   });
   it('holds the table edge beyond its range instead of going black, as the shader lookup does', () => {
-    for (const D of [0.5, 1, 2, 10]) expect(whiteLuminance(D) / lum(applyDoppler([1, 1, 1], D))).toBeCloseTo(1, 2);
+    for (const D of [0.5, 1, 2, 10]) expect(whiteLuminance(D) / luminance(applyDoppler([1, 1, 1], D))).toBeCloseTo(1, 2);
     // Sprinting at an oncoming tram with c = 8 m/s gives D ≈ 93, past the table's 60: the edge colour, which
     // D⁵ beaming then makes blinding, not black.
     const edge = Math.exp(LUT_LOG_D_RANGE);
@@ -113,15 +110,15 @@ describe('Doppler colour shift', () => {
 describe('light reflected with two Doppler factors', () => {
   // The surface's reflectance shifts by D_R on its way to the eye, the sunlight it reflects by D_S overall.
   it('keeps a white surface lit from infinity white, however deep in a gravity well it sits', () => {
-    for (const dR of [0.4, 0.7, 1.5]) apply(reflectionTransform(dR, 1), [1, 1, 1]).forEach((v) => expect(v).toBeCloseTo(1, 9));
+    for (const dR of [0.4, 0.7, 1.5]) apply3(reflectionTransform(dR, 1), [1, 1, 1]).forEach((v) => expect(v).toBeCloseTo(1, 9));
   });
   it('darkens a red surface near the hole: its red is reflected into the infrared', () => {
     const red = [0.8, 0.05, 0.03];
-    expect(lum(apply(reflectionTransform(0.75, 1), red))).toBeLessThan(0.5 * lum(red));
+    expect(luminance(apply3(reflectionTransform(0.75, 1), red))).toBeLessThan(0.5 * luminance(red));
   });
   it('turns a white tram blue when it drives into the sun and red when it drives away', () => {
-    const into = apply(reflectionTransform(1, 2), [1, 1, 1]);
-    const away = apply(reflectionTransform(1, 0.6), [1, 1, 1]);
+    const into = apply3(reflectionTransform(1, 2), [1, 1, 1]);
+    const away = apply3(reflectionTransform(1, 0.6), [1, 1, 1]);
     expect(into[2] / into[0]).toBeGreaterThan(1.2);
     expect(away[0] / away[2]).toBeGreaterThan(1.2);
   });
@@ -141,11 +138,11 @@ describe('light carried at eight wavelengths, as the shaders carry it', () => {
       for (let lnR = -1.6; lnR <= 1.6; lnR += 0.1) {
         for (const rgb of paints) {
           // What the display shows: out-of-gamut channels clipped at zero, as the shaders do.
-          const want = apply(reflectionTransform(Math.exp(lnR), Math.exp(lnS)), rgb).map((v) => Math.max(v, 0));
-          const brightness = lum(want) / lum(rgb);
+          const want = apply3(reflectionTransform(Math.exp(lnR), Math.exp(lnS)), rgb).map((v) => Math.max(v, 0));
+          const brightness = luminance(want) / luminance(rgb);
           if (brightness < 0.01) continue;
           const got = reflectKnots(Math.exp(lnR), KNOTS.map((l) => rgb.map((c) => c * sun(l * Math.exp(lnS)))));
-          const err = Math.max(...got.map((v, j) => Math.abs(v - want[j]) / lum(want)));
+          const err = Math.max(...got.map((v, j) => Math.abs(v - want[j]) / luminance(want)));
           if (brightness >= 0.1) worst.bright = Math.max(worst.bright, err);
           else worst.dim = Math.max(worst.dim, err);
         }

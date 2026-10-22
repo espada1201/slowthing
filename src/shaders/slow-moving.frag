@@ -71,7 +71,7 @@ void main() {
     skyKnots(dOut, x, eta, beam ? 0 : 1, sky);
     vec3 light[KNOTS];
     for (int p = 0; p < KNOTS; p++) light[p] = sunlight(KNOT_LAMBDA[p] * vDin * dOut) * sunGain * s.sunlit + sky[p] * s.skylit;
-    col = reflectKnots(dOut, light) + dopplerShift(vec3(0.0), dOut, 1.0);
+    col = reflectKnots(dOut, light) + max(thermalGlow(dOut), 0.0);
   } else if (beam) {
     col = s.sunlit * sunGain + s.skylit * skyBeam(x, eta);
   }

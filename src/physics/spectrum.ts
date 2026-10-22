@@ -4,7 +4,7 @@
 // then re-integrated against the CIE 1931 observer. At D = 1 the round trip returns the original colour.
 // The reflectance and the sunlight it reflects can be shifted by different factors (reflectionTransform).
 
-import type { Vec3 } from './vec';
+import { type Vec3, add } from './vec';
 
 const lobe = (x: number, mu: number, s1: number, s2: number) => {
   const t = (x - mu) / (x < mu ? s1 : s2);
@@ -105,6 +105,17 @@ export function mul3(m: number[], n: number[]): number[] {
   return r;
 }
 
+/** The row-major 3×3 m applied to the colour c. */
+export function apply3(m: ArrayLike<number>, c: ArrayLike<number>): Vec3 {
+  const row = (r: number) => m[r * 3] * c[0] + m[r * 3 + 1] * c[1] + m[r * 3 + 2] * c[2];
+  return [row(0), row(1), row(2)];
+}
+
+/** Luminance of a linear sRGB colour. */
+export function luminance(c: ArrayLike<number>): number {
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
 const NORMALISE = invert3(sum(surfaceAt(1), sunAt(1)));
 
 /**
@@ -125,7 +136,7 @@ function thermalGlow(D: number): Vec3 {
     const th = thermal(l * D);
     for (let j = 0; j < 3; j++) t[j] += SAMPLE_RGB[i][j] * th * STEP;
   });
-  return [0, 1, 2].map((r) => NORMALISE[r * 3] * t[0] + NORMALISE[r * 3 + 1] * t[1] + NORMALISE[r * 3 + 2] * t[2]) as Vec3;
+  return apply3(NORMALISE, t);
 }
 
 /**
@@ -138,7 +149,7 @@ export function dopplerColorTransform(D: number): { matrix: number[]; thermal: V
 
 export function applyDoppler(rgb: Vec3, D: number): Vec3 {
   const { matrix: m, thermal: t } = dopplerColorTransform(D);
-  return [0, 1, 2].map((r) => m[r * 3] * rgb[0] + m[r * 3 + 1] * rgb[1] + m[r * 3 + 2] * rgb[2] + t[r]) as Vec3;
+  return add(apply3(m, rgb), t);
 }
 
 /** Writes a colour matrix as three RGBA texels: texel k holds column k (surface channel k's R, G, B) and alpha[k]. */
@@ -219,7 +230,7 @@ const LUM_TABLE = (() => {
   const t = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const c = applyDoppler([1, 1, 1], lutD(i, n));
-    t[i] = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    t[i] = luminance(c);
   }
   return t;
 })();
