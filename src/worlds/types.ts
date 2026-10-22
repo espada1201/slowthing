@@ -84,7 +84,12 @@ export interface WorldContext {
   quality: Quality;
 }
 
-export interface World<S = unknown> {
+/**
+ * What a world teaches: the plain-data block at the top of each world class (`class SlowLightLesson`), which the
+ * World class extends. Making one needs no WebGL. Plain data goes in the Lesson class, anything that needs the GPU in
+ * the World class.
+ */
+export interface Lesson<S = unknown> {
   readonly id: string;
   readonly title: string;
   readonly dials: ConstantKey[];
@@ -93,6 +98,17 @@ export interface World<S = unknown> {
   readonly tour: TourStop<S>[];
   readonly actions: WorldAction[];
   readonly start: Pose;
+}
+
+declare const authored: unique symbol;
+
+/**
+ * A lesson exactly as written, deep-frozen, so its switches keep their declared values. Only WORLDS makes one. A live
+ * World is not one: its switches hold what the visitor set, so links and pages built on it would drift.
+ */
+export type Authored = Lesson & { readonly [authored]: true };
+
+export interface World<S = unknown> extends Lesson<S> {
   /** Advance the simulation by dt real seconds (the player's proper time) and draw a frame. */
   frame(dt: number, input: InputState, ctx: WorldContext): void;
   readouts(ctx: WorldContext): Readout[];

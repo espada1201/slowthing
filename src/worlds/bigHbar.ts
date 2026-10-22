@@ -77,7 +77,8 @@ const porch = (x: number): Pose => ({ position: [x, EYE, LAUNCH_Z + 3.3], yaw: 0
 /** On a side gallery, looking down at the floor of the outer lane beyond its obstacle. */
 const gallery = (sx: -1 | 1): Pose => ({ position: [sx * 24.6, VIEW, -1], yaw: sx * 0.58, pitch: -0.45 });
 
-export class BigHbarWorld implements World {
+/** World II's content as plain data, readable without WebGL: the teaching kit prints from it. */
+export class BigHbarLesson {
   readonly id = 'big-hbar';
   readonly title = 'Big ħ';
   readonly dials = ['hbar' as const];
@@ -187,7 +188,9 @@ export class BigHbarWorld implements World {
       action: 'throw',
     },
   ];
+}
 
+export class BigHbarWorld extends BigHbarLesson implements World {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(70, 1, 0.1, 900);
   private field: Field;
@@ -247,6 +250,7 @@ export class BigHbarWorld implements World {
   private lastEvent = '';
 
   constructor(ctx: WorldContext) {
+    super();
     this.renderer = ctx.renderer;
     this.quality = ctx.quality;
     this.hbar = ctx.constants.hbar;

@@ -107,7 +107,8 @@ interface HoleState {
   rs: number;
 }
 
-export class BigGWorld implements World<HoleState> {
+/** World III's content as plain data, readable without WebGL: the teaching kit prints from it. */
+export class BigGLesson {
   readonly id = 'big-g';
   readonly title = 'Big G';
   readonly dials = ['G' as const];
@@ -220,7 +221,9 @@ export class BigGWorld implements World<HoleState> {
       },
     },
   ];
+}
 
+export class BigGWorld extends BigGLesson implements World<HoleState> {
   private pass = fullscreenPass(frag, rayUniforms());
   private pos = new THREE.Vector3(...START.position);
   private rs = 0;

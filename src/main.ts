@@ -10,17 +10,12 @@ import { Input } from './input';
 import { proofsView } from './ui/proofsView';
 import { type Ruler, skyRuler } from './ui/ruler';
 import { type Chrome, WORLD_CARDS, titleScreen, worldChrome } from './ui/ui';
+import { WORLDS, isWorldId } from './worlds';
 import type { Quality, QualitySetting, World, WorldContext } from './worlds/types';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
 const params = new URLSearchParams(location.search);
-
-const loaders: Record<string, () => Promise<new (ctx: WorldContext) => World>> = {
-  'slow-light': () => import('./worlds/slowLight').then((m) => m.SlowLightWorld),
-  'big-hbar': () => import('./worlds/bigHbar').then((m) => m.BigHbarWorld),
-  'big-g': () => import('./worlds/bigG').then((m) => m.BigGWorld),
-};
 
 const storedQuality = (() => {
   try {
@@ -147,11 +142,11 @@ function showProofs() {
 }
 
 async function enter(id: string) {
-  if (!renderer || startupError) return;
+  if (!renderer || startupError || !isWorldId(id)) return;
   document.body.dataset.mode = 'loading';
   ui.replaceChildren(Object.assign(document.createElement('div'), { className: 'loading', role: 'status', textContent: 'Tuning the constants…' }));
   try {
-    const W = await loaders[id]();
+    const { World: W } = await WORLDS[id]();
     await new Promise((r) => requestAnimationFrame(r));
     world?.dispose();
     startAuto(id, autoStart);
@@ -307,7 +302,7 @@ function loop(now: number) {
 resize();
 requestAnimationFrame(loop);
 const initial = params.get('world');
-if (initial && initial in loaders && !startupError) void enter(initial);
+if (isWorldId(initial) && !startupError) void enter(initial);
 else if (params.has('proofs')) showProofs();
 else showTitle();
 

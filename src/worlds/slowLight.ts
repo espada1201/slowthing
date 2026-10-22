@@ -60,7 +60,8 @@ const motion = (properSpeed: number, c: number) => {
   return { v, beta: v / c, gamma: Math.sqrt(1 + (properSpeed / c) ** 2) };
 };
 
-export class SlowLightWorld implements World {
+/** World I's content as plain data, readable without WebGL: the teaching kit prints from it. */
+export class SlowLightLesson {
   readonly id = 'slow-light';
   readonly title = 'Slow Light';
   readonly dials = ['c' as const];
@@ -94,7 +95,9 @@ export class SlowLightWorld implements World {
     { title: 'You are younger', text: 'Compare the town clock with your watch: every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];
+}
 
+export class SlowLightWorld extends SlowLightLesson implements World {
   private scene = new THREE.Scene();
   private cubeTarget!: THREE.WebGLCubeRenderTarget;
   private cubeCamera!: THREE.CubeCamera;
@@ -132,6 +135,7 @@ export class SlowLightWorld implements World {
   private fov = 75;
 
   constructor(ctx: WorldContext) {
+    super();
     this.buildCube(ctx.quality);
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(1200, 48, 24),
