@@ -364,7 +364,6 @@ export class BigGWorld extends BigGLesson implements World<HoleState> {
     const rs = this.rs;
     if (rs < 1e-6) return `rs is ${formatSI(ROCK_R / rs, 2)} times smaller than the boulder: nothing visibly bends.`;
     if (!this.collapsed) return `Still a rock: rs is ${Math.round((100 * rs) / ROCK_R)}% of its radius. It collapses past rs = ${COLLAPSE_RS.toFixed(2)} m.`;
-    if (rs > DECK[1]) return 'The horizon has swallowed the whole scene. Only the sky is left outside.';
     return `Black hole. Light can orbit at 1.5 rs = ${formatSI(PHOTON_SPHERE * rs)} m.`;
   }
 
