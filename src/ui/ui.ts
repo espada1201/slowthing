@@ -41,8 +41,8 @@ export const WORLD_CARDS: WorldCard[] = [
     id: 'big-hbar',
     plate: 'Plate II',
     title: 'Big ħ',
-    dial: 'ħ = 0.2 J·s',
-    blurb: 'A courtyard where a thrown ball is a wave. It diffracts through doorways, interferes through columns and tunnels through glass.',
+    dial: 'ħ = 0.25 J·s',
+    blurb: 'A courtyard where a rolled ball is a wave. It fans out through a doorway, interferes through two openings and tunnels through glass.',
     art: `<svg viewBox="0 0 120 80" aria-hidden="true"><g fill="currentColor"><rect x="56" y="6" width="3" height="20"/><rect x="56" y="31" width="3" height="18"/><rect x="56" y="54" width="3" height="20"/></g><g fill="none" stroke="currentColor" stroke-width="1"><path d="M10 40 h30" /><path d="M36 36 l5 4 -5 4"/></g><g fill="none" stroke="var(--accent)" stroke-width="1.2">${[10, 18, 26, 34, 42].map((r) => `<path d="M58 28.5 m0 ${-r} a${r} ${r} 0 0 1 0 ${2 * r}"/><path d="M58 51.5 m0 ${-r} a${r} ${r} 0 0 1 0 ${2 * r}"/>`).join('')}</g><g fill="currentColor">${[14, 24, 33, 40, 47, 56, 66].map((y, i) => `<rect x="110" y="${y}" width="${[2, 4, 7, 9, 7, 4, 2][i]}" height="3"/>`).join('')}</g></svg>`,
   },
   {

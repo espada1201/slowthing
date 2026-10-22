@@ -9,6 +9,8 @@ export interface GridSpec {
   dx: number;
   /** Periodic wrap in y (for effectively one-dimensional tests); otherwise ψ = 0 outside the grid. */
   periodicY?: boolean;
+  /** Laplacian stencil: 2 = five-point (default), 4 = fourth-order nine-point (far less lattice dispersion). */
+  stencil?: 2 | 4;
 }
 
 export interface Particle {
@@ -18,7 +20,8 @@ export interface Particle {
 
 /** Largest stable step: the spectrum of H must fit inside 2ħ/Δt (Visscher); we keep a 2× margin. */
 export function stableTimeStep(grid: GridSpec, p: Particle, vMax: number): number {
-  const kinetic = (4 * p.hbar * p.hbar) / (p.mass * grid.dx * grid.dx);
+  // Largest eigenvalue of −dx²∇² per axis: 4 for the five-point stencil, 16/3 for the fourth-order one.
+  const kinetic = ((grid.stencil === 4 ? 16 / 3 : 4) * p.hbar * p.hbar) / (p.mass * grid.dx * grid.dx);
   return p.hbar / (kinetic + Math.max(0, vMax));
 }
 
@@ -29,7 +32,8 @@ export function deBroglieWavelength(p: Particle, speed: number): number {
 export class Schrodinger2D {
   readonly re: Float64Array;
   readonly im: Float64Array;
-  private readonly imPrev: Float64Array;
+  /** Im ψ half a step behind `im`; with it, R² + I·I_prev is the conserved density. */
+  readonly imPrev: Float64Array;
   private readonly tmp: Float64Array;
   readonly potential: Float64Array;
   /** 1 where the particle may be, 0 inside hard walls. */
@@ -81,6 +85,27 @@ export class Schrodinger2D {
   private applyH(f: Float64Array, out: Float64Array) {
     const { nx, ny, dx, periodicY } = this.grid;
     const kin = (this.particle.hbar * this.particle.hbar) / (2 * this.particle.mass * dx * dx);
+    if (this.grid.stencil === 4) {
+      // 12 dx² ∇²f = 16 Σ(nearest) − Σ(next-nearest) − 60 f, the stencil the GPU solver uses.
+      const at = (i: number, j: number) => {
+        if (i < 0 || i >= nx) return 0;
+        if (j < 0 || j >= ny) {
+          if (!periodicY) return 0;
+          j = (j + ny) % ny;
+        }
+        return f[j * nx + i];
+      };
+      for (let j = 0; j < ny; j++) {
+        for (let i = 0; i < nx; i++) {
+          const k = j * nx + i;
+          const c = f[k];
+          const near = at(i - 1, j) + at(i + 1, j) + at(i, j - 1) + at(i, j + 1);
+          const far = at(i - 2, j) + at(i + 2, j) + at(i, j - 2) + at(i, j + 2);
+          out[k] = ((-kin / 12) * (16 * near - far - 60 * c) + this.potential[k] * c) * this.open[k];
+        }
+      }
+      return;
+    }
     for (let j = 0; j < ny; j++) {
       const jm = j > 0 ? j - 1 : periodicY ? ny - 1 : -1;
       const jp = j < ny - 1 ? j + 1 : periodicY ? 0 : -1;

@@ -70,6 +70,60 @@ describe('Schrödinger leapfrog solver', () => {
   });
 });
 
+describe('fourth-order stencil (used by the GPU courtyard)', () => {
+  it('conserves probability with two-cell walls', () => {
+    const grid = { nx: 96, ny: 96, dx: 0.25, stencil: 4 as const };
+    const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, 4));
+    for (let j = 0; j < 96; j++) {
+      for (const i of [60, 61]) sim.open[j * 96 + i] = j > 40 && j < 56 ? 1 : 0;
+      sim.potential[j * 96 + 30] = 4;
+    }
+    sim.setGaussian(6, 12, 1.2, 3, 0);
+    const n0 = sim.norm();
+    sim.step(1500);
+    expect(Math.abs(sim.norm() - n0)).toBeLessThan(1e-9);
+  });
+
+  it('moves a coarse packet (k·dx = 1) at nearly ħk/m, unlike the five-point stencil', () => {
+    const speedError = (stencil: 2 | 4) => {
+      const grid = { nx: 400, ny: 2, dx: 0.25, periodicY: true, stencil };
+      const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, 0));
+      sim.setGaussian(20, 0, 3, 4, 0);
+      sim.step(Math.round(10 / sim.dt));
+      return Math.abs((sim.moments().x - 20) / (4 * sim.time) - 1);
+    };
+    const e4 = speedError(4);
+    expect(e4).toBeLessThan(0.04);
+    expect(e4).toBeLessThan(speedError(2) / 3);
+  });
+
+  it('tunnels with the analytic transmission at k·dx = 0.6', () => {
+    const dx = 0.15;
+    const grid = { nx: 1067, ny: 2, dx, periodicY: true, stencil: 4 as const };
+    const k0 = 4, sigma = 8, V0 = 10, a = 0.6;
+    const sim = new Schrodinger2D(grid, particle, stableTimeStep(grid, particle, V0));
+    const i1 = Math.round(80 / dx), cells = Math.round(a / dx);
+    for (let i = i1; i < i1 + cells; i++) for (let j = 0; j < 2; j++) sim.potential[j * grid.nx + i] = V0;
+    sim.setGaussian(40, 0, sigma, k0, 0);
+    sim.step(Math.round(20 / sim.dt));
+    const d = sim.density();
+    let trans = 0, total = 0;
+    for (let i = 0; i < grid.nx; i++) {
+      const p = d[i] + d[grid.nx + i];
+      total += p;
+      if (i >= i1 + cells) trans += p;
+    }
+    const sk = 1 / (2 * sigma);
+    let num = 0, den = 0;
+    for (let q = -5; q <= 5; q += 0.01) {
+      const w = Math.exp(-0.5 * q * q);
+      num += w * barrierTransmission(((k0 + q * sk) ** 2) / 2, V0, cells * dx, particle);
+      den += w;
+    }
+    expect(Math.abs(trans / total / (num / den) - 1)).toBeLessThan(0.05);
+  });
+});
+
 describe('measurement sampling', () => {
   it('draws indices in proportion to the density', () => {
     const density = [0, 1, 3, 0];
