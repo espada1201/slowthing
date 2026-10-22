@@ -96,4 +96,39 @@ describe('retarded time', () => {
     const tr = retardedTime(path, vel, obs, t, c);
     expect(c * (t - tr)).toBeCloseTo(len(sub(obs, path(tr))), 9);
   });
+
+  // The town's movers: the tram (radius 45 m, proper speed 24 m/s) and a carousel lamp (7 m, 13 m/s).
+  const mover = (R: number, y: number, properSpeed: number, c: number, phase: number) => {
+    const w = properSpeed / Math.sqrt(1 + (properSpeed / c) ** 2) / R;
+    return {
+      path: (t: number): Vec3 => [R * Math.cos(phase + w * t), y, R * Math.sin(phase + w * t)],
+      vel: (t: number): Vec3 => [-R * w * Math.sin(phase + w * t), 0, R * w * Math.cos(phase + w * t)],
+    };
+  };
+
+  it('stays on the light cone where plain Newton overshoots and cycles', () => {
+    // The tram at 0.89 c seen from 200 m away: Newton alone ends 26 s in the future, 553 m off the light cone.
+    const c = 12, obs: Vec3 = [4, 1.7, 200];
+    const { path, vel } = mover(45, 1.2, 24, c, (27 * Math.PI) / 16);
+    const tr = retardedTime(path, vel, obs, 0, c);
+    expect(tr).toBeLessThan(0);
+    expect(c * -tr).toBeCloseTo(len(sub(obs, path(tr))), 9);
+  });
+
+  it('solves every view of the tram and the carousel, out to 260 m and down to c = 4 m/s', () => {
+    let worst = 0;
+    for (const c of [4, 6, 8, 12, 20])
+      for (const [R, y, u] of [[45, 1.2, 24], [7, 3, 13]])
+        for (let k = 0; k < 8; k++) {
+          const { path, vel } = mover(R, y, u, c, k * 0.785);
+          for (const r of [3, 20, 44, 46, 100, 260])
+            for (let q = 0; q < 8; q++) {
+              const obs: Vec3 = [r * Math.cos(q * 0.785 + 0.3), 1.7, r * Math.sin(q * 0.785 + 0.3)];
+              const t = 1000 + k;
+              const tr = retardedTime(path, vel, obs, t, c);
+              worst = Math.max(worst, Math.abs(c * (t - tr) - len(sub(obs, path(tr)))));
+            }
+        }
+    expect(worst).toBeLessThan(1e-6);
+  });
 });

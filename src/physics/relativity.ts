@@ -51,7 +51,10 @@ export function velocityFromProper(u: Vec3, c: number): Vec3 {
 
 /**
  * Solve the light-cone condition c (t − tr) = |xObs − path(tr)| for the retarded emission time tr.
- * Newton's method converges for any sub-luminal path because f(tr) is strictly decreasing.
+ * For a sub-luminal path f(tr) = c (t − tr) − |xObs − path(tr)| falls through zero exactly once, but it is
+ * not concave (a fast source on a circle bends it both ways), so plain Newton can overshoot and cycle.
+ * Each evaluation therefore narrows a bracket [lo, hi] around the root, and a Newton step that would
+ * leave the bracket bisects it instead.
  */
 export function retardedTime(
   path: (t: number) => Vec3,
@@ -61,14 +64,20 @@ export function retardedTime(
   c: number,
   iterations = 12,
 ): number {
+  let lo = -Infinity, hi = t;
   let tr = t - len(sub(xObs, path(t))) / c;
   for (let i = 0; i < iterations; i++) {
     const d = sub(xObs, path(tr));
     const dist = len(d);
     const f = c * (t - tr) - dist;
-    const fp = -c + (dist > 0 ? dot(d, velocity(tr)) / dist : 0);
-    const step = f / fp;
-    tr -= step;
+    if (f > 0) lo = tr;
+    else hi = tr;
+    // Below light speed f′ < 0; the cap keeps the step finite and its sign right for a path that is not.
+    const fp = Math.min(-c + (dist > 0 ? dot(d, velocity(tr)) / dist : 0), -1e-9 * c);
+    let next = tr - f / fp;
+    if (!(next >= lo && next <= hi)) next = 0.5 * (lo + hi);
+    const step = next - tr;
+    tr = next;
     if (Math.abs(step) < 1e-12 * Math.max(1, Math.abs(t))) break;
   }
   return tr;

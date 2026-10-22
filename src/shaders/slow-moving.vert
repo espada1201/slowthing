@@ -1,5 +1,6 @@
 // Objects on circular paths, drawn where they were when the light now reaching the eye left them.
-// Solves c·(t − t_r) = |x_obs − x(t_r)| per vertex with Newton's method (see physics/relativity.ts).
+// Solves c·(t − t_r) = |x_obs − x(t_r)| per vertex by Newton's method kept inside a bracket around the
+// root (as physics/relativity.ts does): unguarded, Newton overshoots and cycles for a fast object seen from afar.
 attribute vec3 aColor;
 attribute float aPattern;
 uniform vec3 uObs;
@@ -42,18 +43,38 @@ vec3 pathPos(float a, vec3 local) {
   return uCenter + uRadius * radial + forward * local.x * k + vec3(0.0, local.y, 0.0) + radial * local.z;
 }
 
+// That point's velocity, d pathPos / dt: the object turns as it goes round, so its outer and leading
+// points move faster than the track's centre line.
+vec3 pathVel(float a, vec3 local) {
+  vec3 radial = vec3(cos(a), 0.0, sin(a));
+  vec3 forward = vec3(-sin(a), 0.0, cos(a)) * sign(uOmega);
+  float k = uContract > 0.5 ? 1.0 / uGamma : 1.0;
+  return abs(uOmega) * ((uRadius + local.z) * forward - radial * local.x * k);
+}
+
 void main() {
   float delta = 0.0;
   if (uRetard > 0.5) {
-    delta = -length(uObs - pathPos(uPhase, position)) / uC;
-    for (int i = 0; i < 8; i++) {
+    // The vertex circles at radius rho about a point dc from the eye, so the light delay lies within
+    // [|dc − rho|, dc + rho] / c, and f(delta) = −c·delta − |x_obs − x| falls through zero inside it.
+    // A Newton step that would leave the bracket goes to the bound it crossed if no evaluation has moved
+    // that bound yet (the root often sits right by it, where the object passes nearest or farthest), else bisects.
+    float rho = length(pathPos(0.0, position).xz - uCenter.xz);
+    float dc = length(uObs - uCenter - vec3(0.0, position.y, 0.0));
+    float lo = -(dc + rho) / uC;
+    float hi = -abs(dc - rho) / uC;
+    bool loSeen = false, hiSeen = false;
+    delta = clamp(-dc / uC, lo, hi);
+    for (int i = 0; i < 12; i++) {
       float a = uPhase + uOmega * delta;
       vec3 d = uObs - pathPos(a, position);
       float dist = max(length(d), 1e-4);
-      vec3 vel = vec3(-sin(a), 0.0, cos(a)) * uOmega * uRadius;
       float f = -uC * delta - dist;
-      float fp = -uC + dot(d, vel) / dist;
-      delta -= f / fp;
+      if (f > 0.0) { lo = delta; loSeen = true; } else { hi = delta; hiSeen = true; }
+      float next = delta - f / (-uC + dot(d, pathVel(a, position)) / dist);
+      if (!(next >= lo)) next = loSeen ? 0.5 * (lo + hi) : lo;
+      else if (!(next <= hi)) next = hiSeen ? 0.5 * (lo + hi) : hi;
+      delta = next;
     }
   }
   float a = uPhase + uOmega * delta;
