@@ -15,7 +15,8 @@ import surfaceVert from '../shaders/hbar-surface.vert?raw';
 import {
   BALL,
   BLOCKS,
-  DETECTOR,
+  DETECTOR_RESOLUTION,
+  DETECTOR_SIGMA,
   ENERGY,
   type Field,
   GLASS_SIGMA,
@@ -302,7 +303,7 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'A detector pins it down',
-      text: `Press Measure (M) while it rolls: a detector in the floor interacts with the ball and fires at one spot, drawn at random from |ψ|². That interaction, not anyone looking, leaves a lump as wide as the flash (the detector's ${DETECTOR.resolution.toFixed(2)} m resolution), which spreads again faster than before but never turns back into the wave it was.`,
+      text: `Press Measure (M) while it rolls: a detector in the floor interacts with the ball and fires at one spot, drawn at random from |ψ|². That interaction, not anyone looking, leaves a lump as wide as the flash (the detector's ${DETECTOR_RESOLUTION.toFixed(2)} m resolution), which spreads again faster than before but never turns back into the wave it was.`,
       pose: porch(0),
       toggles: { rapid: false },
       action: 'roll@0+measure@1.2',
@@ -463,7 +464,7 @@ export class BigHbarWorld implements World {
       this.textures.push(map);
       return new THREE.MeshBasicMaterial({ map, color: DETECTOR_GLOW, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 });
     };
-    const across = 6 * DETECTOR.sigma;
+    const across = 6 * DETECTOR_SIGMA;
     this.flashSpot = new THREE.Mesh(new THREE.PlaneGeometry(across, across).rotateX(-Math.PI / 2), detectorGlow(false));
     this.flashBeam = new THREE.Mesh(new THREE.PlaneGeometry(across, BEAM_H).translate(0, BEAM_H / 2, 0), detectorGlow(true));
     // Drawn after the wave's sheet, which writes no depth, so the flash shows over the lump it leaves.
@@ -961,9 +962,9 @@ export class BigHbarWorld implements World {
     if (!pick) return;
     const b = this.gpu.buffer;
     const { n, dx } = this.field;
-    const fx = pick[0] + DETECTOR.sigma * gaussian(), fz = pick[1] + DETECTOR.sigma * gaussian();
+    const fx = pick[0] + DETECTOR_SIGMA * gaussian(), fz = pick[1] + DETECTOR_SIGMA * gaussian();
     // The spot and the response in cells (cell i is centred on i).
-    const ci = (fx + HALF) / dx - 0.5, cj = (fz + HALF) / dx - 0.5, sigma = DETECTOR.sigma / dx;
+    const ci = (fx + HALF) / dx - 0.5, cj = (fz + HALF) / dx - 0.5, sigma = DETECTOR_SIGMA / dx;
     // What survives is |ψ|² times the response: its total sets the rescaling, its moments the new summary.
     let kept = 0, mx = 0, mz = 0, mrr = 0, peak = 0, beyond = 0;
     const reach = 6 * sigma;

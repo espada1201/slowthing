@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Schrodinger2D, correctSteps, meanWavevector, stableTimeStep } from '../src/physics/schrodinger';
-import { BALL, BLOCKS, DETECTOR, GLASS_SIGMA, GLASS_THICKNESS, GLASS_V0, HBAR, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, glassTheory, rasterize, spongeRate } from '../src/worlds/courtyard';
+import { BALL, BLOCKS, DETECTOR_RESOLUTION, DETECTOR_SIGMA, GLASS_SIGMA, GLASS_THICKNESS, GLASS_V0, HBAR, OBSTACLE_Z, absorberOf, cellCentre, cellIndex, glassTheory, rasterize, spongeRate } from '../src/worlds/courtyard';
 
 describe('courtyard floor plan', () => {
   for (const n of [256, 384, 512]) {
@@ -97,7 +97,7 @@ describe('the floor detector', () => {
     const cells = grid.nx * grid.ny, xy = (k: number) => [(k % grid.nx) * grid.dx, Math.floor(k / grid.nx) * grid.dx];
     const states = [caught.re, caught.im, caught.imPrev];
     for (let k = 0; k < cells; k++) {
-      const [x, y] = xy(k), w = Math.exp(-((x - fx) ** 2 + (y - fy) ** 2) / (4 * DETECTOR.sigma ** 2));
+      const [x, y] = xy(k), w = Math.exp(-((x - fx) ** 2 + (y - fy) ** 2) / (4 * DETECTOR_SIGMA ** 2));
       for (const s of states) s[k] *= w;
     }
     const scale = 1 / Math.sqrt(caught.norm());
@@ -117,7 +117,7 @@ describe('the floor detector', () => {
     wave.step(1);
     caught.step(1);
     const was = { wave: spread(wave), caught: spread(caught), overlap: overlap() };
-    expect(was.caught).toBeLessThanOrEqual(DETECTOR.resolution);
+    expect(was.caught).toBeLessThanOrEqual(DETECTOR_RESOLUTION);
     expect(was.overlap).toBeLessThan(0.5);
     wave.step(Math.round(1.2 / wave.dt));
     caught.step(Math.round(1.2 / caught.dt));

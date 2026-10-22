@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { knotUniforms, lutUniforms, skyUniforms } from './lut';
 import { aberrationAngle, dopplerFactor, lorentzFactor, observerToWorldDirection, retardedTime } from './physics/relativity';
-import { Schrodinger2D, barrierTransmission, freeSpreadWidth, stableTimeStep } from './physics/schrodinger';
+import { Schrodinger2D, barrierTransmission, freeSpreadWidth, packetAverage, stableTimeStep } from './physics/schrodinger';
 import { CRITICAL_IMPACT, exactDeflection, traceRay, tracedDeflection } from './physics/schwarzschild';
 import { skyLight } from './physics/skylight';
 import { applyDoppler, cieXYZ, reflectionTransform } from './physics/spectrum';
@@ -529,13 +529,7 @@ export const PROOFS: Proof[] = [
         total += d[i] + d[grid.nx + i];
         if (i * dx >= x1 + a) through += d[i] + d[grid.nx + i];
       }
-      let num = 0, den = 0;
-      for (let q = -5; q <= 5; q += 0.02) {
-        const k = k0 + q / (2 * sigma), w = Math.exp(-0.5 * q * q);
-        num += w * barrierTransmission((k * k) / 2, V0, a, p);
-        den += w;
-      }
-      const T = num / den, got = through / total;
+      const T = packetAverage(k0, sigma, (k) => barrierTransmission((k * k) / 2, V0, a, p)), got = through / total;
       return { pass: Math.abs(got / T - 1) < 0.05, measured: `T = ${got.toFixed(4)}`, expected: `${T.toFixed(4)} ± 5%` };
     },
   },

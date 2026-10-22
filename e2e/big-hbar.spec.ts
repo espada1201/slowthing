@@ -117,7 +117,8 @@ test('measuring fires a floor detector, which flashes and leaves a lump no wider
   await frames(page, 2);
   const flash = await detectorGlow(page);
   expect(flash).toBeGreaterThan(100);
-  // The flash fades (it lasts 1.5 s), and nothing else in the courtyard is that colour.
+  // The flash fades over 1.5 s of game time, which passes no faster than the clock and by at most 0.05 s a frame;
+  // nothing else in the courtyard is that colour.
   await page.evaluate(() => (window as any).slowlight.pause(false));
   await page.waitForTimeout(1600);
   await frames(page, 31);
