@@ -98,6 +98,28 @@ describe('the sheet and the teacher page', () => {
     expect(guide.steps.map((s) => s.minutes)).toEqual([6, 9]);
   });
 
+  it('print a measurement’s question, what to work out and its steps, and never work out its answer', () => {
+    const lesson = slowLight((l) => {
+      const stop = stopNamed(l, 'Stopping');
+      stop.measure = {
+        question: 'How far did the clock 100 m ahead jump?',
+        steps: ['Read it on the map just before and just after you stop.'],
+        given: [],
+        asks: [{ symbol: 'Δt', unit: 's' }],
+        answer: () => {
+          throw new Error('the kit worked out an answer');
+        },
+      };
+      stop.lesson = { minutes: 15 };
+    });
+    const guide = guideOf(lesson);
+    expect(guide.problems).toEqual([]);
+    expect(guide.sheet.activities[0].measure).toEqual({ question: 'How far did the clock 100 m ahead jump?', asks: [{ symbol: 'Δt', unit: 's' }] });
+    expect(guide.sheet.activities[0].prompts).toEqual(['Show your working.']);
+    expect(guide.steps[0].method).toEqual(['Read it on the map just before and just after you stop.']);
+    expect(guide.steps[0].answer).toBeNull();
+  });
+
   it('pick up a new stop or switch with no other edit', () => {
     const reveal = 'Because the new stop says so.';
     const lesson = slowLight((l) => {

@@ -19,6 +19,12 @@ export interface Answered extends Question {
   readonly why: string;
 }
 
+/** A measurement as a student sees it: what to find, and the quantities to work out. Only the app has its answer. */
+export interface Measure {
+  readonly question: string;
+  readonly asks: readonly { readonly symbol: string; readonly unit: string }[];
+}
+
 /** One stop of the lesson path, as the sheet prints it. */
 export interface Activity {
   /** Numbered from 1. */
@@ -29,7 +35,8 @@ export interface Activity {
   /** './?world=…&stop=…', which opens the stop as authored. */
   readonly link: string;
   readonly predict: Question | null;
-  /** The stop's observe-and-explain prompts, or one reflection prompt when it has none. */
+  readonly measure: Measure | null;
+  /** The stop's observe-and-explain prompts. A stop with none gets one: to explain what was seen, or to show a measurement's working. */
   readonly prompts: readonly string[];
 }
 
@@ -50,6 +57,11 @@ export interface Step {
   readonly text: string;
   /** The stop's prediction with its answer, and the tour's reveal as the reason. */
   readonly answer: Answered | null;
+  /**
+   * A measurement's steps, as the tour gives them. Its true values depend on where the student stands, so the app
+   * works them out when the student answers, and the kit never does.
+   */
+  readonly method: readonly string[];
   readonly misconceptions: readonly string[];
   /** The switch behind each of the activity's prompts, and what it shows. */
   readonly switches: readonly { readonly label: string; readonly hint: string }[];
@@ -89,7 +101,15 @@ export function guideOf(lesson: Authored): Guide {
     minutes,
     steps: path.map((p, k) => {
       const stop = lesson.tour[p.stop];
-      return { activity: sheet.activities[k], minutes: p.minutes, text: stop.text, answer: answerOf(stop), misconceptions: stop.lesson?.misconceptions ?? [], switches: p.explain.map((e) => switches.get(e.toggle)!) };
+      return {
+        activity: sheet.activities[k],
+        minutes: p.minutes,
+        text: stop.text,
+        answer: answerOf(stop),
+        method: stop.measure?.steps ?? [],
+        misconceptions: stop.lesson?.misconceptions ?? [],
+        switches: p.explain.map((e) => switches.get(e.toggle)!),
+      };
     }),
     tour: lesson.tour.map((stop, i) => ({ stop: i, title: stop.title, link: link(lesson, i), answer: answerOf(stop) })),
     switches: lesson.toggles.map(({ id, label, hint }) => ({ id, label, hint })),
@@ -102,6 +122,7 @@ const MAX_ACTIVITIES = 6;
 const MAX_OPTIONS = 4;
 const LESSON_MINUTES = 15;
 const REFLECT = 'What did you see? Explain why it happens.';
+const WORKING = 'Show your working.';
 const NO_CLASSROOM: Classroom = { syllabus: [], check: [] };
 
 /**
@@ -134,7 +155,8 @@ function plan(lesson: Authored) {
       title: stop.title,
       link: link(lesson, p.stop),
       predict: stop.predict ? { question: stop.predict.question, options: stop.predict.options } : null,
-      prompts: p.explain.length ? p.explain.map((e) => e.prompt) : [REFLECT],
+      measure: stop.measure ? { question: stop.measure.question, asks: stop.measure.asks } : null,
+      prompts: p.explain.length ? p.explain.map((e) => e.prompt) : [stop.measure ? WORKING : REFLECT],
     };
   });
   const sheet: Sheet = { world: lesson.id, title: lesson.title, stops: lesson.tour.length, check: room.check.map(({ question, options }) => ({ question, options })), activities };

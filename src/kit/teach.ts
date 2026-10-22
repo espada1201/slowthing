@@ -79,8 +79,8 @@ function indexPage(): HTMLElement {
 
 /**
  * The student sheet, one A4 or Letter page: name and class lines, the check items with Before and After boxes, then
- * per activity its QR code, its stop, the prediction as tick boxes and each prompt with lines to write on. A Sheet
- * holds no answers, so none can print.
+ * per activity its QR code, its stop, the prediction as tick boxes or a measurement's blanks, and each prompt with
+ * lines to write on. A Sheet holds no answers, so none can print.
  */
 function sheetPage(sheet: Sheet, card: Card, qr: Qr): HTMLElement {
   const site = new URL('./', location.href);
@@ -129,17 +129,19 @@ function activity(a: Activity, stops: number, qr: Qr): HTMLElement {
         h('h2', {}, h('span', { class: 'n' }, String(a.n)), a.title),
         h('p', { class: 'stop' }, `Stop ${a.stop + 1} of ${stops}`),
         a.predict ? h('p', { class: 'predict' }, h('span', { class: 'tag' }, 'Predict'), a.predict.question) : null,
+        a.measure ? h('p', { class: 'measure' }, h('span', { class: 'tag' }, 'Measure'), a.measure.question) : null,
       ),
     ),
     a.predict ? h('ul', { class: 'ticks' }, ...a.predict.options.map((o, i) => h('li', {}, h('span', { class: 'letter' }, letter(i)), ' ', o))) : null,
+    a.measure ? h('p', { class: 'asks' }, ...a.measure.asks.map((q) => h('span', {}, `${q.symbol} =`, h('span', { class: 'blank' }), q.unit))) : null,
     ...a.prompts.flatMap((p) => [h('p', { class: 'prompt' }, p), h('div', { class: 'write' })]),
   );
 }
 
 /**
- * The teacher page: syllabus codes; the lesson path, each step with its minutes, the stop's text, the answer and why,
- * what to watch for and the switch behind each prompt; the check's answers; every stop's link, with a button that
- * copies them all; every switch; and how to hand links out.
+ * The teacher page: syllabus codes; the lesson path, each step with its minutes, the stop's text, the answer and why
+ * or a measurement's steps, what to watch for and the switch behind each prompt; the check's answers; every stop's
+ * link, with a button that copies them all; every switch; and how to hand links out.
  */
 function guidePage(guide: Guide, card: Card): HTMLElement {
   const { sheet } = guide;
@@ -208,6 +210,15 @@ function step(s: Step, stops: number): HTMLElement {
     h('p', {}, h('a', { class: 'link', href: url }, url)),
     h('p', { class: 'text' }, s.text),
     s.answer ? answered(s.answer) : null,
+    a.measure
+      ? h(
+          'div',
+          { class: 'measure' },
+          h('p', { class: 'q' }, a.measure.question),
+          h('ol', {}, ...s.method.map((t) => h('li', {}, t))),
+          h('p', { class: 'note' }, 'The app gives the true values when a student answers or presses Just show me, worked out from where they stand.'),
+        )
+      : null,
     s.misconceptions.length ? h('div', { class: 'watch' }, h('p', { class: 'label' }, 'Watch for'), h('ul', {}, ...s.misconceptions.map((m) => h('li', {}, m)))) : null,
     h('div', { class: 'prompts' }, h('p', { class: 'label' }, 'On the sheet'), h('ul', {}, ...a.prompts.map((p, i) => h('li', {}, p, s.switches[i] ? h('span', { class: 'note' }, ` Switch: ${s.switches[i].label} (${s.switches[i].hint}).`) : null)))),
   );

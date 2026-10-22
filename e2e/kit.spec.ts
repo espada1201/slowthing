@@ -259,6 +259,7 @@ for (const id of worlds) {
         link: el.querySelector<HTMLAnchorElement>('a.link')!.href,
         answer: el.querySelector('.answer')?.textContent!.replace(/^Answer: [a-d]\) /, '') ?? null,
         why: el.querySelector('.why')?.textContent ?? null,
+        measure: el.querySelector('.measure .q')?.textContent ?? null,
       })),
     );
     test.setTimeout(90_000 * (steps.length + 1));
@@ -267,7 +268,12 @@ for (const id of worlds) {
       await expect(page.locator('.tour-title')).toHaveText(step.title);
       await expect(page.locator('.tour-no')).toHaveText(new RegExp(`^${step.stop} /`));
       expect(await shown(page), step.title).toEqual((await setupOf(page)).switches);
-      if (step.answer === null) await expect(page.locator('.predict')).toBeHidden();
+      if (step.measure !== null) {
+        // The app, not the kit, works the true values out, from where the student stands.
+        await expect(page.locator('.predict-q')).toContainText(step.measure);
+        await page.getByRole('button', { name: 'Just show me' }).click();
+        await expect(page.locator('.predict-reveal')).toHaveText(/\d/);
+      } else if (step.answer === null) await expect(page.locator('.predict')).toBeHidden();
       else {
         await page.getByRole('button', { name: 'Just show me' }).click();
         await expect(page.locator('.predict-reveal')).toHaveText(step.why!);
