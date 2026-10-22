@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LUT_LOG_D_RANGE, applyDoppler, buildDopplerLUT, cieXYZ, planck, wavelengthToRGB, whiteLuminance } from '../src/physics/spectrum';
+import { LUT_LOG_D_RANGE, SAMPLES, STEP, applyDoppler, buildDopplerLUT, cieXYZ, planck, wavelengthToRGB, whiteLuminance } from '../src/physics/spectrum';
 
 describe('CIE 1931 colour matching fit', () => {
   it('reproduces tabulated values within 3%', () => {
@@ -20,16 +20,40 @@ describe('CIE 1931 colour matching fit', () => {
   });
 });
 
-describe('wavelength → RGB', () => {
+describe('wavelength → RGB, as every spectral integration sums it', () => {
   const dominant = (rgb: number[]) => rgb.indexOf(Math.max(...rgb));
-  it('maps the spectrum to the right hues', () => {
-    expect(dominant(wavelengthToRGB(680))).toBe(0);
-    expect(dominant(wavelengthToRGB(530))).toBe(1);
+  const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const integrate = (spectrum: (l: number) => number) =>
+    SAMPLES.reduce((acc, l) => acc.map((v, k) => v + wavelengthToRGB(l)[k] * spectrum(l) * STEP), [0, 0, 0]);
+  it('puts monochromatic red, green and blue light in the R, G and B channels', () => {
+    expect(dominant(wavelengthToRGB(700))).toBe(0);
+    expect(dominant(wavelengthToRGB(550))).toBe(1);
     expect(dominant(wavelengthToRGB(450))).toBe(2);
+    // Spectral cyan is purer than any sRGB colour: it takes negative red.
+    expect(wavelengthToRGB(500)[0]).toBeLessThan(0);
+  });
+  it('runs through the hues in spectral order, blue through cyan, green and yellow to red', () => {
+    const hue = ([r, g, b]: number[]) => ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180) / Math.PI + 360) % 360;
+    const hues = [450, 460, 470, 480, 490, 500, 510, 520, 530, 540, 550, 560, 570, 580, 590, 600].map((l) => hue(wavelengthToRGB(l)));
+    hues.slice(1).forEach((h, i) => expect(h).toBeLessThan(hues[i]));
+    expect(Math.abs(hues[0] - 240)).toBeLessThan(30);
+    expect(hues[hues.length - 1]).toBeLessThan(15);
+  });
+  it('has the luminance of the eye’s sensitivity curve V(λ)', () => {
+    for (const [l, v] of [[510, 0.503], [555, 1.0], [610, 0.503]]) expect(Math.abs(lum(wavelengthToRGB(l)) - v)).toBeLessThan(0.01);
+  });
+  it('integrates an equal-energy spectrum to the white of illuminant E, and 6500 K light to near-neutral', () => {
+    // E (x = y = 1/3) in linear sRGB is R : G : B = 1.270 : 1 : 0.958, a touch warmer than the sRGB (D65) white.
+    const e = integrate(() => 1);
+    expect(Math.abs(e[0] / e[1] / 1.27 - 1)).toBeLessThan(0.02);
+    expect(Math.abs(e[2] / e[1] / 0.958 - 1)).toBeLessThan(0.02);
+    // A black body at D65's colour temperature.
+    const d = integrate((l) => planck(l, 6504));
+    expect(Math.max(...d) / Math.min(...d)).toBeLessThan(1.07);
   });
   it('is invisible outside 380–780 nm', () => {
-    expect(Math.max(...wavelengthToRGB(300))).toBeLessThan(1e-3);
-    expect(Math.max(...wavelengthToRGB(900))).toBeLessThan(1e-3);
+    expect(Math.max(...wavelengthToRGB(300).map(Math.abs))).toBeLessThan(1e-3);
+    expect(Math.max(...wavelengthToRGB(900).map(Math.abs))).toBeLessThan(1e-3);
   });
 });
 

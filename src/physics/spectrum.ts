@@ -26,11 +26,13 @@ function xyzToLinearSRGB([x, y, z]: Vec3): Vec3 {
   ];
 }
 
-/** Displayable linear-sRGB colour of monochromatic light, out-of-gamut colours desaturated toward white. */
+/**
+ * Linear-sRGB colour of unit-radiance monochromatic light at λ nm (the CIE observer in sRGB primaries):
+ * what every spectral integration here sums. Spectral colours lie outside the sRGB gamut, so a channel
+ * can be negative; only a whole spectrum's sum need be displayable.
+ */
 export function wavelengthToRGB(lambda: number): Vec3 {
-  const rgb = xyzToLinearSRGB(cieXYZ(lambda));
-  const lo = Math.min(0, ...rgb);
-  return rgb.map((v) => Math.max(0, v - lo)) as Vec3;
+  return xyzToLinearSRGB(cieXYZ(lambda));
 }
 
 const H = 6.62607015e-34;
@@ -68,7 +70,7 @@ export function basisSpectra(lambda: number): Vec3 {
 export const STEP = 5;
 export const SAMPLES: number[] = [];
 for (let l = 380; l <= 780; l += STEP) SAMPLES.push(l);
-export const SAMPLE_RGB = SAMPLES.map((l) => xyzToLinearSRGB(cieXYZ(l)));
+export const SAMPLE_RGB = SAMPLES.map(wavelengthToRGB);
 
 function integrate(D: number): { a: number[]; t: Vec3 } {
   const a = new Array(9).fill(0);
