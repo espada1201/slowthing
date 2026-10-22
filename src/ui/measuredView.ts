@@ -65,8 +65,8 @@ export class MeasuredView {
   private dots = svg('g');
   private nowText = svg('text', { class: 'd-label d-now-label' }, 'your now · Measured');
   private seenText = svg('text', { class: 'd-label d-seen-label' }, 'light reaching you · Seen');
-  private towerNow = svg('text', { class: 'd-label d-now-label' });
-  private towerSeen = svg('text', { class: 'd-label d-seen-label' });
+  private towerNow = svg('text', { class: 'd-label d-now-label', 'data-clock': 'tower' });
+  private towerSeen = svg('text', { class: 'd-label d-seen-label', 'data-clock': 'tower' });
   private ticks = svg('g');
   private ticksFor = '';
   private axisText = svg('text', { class: 'm-small', 'text-anchor': 'end' });
@@ -134,7 +134,7 @@ export class MeasuredView {
     m.clocks.forEach((ck, i) => {
       let mark = this.clockMarks.get(ck.id);
       if (!mark) {
-        mark = { dot: svg('circle', { class: 'm-clock', r: 3 }), label: svg('text', { class: 'm-label' }) };
+        mark = { dot: svg('circle', { class: 'm-clock', r: 3 }), label: svg('text', { class: 'm-label', 'data-clock': ck.id }) };
         this.clocks.append(mark.dot, mark.label);
         this.clockMarks.set(ck.id, mark);
       }
