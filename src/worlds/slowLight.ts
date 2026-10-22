@@ -39,6 +39,8 @@ const STREET_CLOCKS = [120, 100, 80, 60, 40, 20, -20, -40, -60, -80, -100].map((
 /** Tour cruises start out of town and run straight through it. */
 const CRUISE_NORTH: Pose = { position: [4, EYE, 130], yaw: 0, pitch: 0 };
 const CRUISE_WEST: Pose = { position: [130, EYE, -4], yaw: Math.PI / 2, pitch: 0 };
+/** Far enough south to coast past every street clock at full speed. */
+const COAST_NORTH: Pose = { position: [4, EYE, 250], yaw: 0, pitch: 0 };
 /** 20 m inside the loop, facing the stretch where the tram passes with its sunlit side toward you. */
 const TERRELL_BEARING = (170 * Math.PI) / 180;
 const TERRELL: Pose = { ...facing([25 * Math.cos(TERRELL_BEARING), EYE, 25 * Math.sin(TERRELL_BEARING)], [45 * Math.cos(TERRELL_BEARING), EYE, 45 * Math.sin(TERRELL_BEARING)]), pitch: -0.1 };
@@ -86,11 +88,14 @@ export class SlowLightWorld implements World {
   readonly tour: TourStop[] = [
     { title: 'A town at 12 m/s', text: 'Light here crawls at cycling speed. Everything you see left its surface a moment ago, so the world you see is always slightly in the past.', pose: { position: [0, EYE, 30], yaw: 0, pitch: 0.04 }, constants: { c: 12 }, action: 'stop' },
     { title: 'The late clock', text: 'The tower clock reads behind your watch: its light needed time to reach you. Walk away and it seems to slow, walk toward it and it races.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop', predict: { question: 'The clock face is 65 m away and light moves at 12 m/s. Compared with your watch, it reads…', options: ['the same time', 'about 5 s behind', 'about 5 s ahead'], answer: 1, reveal: 'Its light needed 65 m ÷ 12 m/s ≈ 5.4 s to reach you, so you see the clock as it was 5.4 s ago.' } },
-    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: CRUISE_NORTH, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: true }, predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
-    { title: 'Colours you cannot normally see', text: 'With the searchlight off, look ahead: blues slide into ultraviolet and vanish, infrared sunlight climbs into view, and a rainbow rings the way forward. Sprint past 0.98 c (hold Shift) and even the 300 K warmth of the stone begins to glow.', pose: CRUISE_WEST, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: false } },
-    { title: 'Searchlight', text: 'With the searchlight back on, brightness ahead rises as D⁵ and the same colours drown in glare. Flip the Searchlight switch to compare.', pose: CRUISE_NORTH, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: true } },
-    { title: 'Terrell rotation', text: 'Colour and searchlight are off, so watch only the shape: the tram is Lorentz-contracted, yet it looks turned, not squashed, because light from its far side left earlier. Press T to call it, then switch them back on: side-on it turns almost black, its light redshifted and beamed forward, away from you.', pose: TERRELL, action: 'tram', toggles: { doppler: false, beaming: false }, predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
-    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time. At 0.73 c its clock runs at two-thirds speed, and light delay bunches or spreads the flashes you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop', toggles: { doppler: true, beaming: true } },
+    { title: 'Aberration', text: 'Now we cruise at 0.9 c. Light from beside and even behind you arrives from in front, so the world crowds into a tunnel ahead.', pose: CRUISE_NORTH, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: true, measured: false }, predict: { question: 'At 0.9 c, where do the houses that are level with you appear?', options: ['Still beside you', 'Pushed toward the front', 'Pushed behind you'], answer: 1, reveal: 'Aberration tilts incoming light forward: anything exactly beside you appears just 26° from straight ahead (cos θ′ = β).' } },
+    { title: 'Colours you cannot normally see', text: 'With the searchlight off, look ahead: blues slide into ultraviolet and vanish, infrared sunlight climbs into view, and a rainbow rings the way forward. Sprint past 0.98 c (hold Shift) and even the 300 K warmth of the stone begins to glow.', pose: CRUISE_WEST, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: false, measured: false } },
+    { title: 'Searchlight', text: 'With the searchlight back on, brightness ahead rises as D⁵ and the same colours drown in glare. Flip the Searchlight switch to compare.', pose: CRUISE_NORTH, action: 'cruise', toggles: { aberration: true, doppler: true, beaming: true, measured: false } },
+    { title: 'Terrell rotation', text: 'Colour and searchlight are off, so watch only the shape: the tram is Lorentz-contracted, yet it looks turned, not squashed, because light from its far side left earlier. Press T to call it, then switch them back on: side-on it turns almost black, its light redshifted and beamed forward, away from you.', pose: TERRELL, action: 'tram', toggles: { doppler: false, beaming: false, measured: false }, predict: { question: 'A tram at 0.89 c is Lorentz-contracted to under half its length. As it passes, it looks…', options: ['Squashed flat', 'Turned, as if rotated toward you', 'Exactly normal'], answer: 1, reveal: 'Light delay undoes the squashing and shows you the tram turned. Penrose and Terrell proved this in 1959, half a century after Einstein.' } },
+    { title: 'Seen and measured', text: 'The Measured map shows where everything is at your now, in your frame: there each tram car is 3.22 m long, not 7.2 m. Both views are true: Seen is the light reaching your eye now, Measured is where everything is now.', pose: { position: [0, EYE, 40], yaw: 0, pitch: 0.22 }, action: 'stop', toggles: { measured: true, delay: true }, predict: { question: 'On the Measured map, compared with the town clock t on your HUD, the tower clock reads…', options: ['about 5 s behind', 'the same time', 'about 5 s ahead'], answer: 1, reveal: 'You are at rest in the town, so your now is the town’s: every clock on the map reads the town clock t, and only the light you see from the tower is 5.4 s old.' } },
+    { title: 'Moving clocks', text: 'Each carousel lamp flashes once per 0.6 s of its own time; at 0.73 c its clock runs at two-thirds speed, so on the map all eight flash together every 0.885 s. Light delay bunches or spreads the flashes you see.', pose: { position: [0, EYE, 19], yaw: 0, pitch: 0.06 }, action: 'stop', toggles: { doppler: true, beaming: true, delay: true, measured: true } },
+    { title: 'Whose now?', text: 'On the map every town clock ticks at only 0.44× your watch, yet each street clock ahead of you is set 1.5 s later than the one before. That head start is why the clocks you reach still read more than your watch: you arrive younger.', pose: COAST_NORTH, action: 'coast', toggles: { measured: true, delay: true }, predict: { question: 'Two street clocks stand 20 m apart and you cruise past at 0.9 c. At your now, the one further ahead reads…', options: ['the same time', '1.5 s later', '1.5 s earlier'], answer: 1, reveal: 'Later, by 0.9 × 20 m ÷ 12 m/s = 1.5 s: the town set its clocks together in its frame, but in yours each one ahead of you is set later.' } },
+    { title: 'Stopping', text: 'You stopped, so your now is the town’s again: on the map the clocks ahead jumped back and the ones behind jumped forward, 7.5 s for clocks 100 m away. Your now changed, not the clocks, and as you start to cruise again (F) the clocks more than 2.3 m behind you run backwards.', action: 'stop', toggles: { measured: true } },
     { title: 'You are younger', text: 'Compare the town clock with your watch: every journey at speed left you a little younger than the town. This is the twin paradox, measured.', predict: { question: 'You have been running about town at near light speed. Who has aged more?', options: ['You', 'The town', 'Neither: motion is relative'], answer: 1, reveal: 'The town. You took a path through spacetime with less proper time, and the readout shows the difference.' } },
     { title: 'The real universe', text: 'Reset c to 299 792 458 m/s. Every effect vanishes at walking speed, which is why nobody noticed any of this for most of history.', constants: { c: 299792458 }, action: 'stop' },
   ];
@@ -389,10 +394,12 @@ export class SlowLightWorld implements World {
     if (id === 'stop') {
       this.cruise = null;
       this.properVel.set(0, 0, 0);
-    } else if (id === 'cruise') {
+    } else if (id === 'cruise' || id === 'coast') {
       // Proper speed giving β = 0.9 at the current c.
       const u = (0.9 / Math.sqrt(1 - 0.81)) * ctx.constants.c;
       this.cruise = forwardFlat(this.yaw).multiplyScalar(u);
+      // A coast starts at full speed: while you speed up, clocks more than c²/a behind you run backwards in your now.
+      if (id === 'coast') this.properVel.copy(this.cruise);
     } else if (id === 'tram') {
       // Bring the tram round so its head reaches the observer's bearing in about three seconds.
       this.runAction('stop', ctx);
@@ -593,7 +600,7 @@ export class SlowLightWorld implements World {
   }
 
   probe(ctx: WorldContext) {
-    return this.measured(ctx.constants.c);
+    return { ...this.measured(ctx.constants.c), t: this.t };
   }
 
   status(ctx: WorldContext) {

@@ -55,11 +55,11 @@ test('keys keep driving after a click on a switch or a dial', async ({ page }) =
 test('the tour advances and resetting to the real universe restores c', async ({ page }) => {
   await openWorld(page, 'slow-light');
   const titles: string[] = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 11; i++) {
     titles.push((await page.locator('.tour-title').textContent()) ?? '');
     await page.locator('[data-tour-next]').click();
   }
-  expect(new Set(titles).size).toBe(8);
+  expect(new Set(titles).size).toBe(11);
   await expect(page.locator('.tour-title')).toHaveText('The real universe');
   expect(await page.evaluate(() => (window as any).slowlight.constants.c)).toBe(299792458);
   await expect(page.locator('[data-tour-next]')).toBeDisabled();
