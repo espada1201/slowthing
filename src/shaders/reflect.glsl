@@ -1,6 +1,6 @@
 // Reflected light (src/physics/spectrum.ts reflectionKnots). Light is carried as its spectrum at the eye, relative to
 // sunlight at rest, at the KNOTS wavelengths KNOT_LAMBDA; a surface's reflectance windows shift by dR on the way to the
-// eye. Needs physics/skylight.ts TABLES_GLSL, and common.glsl: the table shares the Doppler LUT's grid of ln dR.
+// eye. Needs physics/skylight.ts TABLES_GLSL, and common.glsl's lutCell: the table is on the Doppler LUT's grid of ln dR.
 uniform sampler2D uKnots;
 
 // Sunlight at λ nm relative to SUN_REF_NM, a black body whose exponent is SUN_HC_KT_NM / λ (SUN_NORM normalises it).
@@ -13,10 +13,9 @@ float sunlight(float lambda) {
 // Σ_p K_p(dR) · light[p], where light[p] is the light at knot p times the surface colour it falls on (lights of
 // different colours add per knot).
 vec3 reflectKnots(float dR, vec3 light[KNOTS]) {
-  float x = clamp((log(max(dR, 1e-6)) + uLutRange) / (2.0 * uLutRange), 0.0, 1.0) * (uLutSize - 1.0);
-  int i0 = int(floor(x));
-  int i1 = min(i0 + 1, int(uLutSize) - 1);
-  float f = fract(x);
+  int i0, i1;
+  float f;
+  lutCell(dR, i0, i1, f);
   vec3 c = vec3(0.0);
   for (int p = 0; p < KNOTS; p++) {
     for (int k = 0; k < 3; k++) {

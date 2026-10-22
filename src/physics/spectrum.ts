@@ -150,6 +150,8 @@ export const LUT_LOG_D_RANGE = Math.log(60);
 /** Shifts in the Doppler and reflection tables, over ln D ∈ ±LUT_LOG_D_RANGE: fine enough for the 12 nm edges of
  * the reflectance windows. */
 export const LUT_SIZE = 1024;
+/** Entry i of a table of `size` entries on that grid, spaced evenly in ln D (common.glsl lutCell finds D on it). */
+export const lutD = (i: number, size: number) => Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1));
 
 /**
  * Lookup table over ln D ∈ [−LUT_LOG_D_RANGE, +LUT_LOG_D_RANGE], 3 rows of RGBA texels.
@@ -158,7 +160,7 @@ export const LUT_SIZE = 1024;
 export function buildDopplerLUT(size = LUT_SIZE): Float32Array {
   const data = new Float32Array(size * 3 * 4);
   for (let i = 0; i < size; i++) {
-    const { matrix, thermal: th } = dopplerColorTransform(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1)));
+    const { matrix, thermal: th } = dopplerColorTransform(lutD(i, size));
     packColumns(data, (k) => k * size + i, matrix, th);
   }
   return data;
@@ -207,7 +209,7 @@ export function reflectionKnots(dR: number): number[][] {
 export function buildKnotLUT(size = LUT_SIZE): Float32Array {
   const data = new Float32Array(size * KNOTS.length * 3 * 4);
   for (let i = 0; i < size; i++) {
-    reflectionKnots(Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (size - 1))).forEach((m, p) => packColumns(data, (k) => (3 * p + k) * size + i, m));
+    reflectionKnots(lutD(i, size)).forEach((m, p) => packColumns(data, (k) => (3 * p + k) * size + i, m));
   }
   return data;
 }
@@ -216,7 +218,7 @@ const LUM_TABLE = (() => {
   const n = 256;
   const t = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    const c = applyDoppler([1, 1, 1], Math.exp(-LUT_LOG_D_RANGE + (2 * LUT_LOG_D_RANGE * i) / (n - 1)));
+    const c = applyDoppler([1, 1, 1], lutD(i, n));
     t[i] = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   }
   return t;

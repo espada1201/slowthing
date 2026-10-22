@@ -3,15 +3,23 @@ uniform sampler2D uLut;
 uniform float uLutSize;
 uniform float uLutRange;
 
+// Where D lies on the grid of ln D that the Doppler LUT and the tables built on its grid share (physics/spectrum.ts
+// lutD): between entries i0 and i1, a fraction f of the way. Beyond the grid it holds the edge entry.
+void lutCell(float D, out int i0, out int i1, out float f) {
+  float x = clamp((log(max(D, 1e-6)) + uLutRange) / (2.0 * uLutRange), 0.0, 1.0) * (uLutSize - 1.0);
+  i0 = int(floor(x));
+  i1 = min(i0 + 1, int(uLutSize) - 1);
+  f = fract(x);
+}
+
 // Observed linear RGB for a surface of colour rgb seen with Doppler factor D (no beaming).
 // thermal = 1 adds the 300 K glow that a strong blueshift drags into the visible.
 // Beyond the table (|ln D| > uLutRange) it holds the edge colour, so a source shifted further still shows
 // (and D⁵ beaming makes it blaze) instead of turning black.
 vec3 dopplerShift(vec3 rgb, float D, float thermal) {
-  float x = clamp((log(max(D, 1e-6)) + uLutRange) / (2.0 * uLutRange), 0.0, 1.0) * (uLutSize - 1.0);
-  int i0 = int(floor(x));
-  int i1 = min(i0 + 1, int(uLutSize) - 1);
-  float f = fract(x);
+  int i0, i1;
+  float f;
+  lutCell(D, i0, i1, f);
   vec4 r = mix(texelFetch(uLut, ivec2(i0, 0), 0), texelFetch(uLut, ivec2(i1, 0), 0), f);
   vec4 g = mix(texelFetch(uLut, ivec2(i0, 1), 0), texelFetch(uLut, ivec2(i1, 1), 0), f);
   vec4 b = mix(texelFetch(uLut, ivec2(i0, 2), 0), texelFetch(uLut, ivec2(i1, 2), 0), f);
