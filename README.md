@@ -16,7 +16,7 @@ Each world has a guided tour, effect switches, live instruments and a **Real uni
 4. In Terminal, type `cd `, drag the unzipped folder into the window, and press Return.
 5. Run `npm install && npm start`, then open the link it prints (http://localhost:4173).
 
-Controls: click the view to look around, use WASD to move and ← → to turn, hold Shift to run, and press N or B for the next or previous tour stop. In World III, R turns the sky ruler on. The **?** button lists every key. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to the exact tour stop, switches and dials you are looking at.
+Controls: click the view to look around, use WASD to move and ← → to turn, hold Shift to run, and press N or B for the next or previous tour stop. In World III, R turns the sky ruler on. The **?** button lists the keys. On a phone, drag the left side to walk and the right side to look. Use the **Share** button to copy a link to the exact tour stop, switches and dials you are looking at.
 
 Quality starts on **Auto**, which moves between presets and trims the resolution to keep the view near 60 frames a second; choose Low, Medium or High in the top bar (in the Dials panel on a phone) to keep one preset. If your system asks for reduced motion, a world opens standing still, and a tour stop that would set things moving waits for **Start**.
 
