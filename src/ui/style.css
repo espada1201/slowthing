@@ -290,9 +290,14 @@ body[data-mode='world'] #touch { display: block; }
 }
 @media (max-width: 760px) {
   .topbar [data-view] { display: none; }
-  .measured { top: 60px; left: 12px; right: 12px; width: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 10px 10px; }
+  /* Map and diagram side by side, each as wide as half the screen allows, and no taller than leaves the tour card
+     clear below them on a short screen (a phone held upright is unchanged; 200 % zoom on a laptop shrinks them). */
+  .chrome { --m-side: min((100vw - 50px) / 2, max(88px, 100dvh - 330px)); }
+  .measured { top: 60px; left: 12px; right: auto; width: auto; max-height: none; overflow: visible; display: grid; grid-template-columns: repeat(2, var(--m-side)); gap: 6px; padding: 8px 10px 10px; }
   .measured-h { grid-column: 1 / -1; font-size: 21px; margin: 0; }
   .m-diagram { aspect-ratio: 1; margin-top: 0; }
-  .chrome:has(> .measured-view:not([hidden])) .hud { top: calc(108px + (100vw - 50px) / 2); }
-  .seen-tag { top: calc(108px + (100vw - 50px) / 2); left: auto; right: 12px; transform: none; font-size: 17px; }
+  .chrome:has(> .measured-view:not([hidden])) .hud { top: calc(108px + var(--m-side)); }
+  .seen-tag { top: calc(108px + var(--m-side)); left: auto; right: 12px; transform: none; font-size: 17px; }
+  /* Wherever they meet, the tour card, its stop number and Next stay on top. */
+  .tour { z-index: 1; }
 }

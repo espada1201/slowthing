@@ -252,3 +252,24 @@ test.describe('on a phone', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('at 200% browser zoom', () => {
+  // A 1280×800 screen at 200%: the page has 640×400 CSS pixels. A keyboard-only tester at this zoom lost the tour
+  // card, its stop number and Next under the map at every stop that opens Measured.
+  test.use({ viewport: { width: 640, height: 400 }, deviceScaleFactor: 2 });
+
+  test('the map shrinks to sit above the tour card, and the card and Next stay on top', async ({ page }) => {
+    await openWorld(page, 'slow-light', '&on=measured');
+    await expect(page.locator('.measured')).toBeVisible();
+    const map = (await page.locator('.measured').boundingBox())!;
+    expect(map.y + map.height, 'the map should end above the tour card').toBeLessThanOrEqual((await page.locator('.tour').boundingBox())!.y);
+    for (const sel of ['[data-tour-next]', '.tour-no']) {
+      const onTop = await page.locator(sel).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return !!hit && (el === hit || el.contains(hit));
+      });
+      expect(onTop, `${sel} should be visible, not covered`).toBe(true);
+    }
+  });
+});
