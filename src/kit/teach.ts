@@ -89,6 +89,7 @@ function sheetPage(sheet: Sheet, card: Card, qr: Qr): HTMLElement {
     'div',
     { class: 'desk' },
     bar(h('a', { class: 'btn ghost', href: `?guide=${sheet.world}` }, 'Teacher page'), h('button', { class: 'btn', onclick: () => window.print() }, 'Print'), h('span', { class: 'bar-note' }, 'One page on A4 or Letter, at 100% scale.')),
+    localOnly(),
     h(
       'article',
       { class: 'paper', 'aria-label': `${sheet.title}, student sheet` },
@@ -154,6 +155,7 @@ function guidePage(guide: Guide, card: Card): HTMLElement {
     'div',
     { class: 'guide' },
     bar(h('button', { class: 'btn', onclick: () => window.print() }, 'Print'), h('a', { class: 'btn ghost', href: `?sheet=${sheet.world}` }, 'Student sheet to print for the class')),
+    localOnly(),
     h('header', { class: 'head' }, h('p', { class: 'kicker' }, `${card.plate} · Teacher page`), h('h1', {}, sheet.title), h('p', { class: 'lede' }, card.blurb)),
     section(
       'Where it fits',
@@ -234,6 +236,12 @@ const section = (title: string, ...children: Node[]) => h('section', {}, h('h2',
 
 /** The screen-only toolbar: back to the index, then the page's own buttons. */
 const bar = (...items: Node[]) => h('nav', { class: 'bar', 'aria-label': 'Teaching kit' }, h('a', { class: 'btn ghost', href: location.pathname }, '← All worlds'), ...items);
+
+/** Served from this computer, every code and link names an address students' devices cannot reach. Screen only. */
+const localOnly = () =>
+  /^(localhost|127(\.\d+){3}|\[::1\])$/.test(location.hostname)
+    ? h('p', { class: 'local', role: 'note' }, 'These codes and links point at this computer (localhost), so students’ devices cannot open them. Print from the published site instead; the README says how to publish it.')
+    : null;
 
 /** A kit link ('./?world=…') as the absolute URL a QR code or a learning platform needs: teach.html sits beside index.html. */
 const absolute = (link: string) => new URL(link, location.href).href;

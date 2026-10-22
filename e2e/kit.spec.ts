@@ -174,6 +174,8 @@ test.describe('the kit pages, in a browser without WebGL', () => {
         expect(await code.getAttribute('href')).toBe(links[i]);
         expect(await code.locator('svg path').getAttribute('d'), 'the code encodes its link').toBe(/ d="([^"]+)"/.exec(renderSVG(links[i], { ecc: 'M', border: 4 }))![1]);
       }
+      // Served from this computer, the codes would send students' devices nowhere: the screen says so, the paper does not.
+      await expect(page.getByRole('note')).toContainText('localhost');
       const sheet = await page.locator('.sheet').innerText();
       expect(sheet).not.toMatch(/Answer: [a-d]\)/);
       for (const why of reasons) expect(sheet).not.toContain(why);
@@ -185,6 +187,7 @@ test.describe('the kit pages, in a browser without WebGL', () => {
       // A page count alone passes when content is clipped: every box and every line of text must lie inside the
       // 190 × 259 mm that A4 and Letter both print.
       await page.emulateMedia({ media: 'print' });
+      await expect(page.getByRole('note')).toBeHidden();
       const outside = await page.evaluate(() => {
         const mm = 96 / 25.4;
         const sheet = document.querySelector('.sheet')!;
