@@ -2,7 +2,7 @@
 
 Walk through three universes where one constant of nature has been turned so far that you can see what it does.
 
-- **I. Slow Light.** In this town, light travels at 12 m/s. Run and the world folds into a bright tunnel ahead of you. Colours shift into ultraviolet and infrared, and at a full sprint even the 300 K warmth of stone becomes visible. The passing tram looks rotated rather than squashed (Terrell rotation), and your watch falls behind the town clock.
+- **I. Slow Light.** In this town, light travels at 12 m/s. Run and the world folds into a bright tunnel ahead of you. Colours shift into ultraviolet and infrared, and at a full sprint even the 300 K warmth of stone becomes visible. The passing tram looks rotated rather than squashed (Terrell rotation), and your watch falls behind the town clock. Measured adds a map of where everything is, and what every clock reads, at your own now, with a spacetime diagram.
 - **II. Big ħ.** In this courtyard, a rolled ball is a quantum wave. It spreads through a doorway, makes interference fringes through two openings, and tunnels through a glass wall. Pressing *Measure* collapses the wave to a single spot.
 - **III. Big G.** Turn gravity up until a 90-tonne boulder collapses into a black hole. Then fly around it while starlight bends into arcs, an Einstein ring and a photon ring.
 
