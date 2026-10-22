@@ -63,7 +63,7 @@ test('every proof passes in the browser, including the GPU shader checks', async
   await expect(page.locator('.proof')).not.toHaveCount(0);
   await expect(page.locator('.proofs-summary')).toHaveText(/^(\d+) of \1 passed$/, { timeout: 150_000 });
   await expect(page.locator('.proof[data-state="fail"]')).toHaveCount(0);
-  for (const id of ['gpu-aberration', 'gpu-doppler', 'gpu-schrodinger', 'gpu-geodesics']) await expect(page.locator(`.proof[data-proof="${id}"]`)).toHaveAttribute('data-state', 'pass');
+  for (const id of ['gpu-aberration', 'gpu-doppler', 'gpu-retarded', 'gpu-schrodinger', 'gpu-geodesics']) await expect(page.locator(`.proof[data-proof="${id}"]`)).toHaveAttribute('data-state', 'pass');
   expect(errors).toEqual([]);
 });
 
