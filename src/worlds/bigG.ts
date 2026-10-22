@@ -11,7 +11,7 @@ import { CRITICAL_IMPACT, PHOTON_SPHERE, asymptoticDirection, einsteinRingRadius
 import { type Vec3, dot, normalize } from '../physics/vec';
 import rayFrag from '../shaders/big-g.frag?raw';
 import reflect from '../shaders/reflect.glsl?raw';
-import { cameraRotation, facing, fullscreenPass } from './shared';
+import { cameraRotation, facing, fullscreenPass, viewRay } from './shared';
 import type { Pose, Quality, Readout, Toggle, TourStop, View, World, WorldContext } from './types';
 
 /** A granite boulder: 2 m radius, 2700 kg/m³. */
@@ -368,6 +368,7 @@ export async function proveRays(renderer: THREE.WebGLRenderer): Promise<{ pass: 
   const rot = cameraRotation(pose.yaw, pose.pitch);
   const tanY = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
   const tanX = (tanY * W) / H;
+  const view = { rot, tan: new THREE.Vector2(tanX, tanY) };
   const r = Math.hypot(...cam);
   const far = Math.max(30 * rs, 1.2 * r, 60);
 
@@ -403,7 +404,7 @@ export async function proveRays(renderer: THREE.WebGLRenderer): Promise<{ pass: 
   const rhat = normalize(cam);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
-      const v = new THREE.Vector3((((i + 0.5) / W) * 2 - 1) * tanX, (((j + 0.5) / H) * 2 - 1) * tanY, -1).applyMatrix3(rot).normalize();
+      const v = viewRay(view, (i + 0.5) / W, (j + 0.5) / H);
       const n: Vec3 = [v.x, v.y, v.z];
       // Rays within a hair of the critical impact parameter wind round the photon sphere and amplify any
       // rounding; they are left out (b is conserved, so this is decided before tracing).
