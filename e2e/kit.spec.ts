@@ -231,6 +231,8 @@ test.describe('the kit pages, in a browser without WebGL', () => {
       await expect(page.locator('.copied')).toHaveText(`Copied ${total} links.`);
       const copied = await page.evaluate(() => navigator.clipboard.readText());
       expect(copied.split('\n').map((line) => line.split(' ').at(-1))).toEqual(links);
+      await page.setViewportSize({ width: 360, height: 740 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no sideways scrolling on a phone').toBe(360);
 
       expect(await serious(page)).toEqual([]);
       expect(errors).toEqual([]);

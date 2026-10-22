@@ -220,7 +220,7 @@ function step(s: Step, stops: number): HTMLElement {
         )
       : null,
     s.misconceptions.length ? h('div', { class: 'watch' }, h('p', { class: 'label' }, 'Watch for'), h('ul', {}, ...s.misconceptions.map((m) => h('li', {}, m)))) : null,
-    h('div', { class: 'prompts' }, h('p', { class: 'label' }, 'On the sheet'), h('ul', {}, ...a.prompts.map((p, i) => h('li', {}, p, s.switches[i] ? h('span', { class: 'note' }, ` Switch: ${s.switches[i].label} (${s.switches[i].hint}).`) : null)))),
+    h('div', { class: 'prompts' }, h('p', { class: 'label' }, 'On the sheet'), h('ul', {}, ...a.prompts.map((p, i) => h('li', {}, p, s.switches[i] ? h('span', { class: 'note' }, ` ${s.switches[i].label} switch: ${s.switches[i].hint}.`) : null)))),
   );
 }
 
