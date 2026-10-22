@@ -159,3 +159,42 @@ test('rapid fire at the glass: once every outcome is arriving, about as many get
   expect(Math.abs(speedThrough - said)).toBeLessThanOrEqual(0.01);
   expect(errors).toEqual([]);
 });
+
+test('a GPU context lost and restored mid-roll starts the roll over, and the wave is read back again', async ({ page }) => {
+  const errors = watchErrors(page);
+  const warnings: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'warning' && m.text().includes('WebGL')) warnings.push(m.text());
+  });
+  await openWorld(page, 'big-hbar');
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Turn ħ up');
+  // Mid-roll, once the wave has been read back at least once.
+  await untilAbove(page, 'Spread Δx', 1.2);
+  const z = async () => parseFloat((await readout(page, 'Where (mean)')).split(', ')[1]);
+  const lostAt = await z();
+  // Lose the context and get it back, as a GPU reset does, each time waiting for the canvas to say so.
+  const context = (event: string, call: string) =>
+    page.evaluate(
+      ([e, c]) =>
+        new Promise((done) => {
+          const view = document.querySelector<HTMLCanvasElement>('#view')!;
+          const w = window as any;
+          // A lost context hands out no extensions, so keep the one fetched before.
+          w.loseGl ??= view.getContext('webgl2')!.getExtension('WEBGL_lose_context');
+          view.addEventListener(e, done, { once: true });
+          w.loseGl[c]();
+        }),
+      [event, call],
+    );
+  await context('webglcontextlost', 'loseContext');
+  await frames(page, 5);
+  await context('webglcontextrestored', 'restoreContext');
+  await frames(page, 3);
+  // The wave lived in textures that went with the old context: the roll starts over from the launch mark,
+  expect(await z()).toBeGreaterThan(lostAt + 1);
+  // and is read back as it rolls, until part of it is through the openings.
+  await untilAbove(page, 'Past the obstacle', 15);
+  expect(warnings).toEqual([]);
+  expect(errors).toEqual([]);
+});

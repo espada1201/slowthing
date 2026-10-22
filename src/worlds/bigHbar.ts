@@ -375,6 +375,12 @@ export class BigHbarWorld implements World {
   private onMouseDown = (e: MouseEvent) => {
     if (e.button === 0 && document.pointerLockElement === this.renderer.domElement) this.queuedThrow = true;
   };
+  /** A lost GL context has come back (see frame). */
+  private restored = false;
+  private onRestored = () => {
+    this.gpu.contextRestored();
+    this.restored = true;
+  };
 
   private pos = new THREE.Vector3(...this.start.position);
   private vel = new THREE.Vector2();
@@ -491,6 +497,7 @@ export class BigHbarWorld implements World {
     }
     this.scene.add(this.ballMesh, this.ghost, this.spreadRing, this.flashSpot, this.flashBeam, this.pulse, this.dots, this.marks);
     r.domElement.addEventListener('mousedown', this.onMouseDown);
+    r.domElement.addEventListener('webglcontextrestored', this.onRestored);
   }
 
   // ---------- scene ----------
@@ -1259,6 +1266,10 @@ export class BigHbarWorld implements World {
   frame(dt: number, input: InputState, ctx: WorldContext) {
     const r = ctx.renderer;
     if (ctx.quality !== this.quality) this.setQuality(ctx.quality, ctx);
+    // The wave lived in the solver's state textures, which a restored context brings back empty: a roll in flight
+    // starts over, as it does on a new grid.
+    if (this.restored && this.mode === 'wave' && this.lastThrow) this.launch(this.lastThrow, ctx);
+    this.restored = false;
     this.syncHbar(ctx);
     this.yaw = input.yaw;
     this.pitch = input.pitch;
@@ -1395,6 +1406,7 @@ export class BigHbarWorld implements World {
   dispose() {
     const r = this.renderer;
     r.domElement.removeEventListener('mousedown', this.onMouseDown);
+    r.domElement.removeEventListener('webglcontextrestored', this.onRestored);
     this.gpu.dispose(r);
     this.sun.shadow.map?.dispose();
     this.textures.forEach((t) => t.dispose());

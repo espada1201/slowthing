@@ -209,6 +209,15 @@ export class GpuSchrodinger {
     this.fence = null;
   }
 
+  /**
+   * The GL context was lost and has come back. three.js remakes its own objects, the state textures among them (empty),
+   * but the read-back's buffer and fence belonged to the old context: the next read makes new ones.
+   */
+  contextRestored() {
+    this.pbo = null;
+    this.fence = null;
+  }
+
   dispose(r: THREE.WebGLRenderer) {
     this.dropRead(r);
     if (this.pbo) (r.getContext() as WebGL2RenderingContext).deleteBuffer(this.pbo);
