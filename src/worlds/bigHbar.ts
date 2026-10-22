@@ -302,7 +302,7 @@ export class BigHbarWorld implements World {
     },
     {
       title: 'A detector pins it down',
-      text: `Press Measure (M) while it rolls: a detector in the floor interacts with the ball and fires at one spot, drawn at random from |ψ|². That interaction, not anyone looking, leaves a lump as wide as the flash (the detector's ${DETECTOR_RESOLUTION.toFixed(2)} m resolution), which spreads again faster than before but never turns back into the wave it was.`,
+      text: `Press Measure (M) while it rolls: a detector in the floor interacts with the ball and fires at one spot, drawn at random from |ψ|². That interaction, not anyone looking, leaves a lump as wide as the flash (the detector’s ${DETECTOR_RESOLUTION.toFixed(2)} m resolution), which spreads again faster than before but never turns back into the wave it was.`,
       pose: porch(0),
       toggles: { rapid: false },
       action: 'roll@0+measure@1.2',
@@ -318,7 +318,7 @@ export class BigHbarWorld implements World {
         question: `The ball has ${joules(ENERGY)} and the glass needs ${joules(GLASS_V0)}. How many balls get through?`,
         options: ['None of them', 'About a quarter', 'All of them'],
         answer: 1,
-        reveal: `The wave leaks through a barrier it cannot classically cross. Theory gives ${percent(GLASS.planeWave)} for a wave with exactly the ball's energy, and the count settles near it.`,
+        reveal: `The wave leaks through a barrier it cannot classically cross. Theory gives ${percent(GLASS.planeWave)} for a wave with exactly the ball’s energy, and the count settles near it.`,
       },
     },
     {
