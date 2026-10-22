@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { expectRendered, frames, meanDiff, openWorld, readout, sample, switchDiff, watchErrors } from './helpers';
+import { expectRendered, frames, goToStop, meanDiff, openWorld, readout, sample, switchDiff, watchErrors } from './helpers';
 
 // Every pixel marches a light ray, which software rendering in CI draws at well under one frame a second.
 test.slow();
@@ -53,7 +53,7 @@ test('the readouts follow you toward the hole', async ({ page }) => {
   expect(parseFloat(await readout(page, 'Your clock rate'))).toBeLessThan(0.9397);
 
   // The last tour stop hovers at 1.2 rs.
-  for (let i = 0; i < 8; i++) await page.keyboard.press('KeyN');
+  await goToStop(page, 'Slow clocks, blue sky');
   await frames(page, 2);
   expect(parseFloat(await readout(page, 'Your clock rate'))).toBeCloseTo(0.414, 2);
   expect(await readout(page, 'Shadow')).toBe('73% of sky');
@@ -174,8 +174,7 @@ const offs = async (page: Page) => [...(await page.locator('.predict-reveal').in
 test('weighing the hole: its shadow, measured with the ruler, gives rs and M to 2%, and the answer waits for yours', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'big-g');
-  for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Weigh the hole');
+  await goToStop(page, 'Weigh the hole');
   // Until you answer, the instruments show only your distance: rs, the clock rate and the rest would give it away.
   await expect(page.locator('.readouts dt')).toHaveText(['Your distance r']);
   await expect(page.locator('.status')).toBeHidden();

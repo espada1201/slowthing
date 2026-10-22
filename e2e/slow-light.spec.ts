@@ -1,22 +1,21 @@
 import { expect, test } from '@playwright/test';
 import { measureFlashes } from './flash';
-import { clockSeconds, expectRendered, frames, openWorld, readout, switchDiff, watchErrors } from './helpers';
+import { clockSeconds, expectRendered, frames, goToStop, openWorld, readout, switchDiff, watchErrors } from './helpers';
 
 test('renders the town, and every effect switch changes what you see', async ({ page }) => {
+  // Six switch comparisons, each a few software-rendered frames: about 1.5 min on a busy 4-core machine.
+  test.setTimeout(180_000);
   const errors = watchErrors(page);
   await openWorld(page, 'slow-light');
   await expectRendered(page);
-  // Tour stop 3 cruises at 0.9 c.
-  await page.keyboard.press('KeyN');
-  await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Aberration');
+  // The Aberration stop cruises at 0.9 c.
+  await goToStop(page, 'Aberration');
   await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
   await frames(page, 20);
   for (const id of ['aberration', 'doppler', 'beaming', 'adapt']) expect((await switchDiff(page, id)).mean, `${id} should change the view`).toBeGreaterThan(4);
 
-  // Stop 6 calls the tram past you; freeze it in view and compare light delay and contraction.
-  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Terrell rotation');
+  // The Terrell stop calls the tram past you; freeze it in view and compare light delay and contraction.
+  await goToStop(page, 'Terrell rotation');
   const t0 = await clockSeconds(page, 'Town clock t');
   await page.waitForFunction((t) => {
     const [h, m, s] = (window as any).slowlight.readouts().find((r: any) => r.label === 'Town clock t').value.split(':').map(Number);
@@ -68,8 +67,7 @@ test('the tour advances and resetting to the real universe restores c', async ({
 test('the carousel lamps flash within the WCAG 2.3.1 limit', async ({ page }) => {
   test.setTimeout(180_000);
   await openWorld(page, 'slow-light');
-  for (let i = 0; i < 6; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Moving clocks');
+  await goToStop(page, 'Moving clocks');
   const { flashes, area } = await measureFlashes(page, 2);
   // Light delay bunches some lamps' flashes past three a second; what keeps them safe is their small area.
   expect(flashes).toBeGreaterThan(3);
@@ -81,9 +79,7 @@ test('a level reticle stays fixed at the centre at 0.9 c, and stays off once swi
   const cruise = async () => {
     await openWorld(page, 'slow-light');
     await expect(reticle).toBeHidden();
-    await page.keyboard.press('KeyN');
-    await page.keyboard.press('KeyN');
-    await expect(page.locator('.tour-title')).toHaveText('Aberration');
+    await goToStop(page, 'Aberration');
     await page.waitForFunction(() => parseFloat((window as any).slowlight.readouts()[1].value) > 0.85, null, { timeout: 60_000 });
     await frames(page, 3);
   };

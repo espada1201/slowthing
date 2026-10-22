@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { expectRendered, frames, openWorld, readout, watchErrors } from './helpers';
+import { expectRendered, frames, goToStop, openWorld, readout, watchErrors } from './helpers';
 
 // The wave is stepped in fragment shaders, which software rendering in CI runs far below real time.
 test.slow();
@@ -64,8 +64,7 @@ test('at the real ħ the ball is a point; turned up, it rolls out as a wave', as
 test('Show wave draws |ψ|² across the floor, and hiding it leaves bare stone', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'big-hbar');
-  for (let i = 0; i < 7; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('A ball as wide as a room');
+  await goToStop(page, 'A ball as wide as a room');
   // The crests sweep across the floor as the wave rolls, so a frame difference mostly measures that motion:
   // count the wave's own colour instead.
   await frames(page, 3);
@@ -86,8 +85,7 @@ test('rapid fire repeats a roll, and the detector walls decide which landings ar
   await openWorld(page, 'big-hbar');
   // Stand past the openings with rapid fire on, go back to the real ħ, and roll a classical ball at the back wall:
   // every repeat of that roll lands where the first did.
-  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Two openings');
+  await goToStop(page, 'Two openings');
   await page.locator('[data-reset="real"]').click();
   await page.keyboard.press('KeyF');
   await untilAbove(page, 'Dots recorded', 30);
@@ -105,8 +103,7 @@ test('rapid fire repeats a roll, and the detector walls decide which landings ar
 
 test('measuring fires a floor detector, which flashes and leaves a lump no wider than its resolution', async ({ page }) => {
   await openWorld(page, 'big-hbar');
-  for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('A detector pins it down');
+  await goToStop(page, 'A detector pins it down');
   const resolution = parseFloat(/([\d.]+) m resolution/.exec((await page.locator('.tour-text').textContent()) ?? '')![1]);
   // The stop measures 1.2 s into the roll, when the packet is about 1.3 m across. Frozen as the detector fires, the
   // flash and the spread belong to the same moment.
@@ -130,8 +127,7 @@ test('rapid fire at the glass: once every outcome is arriving, about as many get
   test.setTimeout(420_000);
   const errors = watchErrors(page);
   await openWorld(page, 'big-hbar');
-  for (let i = 0; i < 5; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText('Through glass');
+  await goToStop(page, 'Through glass');
   expect(await readout(page, 'Theory (plane wave)')).toBe('28%');
   const tally = (min: number) =>
     page

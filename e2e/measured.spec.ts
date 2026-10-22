@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { frames, meanDiff, openWorld, readout, sample, watchErrors } from './helpers';
+import { frames, goToStop, meanDiff, openWorld, readout, sample, watchErrors } from './helpers';
 
 /** The part of World I's Measured model these tests read (src/worlds/measured.ts), plus town time at you. */
 interface Model {
@@ -19,11 +19,6 @@ const pair = (m: Model) => clock(m, 'street-1').reads - clock(m, 'street-0').rea
 const pause = (page: Page, on: boolean) => page.evaluate((p) => (window as any).slowlight.pause(p), on);
 /** "08:05.4" or "10:08:05.4" in seconds past the hour. */
 const seconds = (s: string) => s.split(':').slice(-2).reduce((acc, v) => acc * 60 + Number(v), 0);
-
-async function goTo(page: Page, title: string) {
-  for (let i = 0; i < 12 && (await page.locator('.tour-title').textContent()) !== title; i++) await page.keyboard.press('KeyN');
-  await expect(page.locator('.tour-title')).toHaveText(title);
-}
 
 test('the Measured button shows the map and the diagram, from the keyboard too, and folds the panel behind Dials', async ({ page }) => {
   const errors = watchErrors(page);
@@ -51,7 +46,7 @@ test('the Measured button shows the map and the diagram, from the keyboard too, 
 test('at rest, the map’s tower clock reads the town clock t while you see it 5.4 s behind, and a tram car is 3.22 m', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'slow-light');
-  await goTo(page, 'Seen and measured');
+  await goToStop(page, 'Seen and measured');
   // The map would give the answer away, so it waits for the prediction.
   await expect(page.locator('.measured')).toBeHidden();
   await page.getByRole('button', { name: 'Just show me' }).click();
@@ -78,7 +73,7 @@ test('at rest, the map’s tower clock reads the town clock t while you see it 5
 test('at the carousel, the map shows all eight lamps flashing together every 0.885 s, and the view is unchanged', async ({ page }) => {
   const errors = watchErrors(page);
   await openWorld(page, 'slow-light');
-  await goTo(page, 'Moving clocks');
+  await goToStop(page, 'Moving clocks');
   await expect(page.locator('.measured')).toBeVisible();
   const a = await probe(page);
   await page.waitForFunction((t) => (window as any).slowlight.probe().t > t + 1, a.t, { timeout: 90_000 });
@@ -149,7 +144,7 @@ test('cruising at 0.9 c, each clock 20 m further ahead reads 1.5 s later, turnin
   expect(pair(south)).toBeLessThan(-1.49);
 
   // The tour's coast north starts at full speed: steady from the first frame.
-  await goTo(page, 'Whose now?');
+  await goToStop(page, 'Whose now?');
   const north = await probe(page);
   expect(north.beta).toBeCloseTo(0.9, 9);
   expect(pair(north)).toBeCloseTo(1.5, 9);

@@ -16,6 +16,13 @@ export async function openWorld(page: Page, world: string, extra = '') {
   await page.waitForFunction(() => (window as any).slowlight?.frames > 8, null, { timeout: 60_000 });
 }
 
+/** Step the tour forward with N until the stop titled `title` shows, so tests survive stops added before it. */
+export async function goToStop(page: Page, title: string) {
+  const stops = Number((await page.locator('.tour-no').textContent())!.split('/')[1]);
+  for (let i = 0; i < stops && (await page.locator('.tour-title').textContent()) !== title; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText(title);
+}
+
 /** A 32×20 grid of luminance samples from the WebGL canvas. */
 export async function sample(page: Page): Promise<number[]> {
   return page.evaluate(() => {
