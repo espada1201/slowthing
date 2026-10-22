@@ -19,10 +19,10 @@ export function lutUniforms() {
   return { uLut: { value: doppler }, uLutSize: { value: LUT_SIZE }, uLutRange: { value: LUT_LOG_D_RANGE } };
 }
 
-/** Uniforms for shaders/reflect.glsl, on the Doppler LUT's grid (add lutUniforms too). Built once (≈40 ms). */
+/** Uniforms for shaders/reflect.glsl, with lutUniforms because its table is on the Doppler LUT's grid. Built once (≈40 ms). */
 export function knotUniforms() {
   knots ??= table(buildKnotLUT(), LUT_SIZE, KNOTS.length * 3);
-  return { uKnots: { value: knots } };
+  return { ...lutUniforms(), uKnots: { value: knots } };
 }
 
 /** Uniforms for the sky light on moving surfaces in shaders/slow-moving.frag. Built once (≈60 ms). */

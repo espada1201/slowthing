@@ -2,7 +2,6 @@
 // independent CPU physics. proofs.ts lists them and loads this file only when the page runs.
 
 import * as THREE from 'three';
-import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { dopplerFactor, lorentzFactor, observerToWorldDirection, retardedTime, sourceDopplerFactor } from '../physics/relativity';
 import { simultaneousTime } from '../physics/simultaneity';
 import { skyLight } from '../physics/skylight';
@@ -10,7 +9,7 @@ import { applyDoppler, reflectionTransform } from '../physics/spectrum';
 import { type Vec3, add, dot, len, normalize, scale, sub } from '../physics/vec';
 import { type ProofResult, deg, fmt, within } from '../proofs';
 import { cameraRotation, fullscreenPass } from './shared';
-import { compositeFragment, movingFragment, movingVertex } from './slowShaders';
+import { compositeFragment, movingFragment, movingUniforms, movingVertex } from './slowShaders';
 
 // ---------- GPU harness for World I's composite shader ----------
 
@@ -287,7 +286,7 @@ function exactTramColour({ velocity, colourOn, beamOn }: TramDraw, f: TramFace, 
 /** Run the real slow-moving.frag on every face, handed the shifts slow-moving.vert would, and read back its colour. */
 function runTramFaces(renderer: THREE.WebGLRenderer, draws: TramDraw[], shifts: TramShifts[][]) {
   const width = Math.max(...draws.map((d) => d.faces.length));
-  const tables = { ...lutUniforms(), ...knotUniforms(), ...skyUniforms() };
+  const tables = movingUniforms();
   const rows = draws.map(({ velocity, eye, eyeBeta, colourOn, beamOn, faces }, j) => ({
     attributes: {
       position: faces.map((f) => f.at),

@@ -13,10 +13,9 @@ import { type Vec3, len, scale } from '../physics/vec';
 import type { InputState } from '../input';
 import { MeasuredView } from '../ui/measuredView';
 import staticVert from '../shaders/slow-static.vert?raw';
-import { knotUniforms, lutUniforms, skyUniforms } from '../lut';
 import { cameraRotation, clockString, facing, forwardFlat, fullscreenPass, paint, rightFlat, seeded } from './shared';
 import { type Rider, type Town, measure, ride } from './measured';
-import { compositeFragment, groundFragment, movingFragment, movingVertex, skyFragment, staticFragment } from './slowShaders';
+import { compositeFragment, groundFragment, movingFragment, movingUniforms, movingVertex, skyFragment, staticFragment } from './slowShaders';
 import type { Pose, Quality, Readout, Toggle, TourStop, World, WorldContext } from './types';
 
 const TRACK_R = 45;
@@ -362,9 +361,7 @@ export class SlowLightWorld implements World {
         uDopplerOn: { value: 1 },
         uBeamingOn: { value: 1 },
         uObsBeta: { value: this.composite.material.uniforms.uBeta.value },
-        ...lutUniforms(),
-        ...knotUniforms(),
-        ...skyUniforms(),
+        ...movingUniforms(),
       },
     );
     const mesh = new THREE.Mesh(geometry, mat);
