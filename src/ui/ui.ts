@@ -73,6 +73,8 @@ export interface Chrome {
   dismissHint(): void;
   /** The visitor has walked or looked: drop the how-to-move hint, for this and later visits. */
   controlsUsed(): void;
+  /** Say something calm over the view (or stop saying it, with null): a screen gone black needs a reason. */
+  showNotice(text: string | null): void;
   flash(msg: string): void;
 }
 
@@ -233,6 +235,8 @@ export function worldChrome(
     helpBtn.setAttribute('aria-expanded', String(!help.hidden));
   });
   const toast = h('div', { class: 'toast', role: 'status' });
+  // Always rendered, so screen readers hear its text arrive; it only takes up room while it says something.
+  const notice = h('p', { class: 'view-notice', role: 'status' });
   // Until a visitor has once walked or looked around, say how, over the view: the title screen's line is easy to miss.
   const hint = h(
     'aside',
@@ -250,7 +254,7 @@ export function worldChrome(
     h('div', { class: 'top-right' }, panelToggle, ...views.map((v) => v.top), soundBtn, selects[0], helpBtn),
   );
   // The ruler goes first so that it lies under the panels: they stay usable while it is on.
-  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, hint, top, help, panel, hud, tour, toast, world.overlay ?? null);
+  const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, hint, top, help, panel, hud, tour, toast, notice, world.overlay ?? null);
   // A mouse or finger leaves focus on the switch, slider or button it touched, which would keep Space and the
   // arrows for itself; hand the keyboard back to the world. Keyboard users keep their focus.
   root.addEventListener('pointerup', (e) => {
@@ -402,6 +406,9 @@ export function worldChrome(
     },
     toggleHelp() {
       helpBtn.click();
+    },
+    showNotice(text) {
+      if (notice.textContent !== (text ?? '')) notice.textContent = text ?? '';
     },
     flash(msg) {
       toast.textContent = msg;

@@ -357,3 +357,21 @@ test('one ArrowRight on the G dial makes a visible step, and Page Up a larger on
   await page.keyboard.press('End');
   expect(await value()).toBe(1000);
 });
+
+test('when the shadow covers most of the sky the view says why, and the note goes when G comes down', async ({ page }) => {
+  // All three testers took the black screen at the top of the G dial for a crash.
+  await openWorld(page, 'big-g');
+  const note = page.locator('.view-notice');
+  await expect(note).toBeHidden();
+  await setG(page, 1000);
+  expect(parseFloat(await readout(page, 'Shadow'))).toBeGreaterThan(80);
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText('You are inside the black hole’s shadow: almost no light reaches you. Lower G to see the sky again.');
+  expect(await note.getAttribute('role')).toBe('status');
+  await setG(page, 960);
+  await expect(note).toBeHidden();
+  // The tour's own closest stop, 73% of the sky, is dark enough to need no note.
+  await goToStop(page, 'Slow clocks, blue sky');
+  await frames(page, 2);
+  await expect(page.locator('.view-notice')).toBeHidden();
+});

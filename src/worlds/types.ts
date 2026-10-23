@@ -149,6 +149,8 @@ export interface World<S = unknown> extends Lesson<S> {
   measureState?(): S;
   /** Whether your own speed is warping the whole view, when a fixed level reticle gives the eye a steady reference. */
   warping?(ctx: WorldContext): boolean;
+  /** A calm line to show over the view while something about it needs saying (a black screen is not a crash), else null. */
+  viewNotice?(ctx: WorldContext): string | null;
   /** Instruments the world draws itself, added to the chrome. */
   readonly overlay?: HTMLElement;
   /** What the end-to-end tests read beyond the readouts. */

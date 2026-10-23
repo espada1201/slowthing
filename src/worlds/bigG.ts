@@ -99,6 +99,10 @@ const WEIGH = facing([0, 76.8, 22.4], [0, 0, 15]);
 const RING = { r: 200, rs: 10 };
 const EINSTEIN = facing(PLANET_DIR.clone().multiplyScalar(-RING.r).toArray() as [number, number, number]);
 
+/** The share of the sky the shadow must cover for the view to be all but black, and the line that says so. */
+const DARK_SKY = 0.8;
+const DARK_NOTICE = 'You are inside the black hole’s shadow: almost no light reaches you. Lower G to see the sky again.';
+
 const degrees = (radians: number, digits = 1) => `${THREE.MathUtils.radToDeg(radians).toFixed(digits)}°`;
 
 /** What weighing the hole works from: your distance from its centre and its Schwarzschild radius, in metres. */
@@ -362,6 +366,12 @@ export class BigGWorld extends BigGLesson implements World<HoleState> {
     if (rs < 1e-6) return `rs is ${formatSI(ROCK_R / rs, 2)} times smaller than the boulder: nothing visibly bends.`;
     if (!this.collapsed) return `Still a rock: rs is ${Math.round((100 * rs) / ROCK_R)}% of its radius. It collapses past rs = ${COLLAPSE_RS.toFixed(2)} m.`;
     return `Black hole. Light can orbit at 1.5 rs = ${formatSI(PHOTON_SPHERE * rs)} m.`;
+  }
+
+  viewNotice(): string | null {
+    if (!this.collapsed) return null;
+    const share = (1 - Math.cos(shadowAngularRadius(this.pos.length(), this.rs))) / 2;
+    return share > DARK_SKY ? DARK_NOTICE : null;
   }
 
   view(): View {
