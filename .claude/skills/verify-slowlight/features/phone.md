@@ -34,5 +34,5 @@ Preconditions:
 
 - The touch layer ignores mouse events, so `click` cannot walk; use `swipe`.
 - A swipe that starts on a button presses the button instead of walking.
-- At a question with the Measured map up, the card is at most 45% of the screen and keeps `Next` in reach (it scrolls, its buttons stick); a band of the view stays clear between the instruments and the card.
+- At a question with the Measured map up, the card is at most 45% of the screen and keeps `Next` in reach (it scrolls, its buttons stick); a band of the view at least 100 px tall (never less than 30% of the screen) stays clear between the instruments and the card, whatever font the words are set in: the card gives up height, not the band.
 - Big ħ's quick actions are `Roll ball` and `Measure`; Big G's are `Face the hole` and `Ruler`.

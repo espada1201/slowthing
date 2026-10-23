@@ -319,6 +319,25 @@ export function worldChrome(
     if (el instanceof HTMLElement) setTimeout(() => el.blur());
   });
 
+  // Where the instruments are, for what has to keep clear of them in any font (the card with the map up on a phone, the line
+  // about the shadow on a short screen): their size follows the font, and CSS cannot ask a box where its neighbour ends.
+  let hudFrame = 0;
+  const syncHud = () => {
+    hudFrame = 0;
+    const r = hud.getBoundingClientRect();
+    root.style.setProperty('--hud-t', `${r.top}px`);
+    root.style.setProperty('--hud-r', `${r.right}px`);
+    root.style.setProperty('--hud-b', `${r.bottom}px`);
+  };
+  const hudSoon = () => {
+    hudFrame ||= requestAnimationFrame(syncHud);
+  };
+  // The size is not all: a resize moves them, and so does opening the map (hidden) or a question (the chrome's own class).
+  new ResizeObserver(hudSoon).observe(hud);
+  new ResizeObserver(hudSoon).observe(root);
+  new MutationObserver(hudSoon).observe(root, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(hudSoon).observe(root, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+
   let toastTimer = 0;
   let rowKey = '';
   let rowValues: { value: Text; gauge: HTMLElement | null }[] = [];

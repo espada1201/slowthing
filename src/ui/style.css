@@ -77,7 +77,8 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font: italic 32px var(--serif); color: var(--paper); background: var(--ink); }
 
 /* In-world chrome */
-.chrome { position: absolute; inset: 0; pointer-events: none !important; }
+/* --hud-t, --hud-r and --hud-b: where the instruments are (the page sets them), for whatever must keep clear of them in any font. */
+.chrome { position: absolute; inset: 0; pointer-events: none !important; --hud-t: 0px; --hud-r: 0px; --hud-b: 0px; }
 .chrome > * { pointer-events: auto; }
 .btn {
   background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: var(--radius);
@@ -192,9 +193,14 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .view-notice { position: absolute; left: 50%; bottom: calc(var(--screen-h) * 0.45 + 16px); transform: translateX(-50%); width: max-content; max-width: min(30rem, calc(100vw - 32px)); margin: 0; background: rgba(16, 18, 22, 0.88); color: var(--paper); padding: 10px 16px; border-radius: var(--radius); box-shadow: inset 0 0 0 1px rgba(239, 231, 214, 0.3); font: 17px/1.3 var(--serif); text-align: center; pointer-events: none !important; }
 .view-notice:empty { display: none; }
 .chrome:has(.view-notice:not(:empty)) .move-hint { display: none; }
-/* Short: the instruments and the card fill the left of the view, so the line goes in the column to their right. */
+/* Short: the instruments and the card fill the left of the view, so the line goes in the column to the right of the
+   instruments, wherever their edge falls in this font, and from their top. */
 @media (max-height: 500px) {
-  .view-notice { left: auto; right: 12px; top: 72px; bottom: auto; transform: none; width: auto; max-width: min(250px, calc(100vw - 600px)); font-size: 15px; text-align: left; }
+  .view-notice { left: min(calc(var(--hud-r) + 12px), calc(100vw - 212px)); right: 12px; top: var(--hud-t); bottom: auto; transform: none; width: auto; max-width: 26rem; font-size: 15px; text-align: left; }
+}
+/* Narrow as well (200% zoom on a laptop): the instruments run most of the way across, so the line goes under them, over the top of the card. */
+@media (max-height: 500px) and (max-width: 760px) {
+  .view-notice { left: 12px; top: calc(var(--hud-b) + 8px); z-index: 2; max-width: none; font-size: 14px; }
 }
 
 /* Sky ruler: a layer over the view, under the panels. */
@@ -260,6 +266,11 @@ body[data-mode='world'] #touch { display: block; }
    measures (World III's shadow sits just above it). The card scrolls, and its buttons stay in reach. */
 @media (max-width: 760px), (max-height: 500px) {
   .tour { max-height: calc(var(--screen-h) * 0.45 - var(--safe-b)); }
+}
+/* A phone held upright with the map up: the instruments sit under it, mid-screen, and the card keeps a band of the view clear
+   below them (100 px, but never less than 30% of the screen's height), whatever height the card's words take in this font. */
+@media (max-width: 760px) and (min-height: 501px) {
+  .chrome:has(> .measured-view:not([hidden])) .tour { max-height: max(calc(var(--screen-h) * 0.3), min(calc(var(--screen-h) * 0.45 - var(--safe-b)), calc(var(--screen-h) - var(--hud-b) - 100px - 10px - var(--safe-b)))); }
 }
 /* Short (a phone held sideways, a laptop at 200% zoom): the instruments take two pairs a row, so the card does not
    cover their lower rows; the card's quick actions show, as on a phone (the dials are behind their button here too);
