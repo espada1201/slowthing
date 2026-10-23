@@ -5,6 +5,8 @@ const FLOOR = 0.5;
 /** Median frame times (ms) above which a second of frames is too slow, and below which it has room to spare. */
 const SLOW = 21;
 const ROOMY = 17.5;
+/** Half the limit: even a frame that missed a vsync and took twice as long would fit, so a climb from here cannot fail. */
+const EASY = SLOW / 2;
 /** How long a step down holds before the resolution may climb again; each failed climb doubles it. */
 const HOLD = 8000;
 const MAX_HOLD = 240_000;
@@ -28,6 +30,8 @@ export class AutoQuality {
   private hold = 0;
   private backoff = HOLD;
   private climbing = false;
+  /** The last climb has not been undone since: it is a resolution that holds, not one that merely has not failed yet. */
+  private climbHeld = false;
   /** Time since the last climb, ms. */
   private sinceClimb = Infinity;
   /** Time spent too slow at the lowest resolution, or at full resolution with room to spare. */
@@ -63,13 +67,18 @@ export class AutoQuality {
     this.good = this.scale;
     this.stuck = 0;
     this.climbing = false;
+    // A climb that has stood for a minute, or the full resolution, shows the load that made it fail is gone: a later
+    // failure starts the waits over instead of continuing from minutes.
+    if ((this.climbHeld && this.sinceClimb > RECENT) || this.scale >= 1) this.backoff = HOLD;
     if (median >= ROOMY) {
       this.roomy = 0;
       return null;
     }
     if (this.scale < 1) {
-      if (this.hold > 0) return null;
+      // The wait guards against a climb that fails; at this median none can, so a load that has cleared is not waited out.
+      if (this.hold > 0 && median > EASY) return null;
       this.climbing = true;
+      this.climbHeld = true;
       this.sinceClimb = 0;
       return this.setScale(Math.min(1, this.scale * 1.06));
     }
@@ -80,6 +89,7 @@ export class AutoQuality {
 
   private tooSlowFor(median: number, span: number) {
     this.roomy = 0;
+    this.climbHeld = false;
     if (this.climbing) {
       this.climbing = false;
       this.hold = this.lengthen();
@@ -117,6 +127,7 @@ export class AutoQuality {
     this.backoff = HOLD;
     this.sinceClimb = Infinity;
     this.climbing = false;
+    this.climbHeld = false;
     this.settle = 1000;
     return 'preset' as const;
   }

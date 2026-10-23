@@ -133,4 +133,50 @@ describe('auto quality: slow frames step it down, and it does not oscillate', ()
     expect(aq.preset).toBe('low');
     expect(aq.scale).toBe(0.5);
   });
+
+  describe('after a long spell of noisy load near the limit, once the load clears', () => {
+    /** 15 minutes of ~21 ms frames, ±5 ms of noise, then `easy` ms frames: seconds until full resolution is back. */
+    const recoverySeconds = (seed: number, easy: number) => {
+      const noise = jitter(seed);
+      const aq = new AutoQuality('medium', false);
+      run(aq, (_, s) => Math.max(4, 6 + 15 * s * s + 5 * noise()), 15 * 60);
+      expect(aq.scale, 'the load had cost resolution').toBeLessThan(1);
+      let t = 0;
+      while (aq.scale < 1 && t < 600_000) {
+        t += easy;
+        aq.frame(easy);
+      }
+      return t / 1000;
+    };
+
+    it('is back at full resolution within seconds when frames come in well under the limit (120 Hz, or no vsync)', () => {
+      for (const seed of [1, 2, 3, 4, 5]) expect(recoverySeconds(seed, 8), `seed ${seed}`).toBeLessThanOrEqual(10);
+    });
+
+    it('on a 60 Hz lock, where easy frames look like any other, waits out only its last hold: never the ratcheted four minutes plus more', () => {
+      for (const seed of [1, 2, 3, 4, 5]) expect(recoverySeconds(seed, VSYNC), `seed ${seed}`).toBeLessThanOrEqual(240 + 15);
+    });
+
+    it('starts its waits over once a climb has held: a failed climb later waits seconds, not the minutes it had reached', () => {
+      const aq = new AutoQuality('medium', false);
+      const trouble = (_: Quality, s: number) => (s <= 0.8 ? 12 : 40);
+      // Two minutes of failing climbs double the waits, then the load goes and a climb holds for a long time.
+      run(aq, trouble, 120);
+      run(aq, () => 12, 300);
+      expect(aq.scale).toBe(1);
+      run(aq, () => 12, 120);
+      // The same trouble again: step down, climb once or twice, fail, and wait. How long is that wait?
+      const moves: { t: number; scale: number }[] = [];
+      for (let t = 0; t < 120_000; ) {
+        const ms = trouble(aq.preset, aq.scale);
+        t += ms;
+        if (aq.frame(ms)) moves.push({ t: t / 1000, scale: aq.scale });
+      }
+      const failed = moves.findIndex((m, i) => i > 1 && m.scale < moves[i - 1].scale);
+      expect(failed, 'a climb failed').toBeGreaterThan(1);
+      const next = moves[failed + 1];
+      expect(next, 'and it tried again').toBeDefined();
+      expect(next.t - moves[failed].t).toBeLessThan(20);
+    });
+  });
 });
