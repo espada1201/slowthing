@@ -137,7 +137,15 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .status:empty { display: none; }
 .reticle { position: absolute; left: 50%; top: 50%; width: 72px; height: 12px; margin: -6px 0 0 -36px; pointer-events: none !important; }
 
-.tour { position: absolute; left: 50%; bottom: calc(16px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(100vw - 24px - 600px)); min-width: 340px; padding: 14px 18px 10px; }
+.tour { position: absolute; left: 50%; bottom: calc(16px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(100vw - 24px - 600px)); min-width: 340px; padding: 14px 18px 10px; display: flex; flex-direction: column; }
+/* Where the card is held to a height (a phone, a short screen) its words scroll in here, above its buttons. The margin and
+   padding leave room for a focus ring at the edge, which the scrolling would cut off. */
+.tour-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; margin: -4px -4px 0; padding: 4px; overscroll-behavior: contain; }
+.tour-actions { flex: none; }
+.tour-more { display: none; position: sticky; bottom: 0; height: 0; pointer-events: none; }
+.tour-body[data-more] .tour-more { display: block; }
+.tour-more::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: linear-gradient(to bottom, rgba(239, 231, 214, 0), rgba(239, 231, 214, 0.96)); }
+.tour-more span { position: absolute; right: 2px; bottom: 2px; font: 500 10.5px var(--mono); letter-spacing: 0.04em; color: var(--accent-ink); }
 .tour-head { display: flex; align-items: baseline; gap: 10px; }
 .tour-no { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
 .tour-title { font: italic 26px/1.05 var(--serif); margin: 0; }
@@ -178,6 +186,10 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .view-notice { position: absolute; left: 50%; bottom: calc(var(--screen-h) * 0.45 + 16px); transform: translateX(-50%); width: max-content; max-width: min(30rem, calc(100vw - 32px)); margin: 0; background: rgba(16, 18, 22, 0.88); color: var(--paper); padding: 10px 16px; border-radius: var(--radius); box-shadow: inset 0 0 0 1px rgba(239, 231, 214, 0.3); font: 17px/1.3 var(--serif); text-align: center; pointer-events: none !important; }
 .view-notice:empty { display: none; }
 .chrome:has(.view-notice:not(:empty)) .move-hint { display: none; }
+/* Short: the instruments and the card fill the left of the view, so the line goes in the column to their right. */
+@media (max-height: 500px) {
+  .view-notice { left: auto; right: 12px; top: 72px; bottom: auto; transform: none; width: auto; max-width: min(250px, calc(100vw - 600px)); font-size: 15px; text-align: left; }
+}
 
 /* Sky ruler: a layer over the view, under the panels. */
 .ruler { position: absolute; inset: 0; cursor: crosshair; touch-action: none; outline: none; }
@@ -234,18 +246,18 @@ body[data-mode='world'] #touch { display: block; }
   .tour-end { font-size: 15px; }
   .choice { min-height: 32px; padding: 4px 8px; }
   .steps { font-size: 15px; }
-  .tour > .row:last-child { position: sticky; bottom: -8px; padding: 6px 0 8px; margin: 0; background: var(--paper-glass); }
+  .tour-actions { padding: 6px 0 0; margin: 0; }
   .help { right: 12px; left: 12px; width: auto; z-index: 2; }
 }
 /* One height for the tour card on a phone, held either way, and on a short screen (200% zoom on a laptop): never more than
    45% of the screen, so the view keeps a band to look through, and below its middle, so the ruler can reach what it
    measures (World III's shadow sits just above it). The card scrolls, and its buttons stay in reach. */
 @media (max-width: 760px), (max-height: 500px) {
-  .tour { max-height: calc(var(--screen-h) * 0.45 - var(--safe-b)); overflow-y: auto; }
+  .tour { max-height: calc(var(--screen-h) * 0.45 - var(--safe-b)); }
 }
 /* Short (a phone held sideways, a laptop at 200% zoom): the instruments take two pairs a row, so the card does not
    cover their lower rows; the card's quick actions show, as on a phone (the dials are behind their button here too);
-   and the card scrolls, with its buttons in reach. */
+   and the card's words scroll above its buttons. */
 @media (max-height: 500px) {
   .readouts { grid-template-columns: repeat(4, auto); gap: 2px 8px; }
   .readouts dt { white-space: nowrap; }
@@ -253,7 +265,14 @@ body[data-mode='world'] #touch { display: block; }
   .hud { padding: 6px 10px; }
   .quick { display: flex; gap: 6px; margin-right: auto; }
   .quick .btn { padding: 6px 10px; }
-  .tour > .row:last-child { position: sticky; bottom: -10px; padding: 6px 0 10px; margin: 0; background: var(--paper-glass); }
+  .tour-actions { padding: 6px 0 0; margin: 0; }
+  /* The card is held to 45% of a short screen, so its words tighten to leave a question's answers on view above the buttons. */
+  .tour-title { font-size: 21px; }
+  .tour-text { font-size: 16px; margin: 4px 0; }
+  .predict { margin: 2px 0 0; }
+  .predict-q { font-size: 16px; margin-bottom: 4px; }
+  .choice { min-height: 30px; padding: 3px 8px; }
+  .tour-end { font-size: 15px; }
 }
 /* Narrow and short (200% zoom on a laptop, a phone held sideways): 52vh would show the c dial alone, so the open
    Dials panel takes the height below the top bar, over the tour card, until it is closed. */

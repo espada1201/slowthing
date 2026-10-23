@@ -196,8 +196,23 @@ export function worldChrome(
   });
   // Said once, at the last stop: the card has nowhere further to go, and Next greys out without a word.
   const tourEnd = h('p', { class: 'tour-end', hidden: true, tabindex: -1 }, 'That is the end of the tour. Keep walking and turning the dials, or go back to the Worlds for another.');
-  const turned = h('p', { class: 'tour-turned', hidden: true }, 'The dials differ from this stop’s, so it may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, tourEnd, turned, h('div', { class: 'row' }, quick, start, prev, next));
+  // Above the text, which keeps saying what this stop's own dials show (a size, a speed): that is no longer what the view shows.
+  const turned = h('p', { class: 'tour-turned', hidden: true }, 'The dials differ from this stop’s. The text below is for this stop’s setting, so the view may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
+  // The card's words scroll above its buttons, never under them; this says so while there is more below.
+  const more = h('div', { class: 'tour-more', 'aria-hidden': 'true' }, h('span', {}, 'More below ↓'));
+  const tourBody = h('div', { class: 'tour-body' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), turned, predictBox, tourText, tourEnd, more);
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, tourBody, h('div', { class: 'row tour-actions' }, quick, start, prev, next));
+  const syncMore = () => tourBody.toggleAttribute('data-more', tourBody.scrollHeight - tourBody.scrollTop - tourBody.clientHeight > 2);
+  tourBody.addEventListener('scroll', syncMore, { passive: true });
+  // What the card says changes its height without changing its size, so watch both.
+  let moreFrame = 0;
+  const soon = () => {
+    cancelAnimationFrame(moreFrame);
+    moreFrame = requestAnimationFrame(syncMore);
+  };
+  new MutationObserver(soon).observe(tourBody, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+  new ResizeObserver(soon).observe(tourBody);
+  window.addEventListener('resize', soon);
   let current = 0;
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
@@ -294,6 +309,7 @@ export function worldChrome(
       /** Where focus goes if the button it is on greys out and this stop has a question to answer. */
       let firstAnswer: HTMLElement | null = null;
       current = i;
+      tourBody.scrollTop = 0;
       const last = i === world.tour.length - 1;
       start.hidden = !waiting;
       const stop = world.tour[i];
