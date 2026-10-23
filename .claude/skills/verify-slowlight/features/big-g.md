@@ -5,6 +5,8 @@ A platform in space where gravity is turned up until a 90-tonne boulder becomes 
 ## Sub-features
 
 - `bg-dial` the G slider takes the boulder from a plain rock (real G) to a larger black hole.
+- `bg-dial-keys` on the focused G slider an arrow moves 5 of its 1000 steps (Shift+arrow 1) and Page Up or Down 15, so one press is a visible change from the preset at step 960; Home and End still go to the ends.
+- `bg-dark-note` when the shadow covers more than 80% of the sky (the top of the G dial) a line over the view says `You are inside the black hole’s shadow: almost no light reaches you. Lower G to see the sky again.`; it goes when G comes down.
 - `bg-switches` `Light bending` and `Gravitational shift` change the picture; `Shadow edge` draws a dashed circle.
 - `bg-face` `Face the hole` (F) turns the view to the hole.
 - `bg-fly` WASD with Space and Q flies; `Your distance r` falls and `Your clock rate` drops as you approach.
@@ -30,6 +32,8 @@ Preconditions:
 
 - **Enter.** Choose the plate. Run `ctl click '.plate[data-world="big-g"]'` and `ctl frames 3`. `Schwarzschild radius` reads `4.5 m`.
 - **Real G.** Move the slider to its minimum. Run `ctl press Home '[data-dial="G"]'` and `ctl frames 2`. `Schwarzschild radius` contains `10⁻²²` and the status contains `nothing visibly bends`. Take `ctl shot bg-real`.
+- **Dial by keyboard.** Run `ctl go "?world=big-g&quality=low"`, `ctl press ArrowRight '[data-dial="G"]'` and `ctl frames 2`. `Schwarzschild radius` reads about 5.9 m (it was 4.5 m). `ctl press PageUp '[data-dial="G"]'` makes it about 13 m, not the maximum; `ctl press End '[data-dial="G"]'` goes to the maximum.
+- **Black screen.** With the dial at the maximum (`ctl press End '[data-dial="G"]'`, `ctl frames 3`), `Shadow` reads `92% of sky` and `ctl text '.view-notice'` prints the line above. Take `ctl shot bg-dark`. `ctl press Home '[data-dial="G"]'` and `ctl click '[data-reset="preset"]'` bring the note and the hole back: `ctl text '.view-notice'` prints `[]`.
 - **Back to the hole.** Run `ctl click '[data-reset="preset"]'` and `ctl frames 2`. The radius reads `4.5 m` again. Take `ctl shot bg-hole`.
 - **Shadow edge.** Run `ctl click '.switch:has([data-toggle="guide"])'`, `ctl frames 2` and `ctl shot bg-guide`. A dashed circle surrounds the shadow.
 - **Fly in.** Face the hole and fly. Run `ctl press KeyF`, then `ctl hold Shift+KeyW 8000`. `Your distance r` falls from 38.5 m by more than 10 m and `Your clock rate` falls from 0.9397 to below 0.92. A frame moves you at most 0.05 s of game time, so where a frame takes over a second an 8 s hold flies only a few metres: hold for 20000 ms instead, or hold again.
@@ -45,6 +49,7 @@ Preconditions:
 ## Gotchas
 
 - Every pixel marches a light ray, so SwiftShader draws well under one frame a second at Low. Each `frames 2` can take several seconds, and on a busy machine `ctl shot` can time out after 30 s; `ctl aria` still records the state.
+- The G slider's useful range is its top 7%: the world preset is step 960 and the maximum (rs about 40 m) is step 1000, so End from the preset is a jump to the black screen, and a keyboard visitor gets there in a few arrows.
 - Big G's only dial is G; there is no c or ħ slider here.
 - The tour moves you, so read distances right after the step that sets them.
 - The probe's `readouts` lists every instrument even while the weighing stop hides them; read what the visitor sees with `ctl text '.readouts'`.

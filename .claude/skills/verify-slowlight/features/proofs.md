@@ -6,6 +6,7 @@
 
 - `proofs-run` every proof runs on arrival and the summary reads `N of N passed`.
 - `proofs-gpu` the GPU proofs (`gpu-aberration`, `gpu-doppler`, `gpu-retarded`, `gpu-tram-colour`, `gpu-schrodinger`, `gpu-geodesics`) pass.
+- `proofs-keys` on opening, focus is on the page's heading (`Computed, not faked`), so PageDown, Space, ArrowDown and End scroll the page at once, without a Tab first.
 - `proofs-again` `Run again` reruns every check.
 - `proofs-back` `← Worlds` returns to the title screen.
 
@@ -22,6 +23,7 @@ Preconditions:
 
 - **Open.** Run `ctl click '[data-proofs]'`. The URL is `/?proofs` and the summary starts `Running…` or counts up.
 - **Finish.** Run `ctl probe` every few seconds until `proofs` reads `N of N passed` (two minutes at most on SwiftShader). Then `ctl text '.proof[data-state="fail"]'` prints an empty list.
+- **Keys.** Right after Open, run `ctl press PageDown` and `ctl press End`. `ctl shot proofs-scrolled` shows rows further down the list than the first, with no earlier Tab.
 - **Measured values.** Run `ctl text '.proof-result'`. Every row reads `Measured … Expected …`.
 - **Run again.** Run `ctl click --role button --name "Run again"` and wait for `N of N passed` again.
 - **Back.** Run `ctl click --role button --name "← Worlds"`. Mode is `title`.

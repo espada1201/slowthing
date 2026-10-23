@@ -5,7 +5,7 @@ On a narrow touch screen the Dials panel hides behind a `Dials` button, the two 
 ## Sub-features
 
 - `phone-panel` the panel is hidden until `Dials` is tapped, and every control in it is the element a tap lands on.
-- `phone-card` the tour card is at most 45% of the screen height (dvh where known) on a phone held either way and on any screen under 500 px tall; it scrolls and its buttons stay in reach.
+- `phone-card` the tour card is at most 45% of the screen height (dvh where known) on a phone held either way and on any screen under 500 px tall; its words scroll above the button row (the row is outside the scroll), `More below ↓` shows while there is more, and the buttons stay in reach.
 - `phone-quick` the world's first two actions are on the tour card, also on a phone held sideways (844×390) and at 200% zoom (any screen under 500 px tall).
 - `phone-walk` dragging on the left side walks; Speed rises while the thumb is held.
 - `phone-look` dragging on the right side turns the view.

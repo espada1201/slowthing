@@ -13,7 +13,7 @@ The title screen names the app, shows three world plates (Slow Light, Big ħ, Bi
 ## How to get to it (user POV)
 
 - Open the app's address.
-- Choose `← Worlds` inside a world.
+- Choose `← Worlds` inside a world, or press Esc there with nothing open.
 - Choose `← Worlds` on the proofs page.
 
 ## Driving it with ctl

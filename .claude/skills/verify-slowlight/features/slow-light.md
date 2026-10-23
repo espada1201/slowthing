@@ -8,6 +8,7 @@ A town where light travels at 12 m/s. The visitor walks, runs or cruises at 0.9 
 - `sl-reset` `Real universe` puts c back to 299 792 458 m/s, `World preset` back to 12 m/s.
 - `sl-switches` each of the six effect switches changes the picture.
 - `sl-walk` WASD walks, Shift runs, and Speed, β and γ rise (the instruments gloss them: `β = v/c` share of c, `γ` clock slow-down).
+- `sl-define` β and γ in the instruments are buttons named `β (beta): your speed as a share of light's speed` and `γ (gamma): how many times slower a moving clock runs`; hover, focus or a tap shows the sentence under the instruments on every screen size (the two-word glosses hide under 500 px tall), and Esc puts it away. The same two sentences end the `?` list.
 - `sl-cruise` `Cruise` (F) accelerates to 0.9 c, `Stop` (X) halts.
 - `sl-tram` `Tram` (T) brings the 0.89 c tram past within about three seconds.
 - `sl-clocks` your watch falls behind the town clock while you move.
@@ -35,6 +36,7 @@ Preconditions:
 - **Real universe.** Choose `Real universe`. Run `ctl click '[data-reset="real"]'`. `constants.c` is 299792458 and the toast reads `Real universe: every constant at its measured value, and every effect back on.`, and every effect switch is on
 - **World preset.** Choose `World preset`. Run `ctl click '[data-reset="preset"]'`. `constants.c` is 12.
 - **Run.** Hold Shift and W. Run `ctl hold Shift+KeyW 4000`. Speed is above 0, `β = v/c` above 0.3, `γ` above 1.05, and `You are younger by` above `0.00 s`.
+- **Define.** Run `ctl click --role button --name "β (beta): your speed as a share of light's speed"` (on the phone and sideways instances a tap). `ctl text '.sym-tip'` prints the same sentence; `ctl press Escape` hides it (`ctl text '.sym-tip'` prints `[]`). Do the same for γ. Take `ctl shot sl-define`; on the sideways instance the sentence sits under the instruments, over the top of the tour card.
 - **Cruise.** Cruise from the tour's open street, then stop and cruise by key. Run `ctl press KeyN` twice and `ctl frames 40`: the title is `Aberration` and `β = v/c` approaches 0.900. Run `ctl press KeyX` and `ctl frames 40`: `β` falls back to 0 and `ctl text '.reticle'` prints `[]`. Run `ctl press KeyF` and `ctl frames 40`: `β` approaches 0.900 again and `ctl text '.reticle'` prints `[""]` (shown, no text). Take `ctl shot sl-cruise`; it has the level mark at the centre.
 - **Reticle off.** Run `ctl click '.switch:has([data-toggle="reticle"])'`, then reload with `ctl go "?world=slow-light&quality=low"`, `ctl press KeyN` twice and `ctl frames 40`. `toggles.reticle` is still false, and at `β` 0.899 `ctl text '.reticle'` prints `[]`. Click the switch again: `ctl text '.reticle'` prints `[""]`.
 - **Switches.** Reopen with `ctl go "?world=slow-light&quality=low&e2e"`, press N twice and wait 40 frames (the `Aberration` stop cruises), then for each of `aberration`, `doppler`, `beaming`, `adapt`: `ctl pause on`, `ctl sample`, `ctl click '.switch:has([data-toggle="<id>"])'`, `ctl frames 2`, `ctl sample`, click it back, `ctl pause off`. Each pair of means differs by more than 4.

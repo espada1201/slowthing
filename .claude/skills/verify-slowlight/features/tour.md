@@ -11,6 +11,9 @@ Each world opens on a tour card: a numbered stop with a title and one or two sen
 - `tour-skip` `Just show me` reveals without marking a pick.
 - `tour-optional` a question or measurement says `Optional: Next goes on without an answer.` until it is answered.
 - `tour-end` the last stop says the tour is over, below its text (below the answer, at a stop that asks a question); from the keyboard, focus stays in the card: a button that greys out under the keyboard hands focus on (`←` at the first stop to `Next`; `Next` at the last to the first answer of a question still open, else to the closing line).
+- `tour-key-focus` N or B from the keyboard onto a question puts focus on its first answer (onto a measurement, on its question, with the boxes one Tab on); Next and Back already did.
+- `tour-card-scroll` the card's words scroll above its button row, never under it; while there is more below, `More below ↓` shows over the foot of the words. A reveal takes focus and scrolls into view.
+- `tour-turned` once a dial differs from the stop's, a note above the text says `The dials differ from this stop’s. The text below is for this stop’s setting…`, with `Use this stop’s dials`; it is whole on a phone held sideways.
 - `tour-measure` a measurement stop takes typed answers, refuses anything that is not a number, and says how far off each was; driven in big-g.md (`Weigh the hole`).
 
 ## How to get to it (user POV)
