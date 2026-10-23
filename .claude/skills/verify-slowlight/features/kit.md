@@ -5,7 +5,7 @@
 ## Sub-features
 
 - `kit-index` `teach.html` lists the three worlds, each with `Teacher page` and `Student sheet`.
-- `kit-sheet` `?sheet=<world>`: one page on A4 or Letter, one QR code per activity, no answers or reasons. A measurement (World III's `Weigh the hole`) prints its question and a blank for each quantity.
+- `kit-sheet` `?sheet=<world>`: one page on A4 or Letter, one QR code per activity, no answers or reasons. A measurement (World III's `Weigh the hole`) prints its question and a blank for each quantity. On a screen narrower than 840 px (a phone, 200% zoom) it reflows to one column with no sideways scroll; on paper it is still the same A4 sheet.
 - `kit-guide` `?guide=<world>`: steps whose minutes add up to 15, each prediction's answer and reason, a measurement's steps, misconceptions and prompts. Its `Print` prints the teacher page; `Student sheet to print for the class` beside it opens the sheet.
 - `kit-links` each activity's QR code or link opens its stop with that stop's switches and dials; Share then writes the same link.
 - `kit-copy` `Copy all links` copies one line per stop, `<n>. <title>: <link>`.

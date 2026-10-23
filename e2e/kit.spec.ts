@@ -210,6 +210,33 @@ test.describe('the kit pages, in a browser without WebGL', () => {
       expect(errors).toEqual([]);
     });
 
+    test(`${id}: on a phone and at 200% zoom the student sheet reflows to the screen instead of scrolling sideways`, async ({ baseURL }) => {
+      // The sheet is millimetres of A4 for the printer; on a screen narrower than that, it must fit the screen.
+      for (const viewport of [{ width: 390, height: 844 }, { width: 640, height: 400 }]) {
+        const { page, errors } = await kitPage(baseURL, `sheet=${id}`, { viewport });
+        const spill = await page.evaluate(() => {
+          const wide = innerWidth;
+          const out: string[] = [];
+          if (document.documentElement.scrollWidth > wide) out.push(`the page scrolls sideways: ${document.documentElement.scrollWidth} px in ${wide}`);
+          const desk = document.querySelector('.desk')!;
+          if (desk.scrollWidth > desk.clientWidth) out.push(`the desk scrolls sideways: ${desk.scrollWidth} px in ${desk.clientWidth}`);
+          for (const el of document.querySelectorAll('.bar > *, .sheet *')) {
+            const r = el.getBoundingClientRect();
+            if (r.width && (r.right > wide + 0.5 || r.left < -0.5)) out.push(`${el.nodeName}.${el.className} spans ${r.left.toFixed(0)} to ${r.right.toFixed(0)}: “${(el.textContent ?? '').slice(0, 30)}”`);
+          }
+          return out;
+        });
+        expect(spill, `${viewport.width} px wide`).toEqual([]);
+        // The codes stay big enough to scan, and every activity is still there.
+        const code = await page.locator('.activity .qr svg').first().boundingBox();
+        expect(code!.width).toBeGreaterThanOrEqual(70);
+        await page.emulateMedia({ media: 'print' });
+        const paper = await page.locator('.sheet').boundingBox();
+        expect(Math.abs(paper!.width - (190 * 96) / 25.4), 'still A4 on paper').toBeLessThan(1);
+        expect(errors).toEqual([]);
+      }
+    });
+
     test(`${id}: the teacher page times a 15-minute lesson, gives every answer a reason and copies every link`, async ({ baseURL }) => {
       const { page, errors } = await kitPage(baseURL, `guide=${id}`, { permissions: ['clipboard-read', 'clipboard-write'] });
       // Print prints this page; the sheet the class needs is one click away, beside it.

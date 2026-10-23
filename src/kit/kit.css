@@ -137,6 +137,24 @@ button { font: inherit; }
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 
+/* On a screen narrower than the paper (a phone, or a laptop at 200% zoom) the sheet reflows to the screen, one column,
+   with the same parts in the same order. The paper's own sizes above are what prints. */
+@media screen and (max-width: 840px) {
+  .desk { padding: 0 12px 32px; overflow-x: visible; }
+  .desk .bar, .desk .local { width: auto; }
+  .paper { width: auto; max-width: 210mm; padding: 14px; }
+  .sheet { width: auto; height: auto; gap: 14px; font-size: 12pt; }
+  .sheet-head, .who { flex-wrap: wrap; }
+  .who { gap: 4px 16px; }
+  .who span, .who span:first-child { width: min(52mm, 100%); }
+  .activities { flex: none; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .act-head { grid-template-columns: 24mm minmax(0, 1fr); }
+  .qr svg { width: 24mm; height: 24mm; }
+  .write { flex: none; min-height: 28mm; }
+  .check { padding: 8px 10px 10px; }
+  .check-head, .check li { grid-template-columns: minmax(0, 1fr) 11mm 11mm; }
+}
+
 @media print {
   body { background: none; }
   .bar, .copy, .local { display: none; }
