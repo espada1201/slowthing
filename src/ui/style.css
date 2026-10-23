@@ -349,3 +349,10 @@ body[data-mode='world'] #touch { display: block; }
   .chrome:has(> .measured-view:not([hidden])) .hud { top: 96px; left: calc(2 * var(--m-side) + 46px); right: 12px; }
   .chrome:has(> .measured-view:not([hidden])) .readouts { grid-template-columns: auto auto; }
 }
+
+/* While the mouse drags the view around (no pointer lock), the text it passes over must not get selected. */
+html.drag-look,
+html.drag-look * {
+  -webkit-user-select: none;
+  user-select: none;
+}

@@ -128,7 +128,13 @@ test('with no pointer lock (iPad Safari), dragging the mouse looks around', asyn
   await page.mouse.move(640, 500);
   await page.mouse.down();
   await page.mouse.move(400, 500, { steps: 8 });
+  // across the tour card's text, which a drag must not select
+  await page.mouse.move(640, 700, { steps: 4 });
+  const selectable = () => page.evaluate(() => getComputedStyle(document.querySelector('.tour-text, .tour-title')!).userSelect !== 'none');
+  expect(await selectable(), 'text cannot be selected mid-drag').toBe(false);
   await page.mouse.up();
+  expect(await selectable(), 'and can be again afterwards').toBe(true);
+  expect(await page.evaluate(() => getSelection()?.toString()), 'no text was selected').toBe('');
   await frames(page, 2);
   expect(meanDiff(before, await sample(page)), 'the view turned').toBeGreaterThan(2);
   // and a plain move with no button down does not

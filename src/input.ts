@@ -97,9 +97,19 @@ export class Input {
   private setupDragLook(canvas: HTMLCanvasElement) {
     let refused = false;
     document.addEventListener('pointerlockerror', () => (refused = true));
+    // A refusal can be a passing one (a lock asked for too soon after Esc): once the lock is granted, the mouse looks by
+    // its movement again, and a drag must not turn the view a second time.
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement) refused = false;
+    });
     let from: { x: number; y: number } | null = null;
+    // Dragging from the view across the page would select the text it passes over.
+    const dragging = (on: boolean) => document.documentElement.classList[on ? 'add' : 'remove']('drag-look');
     const start = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' && e.button === 0 && (refused || !canvas.requestPointerLock)) from = { x: e.clientX, y: e.clientY };
+      if (e.pointerType === 'mouse' && e.button === 0 && !document.pointerLockElement && (refused || !canvas.requestPointerLock)) {
+        from = { x: e.clientX, y: e.clientY };
+        dragging(true);
+      }
     };
     canvas.addEventListener('pointerdown', start);
     this.touchLayer.addEventListener('pointerdown', start);
@@ -108,7 +118,10 @@ export class Input {
       this.look((e.clientX - from.x) * 0.0022, (e.clientY - from.y) * 0.0022);
       from = { x: e.clientX, y: e.clientY };
     });
-    const end = () => (from = null);
+    const end = () => {
+      from = null;
+      dragging(false);
+    };
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
   }
