@@ -5,7 +5,7 @@ On a narrow touch screen the Dials panel hides behind a `Dials` button, the two 
 ## Sub-features
 
 - `phone-panel` the panel is hidden until `Dials` is tapped, and every control in it is the element a tap lands on.
-- `phone-quick` the world's first two actions are on the tour card.
+- `phone-quick` the world's first two actions are on the tour card, also on a phone held sideways (844×390) and at 200% zoom (any screen under 500 px tall).
 - `phone-walk` dragging on the left side walks; Speed rises while the thumb is held.
 - `phone-look` dragging on the right side turns the view.
 - `phone-fit` nothing overflows the screen width.
@@ -33,4 +33,5 @@ Preconditions:
 
 - The touch layer ignores mouse events, so `click` cannot walk; use `swipe`.
 - A swipe that starts on a button presses the button instead of walking.
+- At a question with the Measured map up, the card is at most 45% of the screen and keeps `Next` in reach (it scrolls, its buttons stick); a band of the view stays clear between the instruments and the card.
 - Big ħ's quick actions are `Roll ball` and `Measure`; Big G's are `Face the hole` and `Ruler`.

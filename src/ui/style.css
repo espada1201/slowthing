@@ -94,6 +94,7 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 .top-right { margin-left: auto; display: flex; gap: 8px; }
 .topbar .btn[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .panel-toggle { display: none !important; }
+.chev { font-size: 11px; margin-left: 2px; }
 
 .panel, .hud, .tour, .help {
   background: var(--paper-glass); color: var(--ink); border-radius: var(--radius);
@@ -165,7 +166,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 6px 0 2p
 .help { position: absolute; top: 64px; right: 312px; width: 280px; padding: 10px 16px; font-size: 13px; }
 .help p { margin: 6px 0; }
 .help kbd { margin: 0; }
-.toast { position: absolute; top: 64px; left: 50%; transform: translate(-50%, -8px); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: var(--radius); font-size: 13px; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none !important; }
+.toast { position: absolute; top: 116px; left: 50%; transform: translate(-50%, -8px); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: var(--radius); font-size: 13px; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none !important; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .move-hint { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); width: max-content; max-width: min(34rem, calc(100vw - 32px)); margin: 0; background: rgba(16, 18, 22, 0.82); color: var(--paper); padding: 10px 16px; border-radius: var(--radius); font: 500 14px/1.5 var(--mono); text-align: center; pointer-events: none !important; }
 .move-hint[hidden] { display: none; }
@@ -219,14 +220,34 @@ body[data-mode='world'] #touch { display: block; }
   .status { font-size: 10.5px; max-width: 190px; }
   .tour { padding: 10px 12px 8px; bottom: calc(10px + var(--safe-b)); left: 12px; right: 12px; width: auto; }
   .tour-title { font-size: 21px; }
-  .tour-text { font-size: 16px; }
+  .tour-text { font-size: 15px; margin: 4px 0; }
+  .predict-q { font-size: 16px; margin-bottom: 6px; }
+  .predict-reveal { font-size: 15px; margin-top: 6px; }
+  .tour-end { font-size: 15px; }
+  .choice { min-height: 32px; padding: 4px 8px; }
   .steps { font-size: 15px; }
+  /* Never more than 45% of the screen, so the view keeps a band to look through; the buttons stay in reach as it scrolls. */
+  .tour { max-height: calc(45vh - var(--safe-b)); max-height: calc(45dvh - var(--safe-b)); overflow-y: auto; }
+  .tour > .row:last-child { position: sticky; bottom: -8px; padding: 6px 0 8px; margin: 0; background: var(--paper-glass); }
   .help { right: 12px; left: 12px; width: auto; z-index: 2; }
 }
 /* A phone held sideways: a card with a measurement's steps and answers keeps below the middle of the view and scrolls,
    so the ruler can reach what it measures (World III's shadow sits just above the middle). */
 @media (orientation: landscape) and (max-height: 500px) {
   .tour:has(> .predict:not([hidden]) .answers) { max-height: calc(50vh - 26px - var(--safe-b)); overflow-y: auto; }
+}
+/* Short (a phone held sideways, a laptop at 200% zoom): the instruments take two pairs a row, so the card does not
+   cover their lower rows; the card's quick actions show, as on a phone (the dials are behind their button here too);
+   and the card keeps inside the screen, scrolling, with its buttons in reach. */
+@media (max-height: 500px) {
+  .readouts { grid-template-columns: repeat(4, auto); gap: 2px 8px; }
+  .readouts dt { white-space: nowrap; }
+  .gloss { display: none; }
+  .hud { padding: 6px 10px; }
+  .quick { display: flex; gap: 6px; margin-right: auto; }
+  .quick .btn { padding: 6px 10px; }
+  .tour { max-height: calc(100vh - 90px); max-height: calc(100dvh - 90px); overflow-y: auto; }
+  .tour > .row:last-child { position: sticky; bottom: -10px; padding: 6px 0 10px; margin: 0; background: var(--paper-glass); }
 }
 /* Narrow and short (200% zoom on a laptop, a phone held sideways): 52vh would show the c dial alone, so the open
    Dials panel takes the height below the top bar, over the tour card, until it is closed. */
@@ -270,6 +291,8 @@ body[data-mode='world'] #touch { display: block; }
 .chrome:has(> .measured-view:not([hidden])) .panel { display: none; }
 .chrome:has(> .measured-view:not([hidden])) .panel.open { display: block; z-index: 2; }
 .chrome:has(> .measured-view:not([hidden])) .panel-toggle { display: inline-flex !important; }
+/* Dials open over the map's column: the map steps aside, rather than showing its edge around the panel. */
+.panel.open ~ .measured-view .measured { visibility: hidden; }
 .chrome.predicting .measured-view > * { visibility: hidden; }
 .seen-tag { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); margin: 0; padding: 4px 10px; border-radius: var(--radius); background: rgba(16, 18, 22, 0.6); color: var(--paper); font: italic 20px/1.1 var(--serif); pointer-events: none !important; }
 .seen-tag span { font: 11px var(--mono); font-style: normal; margin-left: 6px; color: rgba(239, 231, 214, 0.85); }
@@ -311,7 +334,19 @@ body[data-mode='world'] #touch { display: block; }
   .measured-h { grid-column: 1 / -1; font-size: 21px; margin: 0; }
   .m-diagram { aspect-ratio: 1; margin-top: 0; }
   .chrome:has(> .measured-view:not([hidden])) .hud { top: calc(108px + var(--m-side)); }
-  .seen-tag { top: calc(108px + var(--m-side)); left: auto; right: 12px; transform: none; font-size: 17px; }
+  /* The map is up there: the instruments sit in two pairs a row, a third of the height. */
+  .chrome:has(> .measured-view:not([hidden])) .readouts { grid-template-columns: repeat(4, auto); gap: 2px 8px; }
+  .chrome:has(> .measured-view:not([hidden])) .hud { right: 12px; }
+  .chrome:has(> .measured-view:not([hidden])) .gloss { display: none; }
+  .chrome:has(> .measured-view:not([hidden])) .readouts dt { white-space: nowrap; }
+  .chrome:has(> .measured-view:not([hidden])) .status { max-width: none; }
+  .seen-tag { top: 66px; left: auto; right: 22px; transform: none; font-size: 17px; }
   /* Wherever they meet, the tour card, its stop number and Next stay on top. */
   .tour { z-index: 1; }
+}
+/* With the map up on a narrow, short screen, the instruments sit beside it, under the Seen tag, not under it where the card would cover them. */
+@media (max-width: 760px) and (max-height: 500px) {
+  /* With the map up, the instruments sit beside it, under the Seen tag, instead of under it where the card would cover them. */
+  .chrome:has(> .measured-view:not([hidden])) .hud { top: 96px; left: calc(2 * var(--m-side) + 46px); right: 12px; }
+  .chrome:has(> .measured-view:not([hidden])) .readouts { grid-template-columns: auto auto; }
 }

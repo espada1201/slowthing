@@ -258,6 +258,8 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   if (!world || !chrome) return;
   const stop = world.tour[Math.max(0, Math.min(world.tour.length - 1, i))];
   tourIndex = world.tour.indexOf(stop);
+  // A visitor who steps through the tour with the buttons or N has read the hint, and needs the view clear.
+  if (!initial) chrome.dismissHint();
   if (stop.constants) Object.assign(constants, stop.constants);
   if (stop.toggles) for (const t of world.toggles) if (t.id in stop.toggles) t.value = stop.toggles[t.id];
   // The stop's own dials, before a link turns them, so the card can say when they differ.

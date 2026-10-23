@@ -236,6 +236,21 @@ test('cruising at 0.9 c, each clock 20 m further ahead reads 1.5 s later, turnin
   expect(errors).toEqual([]);
 });
 
+test('opening Dials over the Measured map takes the map out of the way instead of stacking over its edge', async ({ page }) => {
+  // The panel is 12 px narrower than the map: the map's edge showed beside and behind it.
+  await openWorld(page, 'slow-light', '&on=measured');
+  await expect(page.locator('.measured')).toBeVisible();
+  // ISS-12: with the map up the dials fold behind this button, which now looks like one that opens something.
+  await expect(page.locator('.panel-toggle .chev')).toHaveText('▾');
+  await expect(page.getByRole('button', { name: 'Dials', exact: true })).toBeVisible();
+  await page.locator('.panel-toggle').click();
+  await expect(page.locator('#panel')).toBeVisible();
+  await expect(page.locator('.measured')).toBeHidden();
+  await expect(page.locator('.panel-toggle .chev')).toHaveText('▴');
+  await page.locator('.panel-toggle').click();
+  await expect(page.locator('.measured')).toBeVisible();
+});
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -250,6 +265,20 @@ test.describe('on a phone', () => {
     const map = (await page.locator('.measured').boundingBox())!;
     for (const below of ['.tour', '.hud']) expect(map.y + map.height, `the map should end above ${below}`).toBeLessThanOrEqual((await page.locator(below).boundingBox())!.y);
     expect(errors).toEqual([]);
+  });
+
+  test('at a question with its answer shown, the map, instruments and card leave a band of the view clear', async ({ page }) => {
+    // A tester found the world a 30 px sliver between the instruments and the card from stop 7.
+    await openWorld(page, 'slow-light', '&stop=seen-and-measured');
+    await page.getByRole('button', { name: 'Just show me' }).tap();
+    await expect(page.locator('.predict-reveal')).toBeVisible();
+    const box = async (sel: string) => (await page.locator(sel).boundingBox())!;
+    const [map, hud, card] = [await box('.measured'), await box('.hud'), await box('.tour')];
+    expect(map.y + map.height).toBeLessThanOrEqual(hud.y);
+    expect(card.y - (hud.y + hud.height), 'clear view between the instruments and the card').toBeGreaterThanOrEqual(90);
+    // Next is still on screen, above whatever else is there.
+    await expect(page.locator('[data-tour-next]')).toBeInViewport({ ratio: 1 });
+    expect(card.y + card.height).toBeLessThanOrEqual(844);
   });
 });
 

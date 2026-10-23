@@ -69,6 +69,8 @@ export interface Chrome {
   toggleHelp(): void;
   /** Say on the tour card that the dials have been turned since the stop set them, so it may not look as described. */
   showTurned(turned: boolean): void;
+  /** The visitor is stepping through the tour, so the how-to-move hint has been read: drop it for this visit (not for later ones). */
+  dismissHint(): void;
   /** The visitor has walked or looked: drop the how-to-move hint, for this and later visits. */
   controlsUsed(): void;
   flash(msg: string): void;
@@ -191,10 +193,13 @@ export function worldChrome(
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
 
-  const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials');
+  // The chevron says it opens something: with Measured up, the dials fold behind this button, and a tester looked for them in vain.
+  const chevron = h('span', { class: 'chev', 'aria-hidden': 'true' }, '▾');
+  const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials', chevron);
   panelToggle.addEventListener('click', () => {
     const open = panel.classList.toggle('open');
     panelToggle.setAttribute('aria-expanded', String(open));
+    chevron.textContent = open ? '▴' : '▾';
     // From the keyboard, carry focus into what just opened.
     if (open && panelToggle.matches(':focus-visible')) panel.querySelector<HTMLElement>('input, button, select')?.focus();
   });
@@ -368,6 +373,9 @@ export function worldChrome(
     },
     showTurned(on) {
       if (turned.hidden === on) turned.hidden = !on;
+    },
+    dismissHint() {
+      hint.hidden = true;
     },
     controlsUsed() {
       if (hint.hidden) return;
