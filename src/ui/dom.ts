@@ -1,5 +1,7 @@
-// Plain DOM for every page of the site: h() and the worlds' title cards. It imports nothing, so teach.html, which
-// only prints, can draw with it without loading the in-world chrome or audio.
+// Plain DOM for every page of the site: h() and the worlds' title cards. It imports nothing but a type, so teach.html,
+// which only prints, can draw with it without loading the in-world chrome or audio.
+
+import type { GpuCaps } from '../gpuCaps';
 
 type Attrs = Record<string, string | boolean | number | ((e: Event) => void)>;
 
@@ -25,11 +27,14 @@ export interface WorldCard {
   gloss: string;
   blurb: string;
   art: string;
+  /** What the GPU must be able to render into for this world to run; without it the world stays closed, and says why. */
+  needs?: keyof GpuCaps;
 }
 
 export const WORLD_CARDS: WorldCard[] = [
   {
     id: 'slow-light',
+    needs: 'halfFloatTargets', // the cube map it draws the town into
     plate: 'Plate I',
     title: 'Slow Light',
     dial: 'c = 12 m/s',
@@ -39,6 +44,7 @@ export const WORLD_CARDS: WorldCard[] = [
   },
   {
     id: 'big-hbar',
+    needs: 'floatTargets', // the wave is kept in 32-bit float textures
     plate: 'Plate II',
     title: 'Big ħ',
     dial: 'ħ = 0.25 J·s',

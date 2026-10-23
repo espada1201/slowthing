@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { restoreSound } from './audio';
 import { AutoQuality } from './autoQuality';
 import { type Constants, REAL } from './constants';
-import { type GpuCaps, gpuCaps, unsupported } from './gpuCaps';
+import { type GpuCaps, canRenderInto, gpuCaps, unsupported } from './gpuCaps';
 import { Input } from './input';
 import { type Setup, applySetup, readLink, setupOf, writeLink } from './kit/link';
 import { WORLD_CARDS } from './ui/dom';
@@ -43,8 +43,7 @@ let caps: GpuCaps = { floatTargets: false, halfFloatTargets: false };
 let worldError: string | null = null;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: params.has('e2e') });
-  const r = renderer;
-  caps = gpuCaps((name) => r.extensions.has(name));
+  caps = gpuCaps(renderer.extensions, canRenderInto);
   const gl = renderer.getContext();
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   const gpu = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
@@ -156,7 +155,7 @@ function showProofs() {
 
 async function enter(id: string) {
   if (!renderer || startupError || !isWorldId(id)) return;
-  const missing = unsupported(id, caps);
+  const missing = unsupported(WORLD_CARDS.find((c) => c.id === id)!, caps);
   if (missing) {
     worldError = missing;
     showTitle();

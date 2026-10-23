@@ -7,7 +7,7 @@ import { frames, meanDiff, openWorld, sample, watchErrors } from './helpers';
 // Big G marches a ray per pixel, which software rendering draws at well under one frame a second.
 test.slow();
 
-/** Make the GPU look like a phone's: these extensions answer null (and are not listed), and are never enabled. */
+/** Make the GPU look like a phone's: these extensions answer null to getExtension, which is all three.js and the app ask. */
 async function without(page: Page, ...hidden: string[]) {
   await page.addInitScript((names) => {
     for (const C of [WebGL2RenderingContext, WebGLRenderingContext]) {
@@ -15,10 +15,6 @@ async function without(page: Page, ...hidden: string[]) {
       C.prototype.getExtension = function (this: unknown, name: string) {
         return names.includes(name) ? null : get.call(this, name);
       } as typeof C.prototype.getExtension;
-      const list = C.prototype.getSupportedExtensions;
-      C.prototype.getSupportedExtensions = function (this: WebGLRenderingContext) {
-        return list.call(this)?.filter((n: string) => !names.includes(n)) ?? null;
-      };
     }
   }, hidden);
 }
@@ -58,7 +54,7 @@ test.describe('iOS has no OES_texture_float_linear', () => {
   });
 });
 
-test.describe('older iPhones render into 16-bit float textures but not 32-bit ones', () => {
+test.describe('a device that renders into 16-bit float textures but not 32-bit ones', () => {
   test('Big ħ says why it cannot open, and the other two worlds open', async ({ page }) => {
     await without(page, 'EXT_color_buffer_float', 'OES_texture_float_linear');
     const errors = watchErrors(page);
@@ -83,6 +79,64 @@ test.describe('older iPhones render into 16-bit float textures but not 32-bit on
     await page.goto('./?world=big-hbar&quality=low&e2e');
     await expect(page.locator('.error')).toContainText('Big ħ cannot run on this device');
     await expect(page.locator('.plate')).toHaveCount(3);
+  });
+});
+
+test.describe('a GPU that advertises float render targets but cannot complete a framebuffer with them', () => {
+  /** Every extension is offered, but a framebuffer over a texture of this internal format is never complete. */
+  async function brokenFramebuffer(page: Page, ...internalFormats: number[]) {
+    await page.addInitScript((broken) => {
+      const C = WebGL2RenderingContext;
+      const formats = new WeakMap<WebGLTexture, number>();
+      const attached = new WeakMap<WebGLFramebuffer, WebGLTexture>();
+      const storage = C.prototype.texStorage2D;
+      C.prototype.texStorage2D = function (this: WebGL2RenderingContext, target: number, levels: number, internal: number, w: number, h: number) {
+        const t = this.getParameter(this.TEXTURE_BINDING_2D);
+        if (t) formats.set(t, internal);
+        return storage.call(this, target, levels, internal, w, h);
+      };
+      const image = C.prototype.texImage2D as (...a: unknown[]) => void;
+      C.prototype.texImage2D = function (this: WebGL2RenderingContext, ...a: unknown[]) {
+        const t = this.getParameter(this.TEXTURE_BINDING_2D);
+        if (t) formats.set(t, a[2] as number);
+        return image.apply(this, a);
+      } as typeof C.prototype.texImage2D;
+      const attach = C.prototype.framebufferTexture2D;
+      C.prototype.framebufferTexture2D = function (this: WebGL2RenderingContext, target: number, a: number, tt: number, tex: WebGLTexture | null, level: number) {
+        const fb = this.getParameter(this.FRAMEBUFFER_BINDING);
+        if (fb && tex) attached.set(fb, tex);
+        return attach.call(this, target, a, tt, tex, level);
+      };
+      const check = C.prototype.checkFramebufferStatus;
+      C.prototype.checkFramebufferStatus = function (this: WebGL2RenderingContext, target: number) {
+        const fb = this.getParameter(this.FRAMEBUFFER_BINDING);
+        const tex = fb && attached.get(fb);
+        if (tex && broken.includes(formats.get(tex) ?? 0)) return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+        return check.call(this, target);
+      };
+    }, internalFormats);
+  }
+  const RGBA32F = 0x8814;
+  const RGBA16F = 0x881a;
+
+  test('with 32-bit targets broken, Big ħ says why it cannot open, and the others open', async ({ page }) => {
+    await brokenFramebuffer(page, RGBA32F);
+    const errors = watchErrors(page);
+    await page.goto('./?quality=low&e2e');
+    await page.locator('.plate[data-world="big-hbar"]').click();
+    await expect(page.locator('.error')).toContainText('Big ħ cannot run on this device');
+    await page.locator('.plate[data-world="slow-light"]').click();
+    await page.waitForFunction(() => (window as any).slowlight?.world === 'slow-light' && (window as any).slowlight.frames > 4, null, { timeout: 60_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test('with 16-bit targets broken too, Slow Light also stays closed, and Big G opens', async ({ page }) => {
+    await brokenFramebuffer(page, RGBA32F, RGBA16F);
+    await page.goto('./?quality=low&e2e');
+    await page.locator('.plate[data-world="slow-light"]').click();
+    await expect(page.locator('.error')).toContainText('Slow Light cannot run on this device');
+    await page.locator('.plate[data-world="big-g"]').click();
+    await page.waitForFunction(() => (window as any).slowlight?.world === 'big-g' && (window as any).slowlight.frames > 4, null, { timeout: 60_000 });
   });
 });
 
