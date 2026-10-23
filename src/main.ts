@@ -240,7 +240,7 @@ async function enter(id: string) {
     if (code === 'KeyN' || code === 'KeyB') {
       const next = tourIndex + (code === 'KeyN' ? 1 : -1);
       // Past either end the Back and Next buttons are disabled, and the keys do nothing either.
-      if (next >= 0 && next < w.tour.length) goTour(next);
+      if (next >= 0 && next < w.tour.length) goTour(next, false, null, true);
     } else if (code === 'KeyR') ruler?.toggle();
     else if (key === '?') chrome?.toggleHelp();
     else if (code === 'Escape') {
@@ -270,8 +270,8 @@ async function enter(id: string) {
 /** The page's own address is a link into the first world entered, and only that one. */
 let linkUnread = true;
 
-/** Show stop i. A setup from a link then replaces the stop's own switches and dials, before its action runs. */
-function goTour(i: number, initial = false, shared: Setup | null = null) {
+/** Show stop i (`viaKey`: N or B brought the visitor here). A setup from a link then replaces the stop's own switches and dials, before its action runs. */
+function goTour(i: number, initial = false, shared: Setup | null = null, viaKey = false) {
   if (!world || !chrome) return;
   const stop = world.tour[Math.max(0, Math.min(world.tour.length - 1, i))];
   tourIndex = world.tour.indexOf(stop);
@@ -301,7 +301,7 @@ function goTour(i: number, initial = false, shared: Setup | null = null) {
   }
   // Marks made at the last stop would point at nothing in particular here.
   ruler?.clear();
-  chrome.setTour(tourIndex, pending !== null);
+  chrome.setTour(tourIndex, pending !== null, viaKey);
   chrome.syncDials(constants);
   chrome.syncToggles();
   // The instruments show the new stop on the next frame, even one in which the world holds still.

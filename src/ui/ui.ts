@@ -57,8 +57,8 @@ export interface Chrome {
   setReadouts(r: Readout[], status: string): void;
   syncDials(c: Constants): void;
   syncToggles(): void;
-  /** Show tour stop i; `waiting` offers the Start button for its action. */
-  setTour(i: number, waiting?: boolean): void;
+  /** Show tour stop i; `waiting` offers the Start button for its action, `viaKey` says N or B brought the visitor here. */
+  setTour(i: number, waiting?: boolean, viaKey?: boolean): void;
   /** Name the preset Auto is running (null when a preset was chosen by hand). */
   showQuality(q: Quality | null): void;
   /** Show the level reticle while the view warps, unless the visitor switched it off. */
@@ -364,9 +364,10 @@ export function worldChrome(
       for (const t of toggles) t.box.checked = t.t.value;
       syncViews();
     },
-    setTour(i, waiting = false) {
-      // A keyboard user who stepped here with Next or Back goes straight to a question's answers.
-      const fromKeys = [next, prev].some((b) => b.matches(':focus-visible'));
+    setTour(i, waiting = false, viaKey = false) {
+      // A keyboard user who stepped here with Next or Back, or with N or B, goes straight to a question's answers.
+      const fromButtons = [next, prev].some((b) => b.matches(':focus-visible'));
+      const fromKeys = fromButtons || viaKey;
       const had = document.activeElement;
       /** Where focus goes if the button it is on greys out and this stop has a question to answer. */
       let firstAnswer: HTMLElement | null = null;
@@ -451,8 +452,12 @@ export function worldChrome(
         };
         firstAnswer = inputs[0];
         const form = h('form', { class: 'row answers', novalidate: true, onsubmit }, ...m.asks.map((a, k) => h('label', { class: 'answer' }, a.symbol, inputs[k], a.unit)), check);
-        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Measure'), m.question), h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, optional, reveal);
+        const question = h('p', { class: 'predict-q', tabindex: -1 }, h('span', { class: 'predict-tag' }, 'Measure'), m.question);
+        predictBox.replaceChildren(question, h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, optional, reveal);
       }
+      // From N or B the keyboard is on the page, not on a button, and a text box would keep the keys for itself: land on the
+      // question, with its boxes one Tab on. (From Next, focus stays on Next, which goes on without an answer.)
+      if (m && viaKey && !fromButtons) predictBox.querySelector<HTMLElement>('.predict-q')?.focus();
       prev.disabled = i === 0;
       next.disabled = last;
       // A disabled button cannot keep focus, and focus would fall to the page, where Space and the arrows move the

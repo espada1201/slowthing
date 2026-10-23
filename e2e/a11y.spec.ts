@@ -262,3 +262,24 @@ test.describe('at 200% zoom', () => {
     await expect(page.locator('.panel-toggle')).toBeFocused();
   });
 });
+
+test('N onto a question puts focus on its first answer, and onto a measurement on its question, so no Tabs are spent getting there', async ({ page }) => {
+  // A keyboard tester paid five Tabs (←, Dials, Sound, ?, then the answer) at each of the five questions after N.
+  await openWorld(page, 'slow-light');
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.choice[data-choice="0"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.predict-reveal')).toBeFocused();
+  // B goes back to stop 1, which has no question: focus is not dragged anywhere.
+  await page.keyboard.press('KeyB');
+  await expect(page.locator('.tour-no')).toHaveText(/^1 \//);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('.choice[data-choice="0"]')).toBeFocused();
+
+  await openWorld(page, 'big-g');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-title')).toHaveText('Weigh the hole');
+  await expect(page.locator('.predict-q')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-ask="rs"]')).toBeFocused();
+});
