@@ -82,3 +82,56 @@ describe('auto quality', () => {
     expect(aq.scale).toBe(0.5);
   });
 });
+
+describe('auto quality: slow frames step it down, and it does not oscillate', () => {
+  /** A seeded jitter in [-1, 1), so a failure reproduces. */
+  const jitter = (seed: number) => () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 31) - 1;
+
+  it('steps down within a few seconds of frames turning slow, after a spell of fast ones', () => {
+    const aq = new AutoQuality('high', false);
+    run(aq, () => 12, 10);
+    expect(aq.scale).toBe(1);
+    const slow = (_: Quality, s: number) => 8 + 40 * s * s;
+    const changes = run(aq, slow, 6);
+    expect(changes.length).toBeGreaterThan(0);
+    expect(changes[0].t).toBeLessThan(2);
+    expect(aq.scale).toBeLessThan(0.8);
+  });
+
+  it('ignores a lone hitch, so a dropped frame does not cost resolution', () => {
+    const aq = new AutoQuality('medium', true);
+    let n = 0;
+    run(aq, () => (++n % 200 === 0 ? 300 : 12), 60);
+    expect(aq.scale).toBe(1);
+    expect(aq.preset).not.toBe('low');
+  });
+
+  it('does not flap when frame times jitter around the limit', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const noise = jitter(seed);
+      const aq = new AutoQuality('medium', true);
+      // About 21 ms at full resolution, ±5 ms of noise: the cost falls with the scale, so it should settle.
+      const changes = run(aq, (_, s) => Math.max(4, 6 + 15 * s * s + 5 * noise()), 600);
+      // Left alone it changed every 12 s, for as long as the page was open; now under one in 30 s, each a few percent of the resolution.
+      expect(changes.filter((c) => c.t > 120).length, `seed ${seed}`).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it('with frames slow at every setting, only ever goes down: never up and down again', () => {
+    const aq = new AutoQuality('high', true);
+    const seen: { preset: Quality; scale: number }[] = [];
+    for (let t = 0; t < 300_000; ) {
+      const ms = 45 + 5 * Math.sin(t / 1000);
+      t += ms;
+      if (aq.frame(ms)) seen.push({ preset: aq.preset, scale: aq.scale });
+    }
+    const rank = { low: 0, medium: 1, high: 2 };
+    for (let i = 1; i < seen.length; i++) {
+      const [a, b] = [seen[i - 1], seen[i]];
+      expect(rank[b.preset] <= rank[a.preset], `preset went up at change ${i}`).toBe(true);
+      if (b.preset === a.preset) expect(b.scale <= a.scale, `scale went up at change ${i}`).toBe(true);
+    }
+    expect(aq.preset).toBe('low');
+    expect(aq.scale).toBe(0.5);
+  });
+});

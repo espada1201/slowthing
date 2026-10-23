@@ -8,6 +8,8 @@ const ROOMY = 17.5;
 /** How long a step down holds before the resolution may climb again; each failed climb doubles it. */
 const HOLD = 8000;
 const MAX_HOLD = 240_000;
+/** A step down within this long of a climb (ms) is blamed on the climb, however many good seconds came between. */
+const RECENT = 60_000;
 
 /**
  * Keeps frames near 60 a second. Each second it judges the median frame: too slow, and it draws fewer pixels;
@@ -26,6 +28,8 @@ export class AutoQuality {
   private hold = 0;
   private backoff = HOLD;
   private climbing = false;
+  /** Time since the last climb, ms. */
+  private sinceClimb = Infinity;
   /** Time spent too slow at the lowest resolution, or at full resolution with room to spare. */
   private stuck = 0;
   private roomy = 0;
@@ -48,6 +52,7 @@ export class AutoQuality {
       return null;
     }
     this.hold -= ms;
+    this.sinceClimb += ms;
     this.times.push(ms);
     if ((this.span += ms) < 1000) return null;
     const median = this.times.sort((a, b) => a - b)[this.times.length >> 1];
@@ -65,6 +70,7 @@ export class AutoQuality {
     if (this.scale < 1) {
       if (this.hold > 0) return null;
       this.climbing = true;
+      this.sinceClimb = 0;
       return this.setScale(Math.min(1, this.scale * 1.06));
     }
     const up = PRESETS[PRESETS.indexOf(this.preset) + 1];
@@ -76,12 +82,13 @@ export class AutoQuality {
     this.roomy = 0;
     if (this.climbing) {
       this.climbing = false;
-      this.backoff = Math.min(2 * this.backoff, MAX_HOLD);
-      this.hold = this.backoff;
+      this.hold = this.lengthen();
       return this.setScale(this.good);
     }
     if (this.scale > FLOOR) {
-      this.hold = HOLD;
+      // Frame times that sit on the limit fail a second now and then, well after the climb that brought them there:
+      // that too lengthens the wait, or the resolution would saw up and down for as long as the page is open.
+      this.hold = this.sinceClimb < RECENT ? this.lengthen() : HOLD;
       // Cost goes with the pixel count, so aim straight for a 60 Hz frame, but by no more than 30% at once.
       this.good = Math.max(FLOOR, this.scale * Math.min(0.95, Math.max(0.7, Math.sqrt(1000 / 60 / median))));
       return this.setScale(this.good);
@@ -90,6 +97,11 @@ export class AutoQuality {
     if (!this.auto || !down || (this.stuck += span) < 2000) return null;
     this.tooSlow.add(this.preset);
     return this.setPreset(down);
+  }
+
+  /** Wait twice as long as the last time before the next climb. */
+  private lengthen() {
+    return (this.backoff = Math.min(2 * this.backoff, MAX_HOLD));
   }
 
   private setScale(s: number) {
@@ -103,6 +115,7 @@ export class AutoQuality {
     this.scale = this.good = 0.7;
     this.hold = this.stuck = this.roomy = 0;
     this.backoff = HOLD;
+    this.sinceClimb = Infinity;
     this.climbing = false;
     this.settle = 1000;
     return 'preset' as const;
