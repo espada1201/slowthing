@@ -11,7 +11,7 @@ import { type GpuCaps, gpuCaps, unsupported } from './gpuCaps';
 import { Input } from './input';
 import { type Setup, applySetup, readLink, setupOf, writeLink } from './kit/link';
 import { WORLD_CARDS } from './ui/dom';
-import { proofsView } from './ui/proofsView';
+import { type ProofsGpu, proofsView } from './ui/proofsView';
 import { type Ruler, skyRuler } from './ui/ruler';
 import { type Chrome, titleScreen, worldChrome } from './ui/ui';
 import { WORLDS, isWorldId } from './worlds';
@@ -145,7 +145,12 @@ function showTitle() {
 
 function showProofs() {
   document.body.dataset.mode = 'title';
-  ui.replaceChildren(proofsView(caps.floatTargets ? renderer : null, showTitle));
+  const target: ProofsGpu = !renderer
+    ? { unavailable: 'WebGL2 is not available here, which the GPU checks need' }
+    : caps.floatTargets
+      ? { renderer }
+      : { unavailable: 'This browser cannot render into 32-bit floating-point textures, which the GPU checks need' };
+  ui.replaceChildren(proofsView(target, showTitle));
   history.replaceState(null, '', '?proofs');
 }
 

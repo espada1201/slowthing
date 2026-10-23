@@ -4,8 +4,13 @@ import { WORLD_CARDS, h } from './dom';
 
 const worldName = (plate: string) => WORLD_CARDS.find((c) => c.plate === `Plate ${plate}`)?.title;
 
+/** What the GPU checks run on: a renderer that can draw into 32-bit float textures, or the reason this browser has none. */
+export type ProofsGpu = { renderer: THREE.WebGLRenderer } | { unavailable: string };
+
 /** The Proofs screen: runs every check in this browser and shows measured against expected. */
-export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => void) {
+export function proofsView(target: ProofsGpu, onBack: () => void) {
+  const renderer = 'renderer' in target ? target.renderer : null;
+  const unavailable = 'unavailable' in target ? target.unavailable : '';
   const list = h('ol', { class: 'proofs' });
   const summary = h('p', { class: 'proofs-summary', role: 'status' }, 'Running…');
   const again = h('button', { class: 'btn', onclick: () => void run() }, 'Run again');
@@ -59,7 +64,8 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
       // Left for a world: stop, rather than draw on the renderer the world now uses.
       if (!root.isConnected) return;
       try {
-        if (r.p.gpu && !renderer) throw new Error('This browser cannot render into 32-bit floating-point textures, which the GPU checks need');
+        if (r.p.gpu && !renderer) throw new Error(unavailable);
+        // CPU proofs ignore the renderer.
         const out = await r.p.run(renderer!);
         r.li.dataset.state = out.pass ? 'pass' : 'fail';
         r.state.textContent = out.pass ? 'pass' : 'fail';

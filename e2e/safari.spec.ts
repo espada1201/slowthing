@@ -174,3 +174,30 @@ test('sound left on starts at the click that ends a press, as iOS Safari allows,
   await expect.poll(() => page.evaluate(() => (window as any).audio.state)).toBe('running');
   expect(errors).toEqual([]);
 });
+
+test.describe('the GPU proofs say why they cannot run', () => {
+  const gpuRows = (page: Page) => page.locator('.proof[data-proof]:has(.proof-world:text("GPU")) .proof-result');
+
+  test('on a device without 32-bit float render targets, they name the textures', async ({ page }) => {
+    await without(page, 'EXT_color_buffer_float');
+    await page.goto('./?proofs&e2e');
+    await expect(page.locator('.proofs-summary')).toHaveText(/^\d+ of \d+ passed$/, { timeout: 150_000 });
+    const first = gpuRows(page).first();
+    await expect(first).toContainText('32-bit floating-point textures');
+    await expect(first).not.toContainText('WebGL2');
+  });
+
+  test('with no WebGL2, they say that, not something about textures', async ({ page }) => {
+    await page.addInitScript(() => {
+      const get = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+        return /webgl/.test(type) ? null : (get as any).call(this, type, ...rest);
+      } as typeof get;
+    });
+    await page.goto('./?proofs&e2e');
+    await expect(page.locator('.proofs-summary')).toHaveText(/^\d+ of \d+ passed$/, { timeout: 150_000 });
+    const first = gpuRows(page).first();
+    await expect(first).toContainText('WebGL2 is not available');
+    await expect(first).not.toContainText('32-bit');
+  });
+});
