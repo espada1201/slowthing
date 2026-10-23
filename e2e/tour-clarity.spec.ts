@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { goToStop, openWorld, watchErrors } from './helpers';
 
 test('a question says that answering is optional, and Next goes on without it', async ({ page }) => {
-  // A tester took Next, which turns red under the pointer, for a warning at a question.
+  // Next turns red under the pointer, which at a question reads as a warning: the question says it is optional.
   const errors = watchErrors(page);
   await openWorld(page, 'slow-light');
   await goToStop(page, 'The late clock');

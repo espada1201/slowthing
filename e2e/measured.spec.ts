@@ -237,10 +237,10 @@ test('cruising at 0.9 c, each clock 20 m further ahead reads 1.5 s later, turnin
 });
 
 test('opening Dials over the Measured map takes the map out of the way instead of stacking over its edge', async ({ page }) => {
-  // The panel is 12 px narrower than the map: the map's edge showed beside and behind it.
+  // The panel is 12 px narrower than the map, so the map must not show beside or behind it.
   await openWorld(page, 'slow-light', '&on=measured');
   await expect(page.locator('.measured')).toBeVisible();
-  // ISS-12: with the map up the dials fold behind this button, which now looks like one that opens something.
+  // With the map up the dials fold behind this button, which must look like one that opens something.
   await expect(page.locator('.panel-toggle .chev')).toHaveText('▾');
   await expect(page.getByRole('button', { name: 'Dials', exact: true })).toBeVisible();
   await page.locator('.panel-toggle').click();
@@ -268,7 +268,7 @@ test.describe('on a phone', () => {
   });
 
   test('at a question with its answer shown, the map, instruments and card leave a band of the view clear', async ({ page }) => {
-    // A tester found the world a 30 px sliver between the instruments and the card from stop 7.
+    // A band of the view stays clear between the instruments and the card.
     await openWorld(page, 'slow-light', '&stop=seen-and-measured');
     await page.getByRole('button', { name: 'Just show me' }).tap();
     await expect(page.locator('.predict-reveal')).toBeVisible();

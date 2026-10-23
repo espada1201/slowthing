@@ -9,7 +9,7 @@ test.describe('at 200% browser zoom (640×400)', () => {
   test.use({ viewport: { width: 640, height: 400 } });
 
   test('with the map up, the instruments, map and tour card each have their own space', async ({ page }) => {
-    // R2-07: the card covered the instruments' lower rows.
+    // The card does not cover the instruments' lower rows.
     await openWorld(page, 'slow-light', '&on=measured');
     const [map, hud, card] = [await box(page, '.measured'), await box(page, '.hud'), await box(page, '.tour')];
     expect(overlap(map, card), 'map over the card').toBe(false);
@@ -36,7 +36,6 @@ test.describe('a phone held sideways (844×390)', () => {
 });
 
 test('a message from Real universe does not land on the Seen label', async ({ page }) => {
-  // R2-05
   await openWorld(page, 'slow-light', '&on=measured');
   await page.locator('.panel-toggle').click();
   await page.locator('[data-reset="real"]').click();
@@ -45,12 +44,12 @@ test('a message from Real universe does not land on the Seen label', async ({ pa
 });
 
 test('a visitor who steps through the tour is not left with the how-to-move hint over the view', async ({ page }) => {
-  // R2-02: tour-only users never walk, so the hint stayed over the view at every stop.
+  // Stepping through the tour dismisses the how-to-move hint, since tour-only visitors never walk.
   await openWorld(page, 'slow-light');
   await expect(page.locator('.move-hint')).toBeVisible();
   await page.keyboard.press('KeyN');
   await expect(page.locator('.move-hint')).toBeHidden();
-  // It was not marked as learned: the next visit that has not walked sees it again.
+  // It is not marked as learned: the next visit that has not walked sees it again.
   await openWorld(page, 'slow-light');
   await expect(page.locator('.move-hint')).toBeVisible();
 });

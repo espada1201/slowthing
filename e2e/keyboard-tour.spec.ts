@@ -1,9 +1,7 @@
 import { type Page, expect, test } from '@playwright/test';
 import { watchErrors } from './helpers';
 
-// A keyboard-only tester (200% zoom, 640x400) ran out of steps at stop 9 of 12 in round 2. The causes were fixed
-// (focus follows Next onto a question's answers, and Tab from an answer goes to Next) but never re-run: this walks
-// the whole of each tour with the keyboard alone, counting presses, in the three worlds.
+// Walks the whole of each tour with the keyboard alone at 200% zoom (640x400), counting presses, in the three worlds.
 test.use({ viewport: { width: 640, height: 400 } });
 test.slow();
 

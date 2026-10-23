@@ -37,7 +37,7 @@ Preconditions:
 
 ## Gotchas
 
-- From the keyboard alone, Tab reaches Next (7 to 8 presses at 200% zoom, once), Enter or Space steps on, focus lands on a question's first answer, and Tab from an answer returns to Next; `e2e/keyboard-tour.spec.ts` walks all three tours that way.
+- From the keyboard alone, Tab reaches Next, Enter or Space steps on, focus lands on a question's first answer, and Tab from an answer returns to Next; `e2e/keyboard-tour.spec.ts` walks all three tours that way.
 - N and B are ignored while a text field or a select has focus, and Space or Enter on a focused button presses that button.
 - Arriving at a stop runs its action (a cruise, a roll, the tram), so readouts change on their own right after a step. Under reduced motion it waits for `Start` instead (reduced-motion.md).
 - Stops are meant to be one or two sentences. A longer stop is an ISSUE.

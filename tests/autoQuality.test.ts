@@ -112,7 +112,6 @@ describe('auto quality: slow frames step it down, and it does not oscillate', ()
       const aq = new AutoQuality('medium', true);
       // About 21 ms at full resolution, ±5 ms of noise: the cost falls with the scale, so it should settle.
       const changes = run(aq, (_, s) => Math.max(4, 6 + 15 * s * s + 5 * noise()), 600);
-      // Left alone it changed every 12 s, for as long as the page was open; now under one in 30 s, each a few percent of the resolution.
       expect(changes.filter((c) => c.t > 120).length, `seed ${seed}`).toBeLessThanOrEqual(16);
     }
   });

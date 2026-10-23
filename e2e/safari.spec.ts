@@ -2,7 +2,7 @@ import { type Page, expect, test } from '@playwright/test';
 import { frames, meanDiff, openWorld, sample, watchErrors } from './helpers';
 
 // Only Chromium runs here, so Safari and iOS are simulated by what they lack: these pages are loaded with
-// extensions, APIs and gestures taken away before any script runs. See the audit in the commit message that added them.
+// extensions, APIs and gestures taken away before any script runs.
 
 // Big G marches a ray per pixel, which software rendering draws at well under one frame a second.
 test.slow();

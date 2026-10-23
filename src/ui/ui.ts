@@ -193,7 +193,7 @@ export function worldChrome(
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
 
-  // The chevron says it opens something: with Measured up, the dials fold behind this button, and a tester looked for them in vain.
+  // The chevron says it opens something: with Measured up, the dials fold behind this button.
   const chevron = h('span', { class: 'chev', 'aria-hidden': 'true' }, '▾');
   const panelToggle = h('button', { class: 'btn ghost panel-toggle', 'aria-controls': 'panel', 'aria-expanded': 'false' }, 'Dials', chevron);
   panelToggle.addEventListener('click', () => {
