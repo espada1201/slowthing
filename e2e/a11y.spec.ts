@@ -114,3 +114,22 @@ test('after a prediction, screen readers hear which answer was right and which p
     - button "about 5 s ahead (your answer, wrong)" [disabled]
   `);
 });
+
+for (const size of [{ width: 1280, height: 800 }, { width: 640, height: 400 }, { width: 390, height: 844 }]) {
+  test(`Check the physics scrolls with the keyboard as soon as it opens, at ${size.width}×${size.height}`, async ({ page }) => {
+    // A keyboard-only tester pressed PageDown, Space, ArrowDown and End on the proofs page and nothing moved until one Tab.
+    await page.setViewportSize(size);
+    await page.goto('./?e2e');
+    await page.getByRole('button', { name: 'Check the physics →' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.proof').first()).toBeVisible();
+    const top = () => page.locator('main.proofs-page').evaluate((el) => el.scrollTop);
+    let was = await top();
+    expect(was).toBe(0);
+    for (const key of ['PageDown', 'Space', 'ArrowDown', 'End']) {
+      await page.keyboard.press(key);
+      await expect.poll(top, { message: `${key} scrolls the page` }).toBeGreaterThan(was);
+      was = await top();
+    }
+  });
+}

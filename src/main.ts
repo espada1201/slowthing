@@ -134,6 +134,7 @@ function showTitle() {
   world = null;
   chrome = null;
   ruler = null;
+  input.setKeyHandler(null);
   document.body.dataset.mode = 'title';
   if (document.pointerLockElement) document.exitPointerLock();
   ui.replaceChildren(titleScreen(enter, showProofs, setting, setQuality, startupError ?? worldError));
@@ -149,7 +150,10 @@ function showProofs() {
     : caps.floatTargets
       ? { renderer }
       : { unavailable: 'This browser cannot render into 32-bit floating-point textures, which the GPU checks need' };
-  ui.replaceChildren(proofsView(target, showTitle));
+  const page = proofsView(target, showTitle);
+  ui.replaceChildren(page);
+  // Focus is on the body after the click or Enter that got here, and the page scrolls under its own keys only from inside it.
+  page.querySelector<HTMLElement>('.proofs-h')?.focus({ preventScroll: true });
   history.replaceState(null, '', '?proofs');
 }
 

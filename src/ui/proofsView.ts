@@ -20,7 +20,7 @@ export function proofsView(target: ProofsGpu, onBack: () => void) {
     h('header', { class: 'title-head' },
       h('button', { class: 'btn ghost back', onclick: onBack }, '← Worlds'),
       h('p', { class: 'kicker' }, 'Proofs'),
-      h('h1', { class: 'proofs-h' }, 'Computed, not faked'),
+      h('h1', { class: 'proofs-h', tabindex: -1 }, 'Computed, not faked'),
       h('p', { class: 'lede' }, 'Every check below runs now, in this browser. The CPU checks hold the physics engine to textbook results. The GPU checks run the very shaders the worlds draw with and hold them to that independent physics.'),
     ),
     h('div', { class: 'row' }, again, summary),

@@ -36,13 +36,14 @@ export class Input {
   readonly state: InputState = { move: { x: 0, y: 0, z: 0 }, sprint: false, yaw: 0, pitch: 0 };
   private held = new Set<string>();
   private joy = { x: 0, y: 0 };
-  private onKey: KeyHandler = () => {};
+  /** Null outside a world: on the title and proofs pages the keys belong to the page, so Space and the arrows scroll it. */
+  private onKey: KeyHandler | null = null;
   /** Set once the visitor has walked or looked; clear it to watch for that again. */
   used = false;
 
   constructor(canvas: HTMLCanvasElement, private readonly touchLayer: HTMLElement) {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || ownedByControl(e.target, e.code)) return;
+      if (!this.onKey || e.metaKey || e.ctrlKey || e.altKey || ownedByControl(e.target, e.code)) return;
       if (e.code in MOVE_KEYS || e.code in TURN_KEYS || e.code.startsWith('Shift')) {
         this.held.add(e.code);
         if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
@@ -61,8 +62,10 @@ export class Input {
     this.setupTouch();
   }
 
-  setKeyHandler(fn: KeyHandler) {
+  /** Hand the keys to a world (with its handler), or back to the page (null), forgetting any key still held. */
+  setKeyHandler(fn: KeyHandler | null) {
     this.onKey = fn;
+    this.held.clear();
   }
 
   look(dx: number, dy: number) {
