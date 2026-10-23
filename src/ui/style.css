@@ -20,7 +20,8 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper); }
 body { font: 15px/1.45 var(--mono); -webkit-font-smoothing: antialiased; }
-#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+/* dvh: on iOS 100vh is the page with its toolbars away, taller than the canvas is drawn (innerHeight), which would stretch the view. */
+#view { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
 body[data-mode='title'] #view, body[data-mode='loading'] #view { visibility: hidden; }
 #ui { position: fixed; inset: 0; pointer-events: none; }
 #ui > * { pointer-events: auto; }
@@ -86,9 +87,9 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 .btn.start { background: var(--accent); border-color: var(--accent); color: #fff; }
 .topbar { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; pointer-events: none !important; }
 .topbar > * { pointer-events: auto; }
-.topbar .btn.ghost, .topbar select { background: rgba(16, 18, 22, 0.55); color: var(--paper); border-color: rgba(239, 231, 214, 0.35); backdrop-filter: blur(6px); }
+.topbar .btn.ghost, .topbar select { background: rgba(16, 18, 22, 0.55); color: var(--paper); border-color: rgba(239, 231, 214, 0.35); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .topbar select { border: 1px solid rgba(239, 231, 214, 0.35); border-radius: var(--radius); padding: 7px 6px; min-height: 36px; }
-.world-name { display: flex; flex-direction: column; line-height: 1; font: italic 28px var(--serif); background: rgba(16, 18, 22, 0.65); backdrop-filter: blur(6px); padding: 5px 10px 6px; border-radius: var(--radius); }
+.world-name { display: flex; flex-direction: column; line-height: 1; font: italic 28px var(--serif); background: rgba(16, 18, 22, 0.65); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); padding: 5px 10px 6px; border-radius: var(--radius); }
 .world-name .plate-no { font: 10px var(--mono); font-style: normal; color: rgba(239, 231, 214, 0.85); margin-bottom: 4px; }
 .top-right { margin-left: auto; display: flex; gap: 8px; }
 .topbar .btn[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -96,9 +97,9 @@ kbd { font: 500 11px var(--mono); border: 1px solid currentColor; border-radius:
 
 .panel, .hud, .tour, .help {
   background: var(--paper-glass); color: var(--ink); border-radius: var(--radius);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--rule); backdrop-filter: blur(8px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--rule); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
-.panel { position: absolute; top: 64px; right: 12px; width: 288px; padding: 14px 16px 16px; max-height: calc(100vh - 80px); overflow-y: auto; }
+.panel { position: absolute; top: 64px; right: 12px; width: 288px; padding: 14px 16px 16px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto; }
 .panel-h { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); margin: 4px 0 10px; border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
 .dial { margin: 0 0 14px; }
 .dial-head { display: flex; align-items: baseline; gap: 8px; }
@@ -187,7 +188,7 @@ body[data-mode='world'] #touch { display: block; }
 }
 @media (max-height: 640px) and (min-width: 761px) {
   .panel-toggle { display: inline-flex !important; }
-  .panel { display: none; max-height: calc(100vh - 80px); }
+  .panel { display: none; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); }
   .panel.open { display: block; z-index: 2; }
 }
 @media (max-width: 760px) {
@@ -226,7 +227,7 @@ body[data-mode='world'] #touch { display: block; }
 /* Narrow and short (200% zoom on a laptop, a phone held sideways): 52vh would show the c dial alone, so the open
    Dials panel takes the height below the top bar, over the tour card, until it is closed. */
 @media (max-width: 760px) and (max-height: 500px) {
-  .panel { max-height: calc(100dvh - 76px); }
+  .panel { max-height: calc(100vh - 76px); max-height: calc(100dvh - 76px); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
@@ -252,8 +253,8 @@ body[data-mode='world'] #touch { display: block; }
 .measured-view { display: contents; --now: #2f5d62; --map: #f6f1e5; }
 .measured-view[hidden] { display: none; }
 .measured {
-  position: absolute; top: 64px; right: 12px; width: 300px; max-height: calc(100vh - 80px); overflow-y: auto; padding: 10px 12px 12px;
-  background: var(--paper-glass); color: var(--ink); border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--rule); backdrop-filter: blur(8px);
+  position: absolute; top: 64px; right: 12px; width: 300px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto; padding: 10px 12px 12px;
+  background: var(--paper-glass); color: var(--ink); border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--rule); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .measured-h { font: italic 26px/1 var(--serif); margin: 0 0 8px; }
 .measured-h span { font: 11px var(--mono); font-style: normal; color: var(--muted); margin-left: 2px; }
@@ -300,7 +301,8 @@ body[data-mode='world'] #touch { display: block; }
   .topbar [data-view] { display: none; }
   /* Map and diagram side by side, each as wide as half the screen allows, and no taller than leaves the tour card
      clear below them on a short screen (a phone held upright is unchanged; 200 % zoom on a laptop shrinks them). */
-  .chrome { --m-side: min((100vw - 50px) / 2, max(88px, 100dvh - 330px)); }
+  .chrome { --m-side: min((100vw - 50px) / 2, max(88px, 100vh - 330px)); }
+  @supports (height: 100dvh) { .chrome { --m-side: min((100vw - 50px) / 2, max(88px, 100dvh - 330px)); } }
   .measured { top: 60px; left: 12px; right: auto; width: auto; max-height: none; overflow: visible; display: grid; grid-template-columns: repeat(2, var(--m-side)); gap: 6px; padding: 8px 10px 10px; }
   .measured-h { grid-column: 1 / -1; font-size: 21px; margin: 0; }
   .m-diagram { aspect-ratio: 1; margin-top: 0; }

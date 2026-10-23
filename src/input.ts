@@ -57,6 +57,7 @@ export class Input {
     document.addEventListener('mousemove', (e: MouseEvent) => {
       if (document.pointerLockElement === canvas) this.look(e.movementX * 0.0022, e.movementY * 0.0022);
     });
+    this.setupDragLook(canvas);
     this.setupTouch();
   }
 
@@ -87,6 +88,29 @@ export class Input {
     this.state.move = { x: clamp(x), y: clamp(y), z: clamp(z) };
     if (x || y || z) this.used = true;
     this.state.sprint = this.held.has('ShiftLeft') || this.held.has('ShiftRight') || Math.hypot(this.joy.x, this.joy.y) > 0.92;
+  }
+
+  /**
+   * Where the mouse cannot be locked to the view (Safari on an iPad has no pointer lock), or the browser refused the
+   * lock, dragging with the button down looks around instead.
+   */
+  private setupDragLook(canvas: HTMLCanvasElement) {
+    let refused = false;
+    document.addEventListener('pointerlockerror', () => (refused = true));
+    let from: { x: number; y: number } | null = null;
+    const start = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button === 0 && (refused || !canvas.requestPointerLock)) from = { x: e.clientX, y: e.clientY };
+    };
+    canvas.addEventListener('pointerdown', start);
+    this.touchLayer.addEventListener('pointerdown', start);
+    window.addEventListener('pointermove', (e: PointerEvent) => {
+      if (!from || e.pointerType !== 'mouse') return;
+      this.look((e.clientX - from.x) * 0.0022, (e.clientY - from.y) * 0.0022);
+      from = { x: e.clientX, y: e.clientY };
+    });
+    const end = () => (from = null);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   }
 
   private setupTouch() {

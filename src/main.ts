@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { restoreSound } from './audio';
 import { AutoQuality } from './autoQuality';
 import { type Constants, REAL } from './constants';
+import { type GpuCaps, gpuCaps, unsupported } from './gpuCaps';
 import { Input } from './input';
 import { type Setup, applySetup, readLink, setupOf, writeLink } from './kit/link';
 import { WORLD_CARDS } from './ui/dom';
@@ -36,11 +37,14 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const constants: Constants = { ...REAL };
 let renderer: THREE.WebGLRenderer | null = null;
 let startupError: string | null = null;
+/** What the GPU can render into; the worlds that need more than it has stay closed, the rest open. */
+let caps: GpuCaps = { floatTargets: false, halfFloatTargets: false };
 /** Why the last world failed to start; the title screen says so, and the other worlds still open. */
 let worldError: string | null = null;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: params.has('e2e') });
-  if (!renderer.extensions.has('EXT_color_buffer_float')) startupError = 'This browser cannot render to floating-point textures (EXT_color_buffer_float), which the physics needs. Try an up-to-date Chrome, Safari or Firefox.';
+  const r = renderer;
+  caps = gpuCaps((name) => r.extensions.has(name));
   const gl = renderer.getContext();
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   const gpu = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
@@ -141,12 +145,18 @@ function showTitle() {
 
 function showProofs() {
   document.body.dataset.mode = 'title';
-  ui.replaceChildren(proofsView(startupError ? null : renderer, showTitle));
+  ui.replaceChildren(proofsView(caps.floatTargets ? renderer : null, showTitle));
   history.replaceState(null, '', '?proofs');
 }
 
 async function enter(id: string) {
   if (!renderer || startupError || !isWorldId(id)) return;
+  const missing = unsupported(id, caps);
+  if (missing) {
+    worldError = missing;
+    showTitle();
+    return;
+  }
   document.body.dataset.mode = 'loading';
   ui.replaceChildren(Object.assign(document.createElement('div'), { className: 'loading', role: 'status', textContent: 'Tuning the constants…' }));
   let lesson: Authored;

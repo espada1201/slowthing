@@ -59,7 +59,7 @@ export function proofsView(renderer: THREE.WebGLRenderer | null, onBack: () => v
       // Left for a world: stop, rather than draw on the renderer the world now uses.
       if (!root.isConnected) return;
       try {
-        if (r.p.gpu && !renderer) throw new Error('WebGL2 is not available');
+        if (r.p.gpu && !renderer) throw new Error('This browser cannot render into 32-bit floating-point textures, which the GPU checks need');
         const out = await r.p.run(renderer!);
         r.li.dataset.state = out.pass ? 'pass' : 'fail';
         r.state.textContent = out.pass ? 'pass' : 'fail';
