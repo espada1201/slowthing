@@ -610,8 +610,8 @@ export class SlowLightWorld extends SlowLightLesson implements World {
     const gamma = 1 / Math.sqrt(1 - beta * beta);
     return [
       { label: 'Speed', value: `${formatSI(v)} m/s` },
-      { label: 'β = v/c', value: beta.toFixed(3), gauge: beta },
-      { label: 'γ', value: gamma.toFixed(3), gauge: Math.min(1, (gamma - 1) / 4) },
+      { label: 'β = v/c', gloss: 'share of c', value: beta.toFixed(3), gauge: beta },
+      { label: 'γ', gloss: 'clock slow-down', value: gamma.toFixed(3), gauge: Math.min(1, (gamma - 1) / 4) },
       { label: 'Your watch τ', value: clockString(CLOCK_START + this.tau) },
       { label: 'Town clock t', value: clockString(CLOCK_START + this.t) },
       { label: 'You are younger by', value: `${(this.t - this.tau).toFixed(2)} s` },

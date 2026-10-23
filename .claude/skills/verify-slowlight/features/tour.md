@@ -9,6 +9,8 @@ Each world opens on a tour card: a numbered stop with a title and one or two sen
 - `tour-predict` a prediction hides the stop's text and the instruments until answered.
 - `tour-answer` answering marks the right choice and a wrong pick, for screen readers too, then shows the reveal and the text.
 - `tour-skip` `Just show me` reveals without marking a pick.
+- `tour-optional` a question or measurement says `Optional: Next goes on without an answer.` until it is answered.
+- `tour-end` the last stop says the tour is over, below its text (below the answer, at a stop that asks a question); from the keyboard, focus stays in the card.
 - `tour-measure` a measurement stop takes typed answers, refuses anything that is not a number, and says how far off each was; driven in big-g.md (`Weigh the hole`).
 
 ## How to get to it (user POV)
@@ -29,11 +31,13 @@ Preconditions:
 - **Next by key.** Run `ctl press KeyN`. `tour.title` is `Aberration` and the cruise starts.
 - **Skip.** Run `ctl click --role button --name "Just show me"`. The reveal shows without `Right.` or `Not quite.`.
 - **Back by key.** Run `ctl press KeyB`. `tour.stop` is `2 / 12`.
-- **Last stop.** Press N until `tour.stop` is `12 / 12`. `Next tour stop` is disabled and `constants.c` is 299792458.
+- **Optional.** At stop 2, `ctl text '.predict-opt'` prints `Optional: Next goes on without an answer.`; after an answer it prints `[]`.
+- **Last stop.** Press N until `tour.stop` is `12 / 12`. `Next tour stop` is disabled and `constants.c` is 299792458. `ctl text '.tour-end'` prints `That is the end of the tour.` and the rest of its line; at stop 11 it prints `[]`.
 - **Proof.** Run `ctl shot tour-final` and `ctl errors`.
 
 ## Gotchas
 
+- From the keyboard alone, Tab reaches Next (7 to 8 presses at 200% zoom, once), Enter or Space steps on, focus lands on a question's first answer, and Tab from an answer returns to Next; `e2e/keyboard-tour.spec.ts` walks all three tours that way.
 - N and B are ignored while a text field or a select has focus, and Space or Enter on a focused button presses that button.
 - Arriving at a stop runs its action (a cruise, a roll, the tram), so readouts change on their own right after a step. Under reduced motion it waits for `Start` instead (reduced-motion.md).
 - Stops are meant to be one or two sentences. A longer stop is an ISSUE.

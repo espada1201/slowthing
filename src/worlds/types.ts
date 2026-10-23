@@ -20,6 +20,8 @@ export interface Toggle {
 export interface Readout {
   label: string;
   value: string;
+  /** A few plain words after the label for shorthand a visitor may not read (β, γ), shown small beside it. */
+  gloss?: string;
   /** 0..1 fill for an analogue bar, if meaningful. */
   gauge?: number;
 }

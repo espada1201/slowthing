@@ -7,7 +7,7 @@ A town where light travels at 12 m/s. The visitor walks, runs or cruises at 0.9 
 - `sl-dial` the c slider changes the speed of light between 4 m/s and the real value.
 - `sl-reset` `Real universe` puts c back to 299 792 458 m/s, `World preset` back to 12 m/s.
 - `sl-switches` each of the six effect switches changes the picture.
-- `sl-walk` WASD walks, Shift runs, and Speed, β and γ rise.
+- `sl-walk` WASD walks, Shift runs, and Speed, β and γ rise (the instruments gloss them: `β = v/c` share of c, `γ` clock slow-down).
 - `sl-cruise` `Cruise` (F) accelerates to 0.9 c, `Stop` (X) halts.
 - `sl-tram` `Tram` (T) brings the 0.89 c tram past within about three seconds.
 - `sl-clocks` your watch falls behind the town clock while you move.

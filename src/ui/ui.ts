@@ -183,8 +183,10 @@ export function worldChrome(
     start.hidden = true;
     opts.onStart();
   });
+  // Said once, at the last stop: the card has nowhere further to go, and Next greys out without a word.
+  const tourEnd = h('p', { class: 'tour-end', hidden: true, tabindex: -1 }, 'That is the end of the tour. Keep walking and turning the dials, or go back to the Worlds for another.');
   const turned = h('p', { class: 'tour-turned', hidden: true }, 'The dials differ from this stop’s, so it may not look as described. ', h('button', { class: 'linkish', onclick: opts.onStopDials }, 'Use this stop’s dials'));
-  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, turned, h('div', { class: 'row' }, quick, start, prev, next));
+  const tour = h('section', { class: 'tour', 'aria-label': 'Guided tour', 'aria-live': 'polite' }, h('div', { class: 'tour-head' }, tourNo, tourTitle), predictBox, tourText, tourEnd, turned, h('div', { class: 'row' }, quick, start, prev, next));
   let current = 0;
   /** The readouts left up while a measurement waits for its answer. */
   let given: string[] | null = null;
@@ -252,7 +254,7 @@ export function worldChrome(
         ...rs.filter((r) => !given || given.includes(r.label)).flatMap((r) => {
           const dd = h('dd', {}, r.value);
           if (r.gauge !== undefined) dd.append(h('span', { class: 'gauge', style: `--g:${Math.max(0, Math.min(1, r.gauge))}` }));
-          return [h('dt', {}, r.label), dd];
+          return [h('dt', {}, r.label, r.gloss ? h('span', { class: 'gloss' }, r.gloss) : null), dd];
         }),
       );
       statusLine.textContent = given ? '' : status;
@@ -272,7 +274,9 @@ export function worldChrome(
     setTour(i, waiting = false) {
       // A keyboard user who stepped here with Next or Back goes straight to a question's answers.
       const fromKeys = [next, prev].some((b) => b.matches(':focus-visible'));
+      const keptNext = fromKeys && document.activeElement === next;
       current = i;
+      const last = i === world.tour.length - 1;
       start.hidden = !waiting;
       const stop = world.tour[i];
       tourNo.textContent = `${i + 1} / ${world.tour.length}`;
@@ -281,6 +285,8 @@ export function worldChrome(
       const { predict: p, measure: m } = stop;
       predictBox.hidden = !p && !m;
       tourText.hidden = !!(p || m);
+      // After a question's answer, when its reveal shows.
+      tourEnd.hidden = !last || !!(p || m);
       // The instruments would give the answer away, so they wait until the visitor has committed.
       root.classList.toggle('predicting', !!p);
       given = m?.given ?? null;
@@ -306,13 +312,16 @@ export function worldChrome(
           reveal.textContent = (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal;
           reveal.hidden = false;
           tourText.hidden = false;
+          tourEnd.hidden = !last;
           root.classList.remove('predicting');
           skip.hidden = true;
+          optional.hidden = true;
           reveal.focus();
         };
+        const optional = h('span', { class: 'predict-opt' }, 'Optional: Next goes on without an answer.');
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
-        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, reveal);
+        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, optional, reveal);
         if (fromKeys) buttons[0].focus();
       }
       if (m) {
@@ -329,11 +338,14 @@ export function worldChrome(
           for (const el of [...inputs, check]) el.disabled = true;
           reveal.hidden = false;
           tourText.hidden = false;
+          tourEnd.hidden = !last;
           skip.hidden = true;
+          optional.hidden = true;
           given = null;
           reveal.focus();
         };
         const skip = h('button', { class: 'linkish', onclick: () => commit(null) }, 'Just show me');
+        const optional = h('span', { class: 'predict-opt' }, 'Optional: Next goes on without an answer.');
         const onsubmit = (e: Event) => {
           e.preventDefault();
           const mine = inputs.map((el) => parseNumber(el.value));
@@ -341,10 +353,12 @@ export function worldChrome(
           if ((e.target as HTMLFormElement).reportValidity()) commit(mine as number[]);
         };
         const form = h('form', { class: 'row answers', novalidate: true, onsubmit }, ...m.asks.map((a, k) => h('label', { class: 'answer' }, a.symbol, inputs[k], a.unit)), check);
-        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Measure'), m.question), h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, reveal);
+        predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Measure'), m.question), h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, optional, reveal);
       }
       prev.disabled = i === 0;
-      next.disabled = i === world.tour.length - 1;
+      next.disabled = last;
+      // Next, which had the keyboard's focus, has just greyed out: a disabled button drops focus to the page, so keep it in the card.
+      if (keptNext && !tourEnd.hidden) tourEnd.focus();
     },
     showQuality(q) {
       for (const s of selects) s.options[0].textContent = q ? `Auto (${q})` : 'Auto';
