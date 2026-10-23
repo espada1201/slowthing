@@ -8,7 +8,7 @@ The title screen names the app, shows three world plates (Slow Light, Big ħ, Bi
 - `title-enter` enters a world by mouse or by keyboard.
 - `title-back` returns from a world to the plates, with focus on a plate.
 - `title-quality` offers `Auto` (the default) and three presets, and remembers the choice across reloads.
-- `title-error` explains in words when WebGL2 is missing (no world opens), or when this GPU cannot render into the float textures a world needs (that world stays closed with its reason, the others open: Slow Light needs 16-bit, Big ħ 32-bit, Big G none).
+- `title-error` explains in words when WebGL2 is missing (no world opens), or when this GPU cannot render into the float textures a world needs (that world stays closed with its reason, the others open: Slow Light needs 16-bit, Big ħ 32-bit, Big G none). A GPU counts only if the extension is advertised and a 1×1 framebuffer of that format is really complete.
 
 ## How to get to it (user POV)
 
@@ -33,4 +33,4 @@ Preconditions:
 
 - The plates are buttons whose accessible names include the blurb, so use `.plate[data-world=…]` rather than an exact role name.
 - `Auto` is the default. It starts a world at Medium (High on Apple Silicon, Low on touch screens), steps down when frames run slow and names the preset it is running, such as `Auto (low)`. A saved choice or `?quality=` in the URL replaces it.
-- `title-error` cannot be reached in this harness, because SwiftShader provides WebGL2 with every extension. Report it BLOCKED here; `e2e/safari.spec.ts` simulates each missing extension (and no WebGL2) by stubbing `getExtension` and `getContext`.
+- `title-error` cannot be reached in this harness, because SwiftShader provides WebGL2 with every extension. Report it BLOCKED here; `e2e/safari.spec.ts` simulates each missing extension (and no WebGL2) by stubbing `getExtension`, `getContext` and `checkFramebufferStatus` (a GPU that advertises float targets but cannot complete the framebuffer).

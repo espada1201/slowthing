@@ -28,5 +28,6 @@ Preconditions:
 
 ## Gotchas
 
+- Sound left on starts at the first click, touchend or key press, and comes back at the next one after Safari interrupts the audio (a call, another app); `tests/audio.test.ts` drives that with a fake context.
 - Headless Chromium plays no audio, so `set-sound` proves the control and its state, not the sound itself.
 - There are two quality selects in a world (top bar and panel); they stay in step, so choose either.

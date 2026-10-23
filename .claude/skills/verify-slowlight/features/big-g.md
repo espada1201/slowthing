@@ -12,7 +12,7 @@ A platform in space where gravity is turned up until a 90-tonne boulder becomes 
 - `bg-ruler` `Ruler` (R; in the panel, and on the tour card on a phone) puts a layer over the view: two clicks or taps mark two points of the sky and show the angle between them, a third starts again, and Esc or R turns it off.
 - `bg-ruler-keys` with the ruler on, the arrows move a cross out from the middle of the view (10 px with Shift) and Enter marks.
 - `bg-weigh` tour stop 5, `Weigh the hole`, asks for rs and M from the shadow's size. The instruments show only `Your distance r` until `Check` or `Just show me`; the reveal gives the true values and how far off each typed answer was.
-- `bg-weigh-sideways` on a phone held sideways (844×390) the weighing card keeps below the middle of the view and scrolls, so the shadow, `Your distance r` and the top bar stay clear of it; the ruler is in the panel behind `Dials`.
+- `bg-weigh-sideways` on a phone held sideways (844×390) the weighing card is at most 45% of the screen, below the middle of the view, and scrolls, so the shadow, `Your distance r` and the top bar stay clear of it; the ruler is in the panel behind `Dials`.
 - `bg-ring` tour stop 6, `Einstein ring`, gives the ring's size, 20.2°, beside the 18.1° of the usual formula √(2rs/r).
 
 ## How to get to it (user POV)
@@ -49,4 +49,4 @@ Preconditions:
 - The tour moves you, so read distances right after the step that sets them.
 - The probe's `readouts` lists every instrument even while the weighing stop hides them; read what the visitor sees with `ctl text '.readouts'`.
 - With the ruler on, clicks and taps on the view mark the sky instead of looking around; turn it off to look.
-- Held sideways, the instruments that come back after `Check` run down behind the weighing card from about `1 min here`; the card is kept to the bottom half so that the shadow stays clear.
+- Held sideways, the instruments that come back after `Check` run down behind the weighing card from about `1 min here`; the card is kept to the bottom 45% so that the shadow stays clear.

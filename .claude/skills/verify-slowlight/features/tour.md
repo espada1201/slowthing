@@ -10,7 +10,7 @@ Each world opens on a tour card: a numbered stop with a title and one or two sen
 - `tour-answer` answering marks the right choice and a wrong pick, for screen readers too, then shows the reveal and the text.
 - `tour-skip` `Just show me` reveals without marking a pick.
 - `tour-optional` a question or measurement says `Optional: Next goes on without an answer.` until it is answered.
-- `tour-end` the last stop says the tour is over, below its text (below the answer, at a stop that asks a question); from the keyboard, focus stays in the card.
+- `tour-end` the last stop says the tour is over, below its text (below the answer, at a stop that asks a question); from the keyboard, focus stays in the card: a button that greys out under the keyboard hands focus on (`←` at the first stop to `Next`; `Next` at the last to the first answer of a question still open, else to the closing line).
 - `tour-measure` a measurement stop takes typed answers, refuses anything that is not a number, and says how far off each was; driven in big-g.md (`Weigh the hole`).
 
 ## How to get to it (user POV)

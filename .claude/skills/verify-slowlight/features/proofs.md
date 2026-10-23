@@ -30,5 +30,6 @@ Preconditions:
 ## Gotchas
 
 - The GPU proofs compile the worlds' shaders, so the first run takes the longest.
+- When the GPU checks cannot run, each GPU row says why: `WebGL2 is not available here` or `This browser cannot render into 32-bit floating-point textures` (`e2e/safari.spec.ts`).
 - A proof that throws shows `error` in place of `fail`; both count against N.
 - `Run again` is disabled while a run is in progress.
