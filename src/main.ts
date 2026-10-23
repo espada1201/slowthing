@@ -63,6 +63,11 @@ canvas.addEventListener('webglcontextrestored', () => {
   gpuReset.textContent = '';
 });
 const input = new Input(canvas, document.querySelector('#touch')!);
+/** When the mouse was last released from the view, so the Esc that did it (in a browser that also tells the page) is not taken for leaving. */
+let unlockedAt = -Infinity;
+document.addEventListener('pointerlockchange', () => {
+  if (!document.pointerLockElement) unlockedAt = performance.now();
+});
 restoreSound();
 
 let world: World | null = null;
@@ -239,8 +244,12 @@ async function enter(id: string) {
     } else if (code === 'KeyR') ruler?.toggle();
     else if (key === '?') chrome?.toggleHelp();
     else if (code === 'Escape') {
-      chrome?.closeHelp();
+      // Esc puts away what is open, one thing at a time, and leaves the world only when nothing is. The browser's own use
+      // of it (releasing the mouse) comes first and is not delivered to the page, but a lock lost a moment ago counts.
+      const rulerWas = !!ruler && !ruler.root.hidden;
       ruler?.toggle(false);
+      const closed = chrome?.dismiss() ?? false;
+      if (!closed && !rulerWas && performance.now() - unlockedAt > 600) showTitle();
     }
     const a = w.actions.find((x) => x.key === code);
     if (a) w.runAction(a.id, ctx());

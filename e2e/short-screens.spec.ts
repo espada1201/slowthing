@@ -37,6 +37,19 @@ test.describe('a phone held sideways (844×390)', () => {
   });
 });
 
+test.describe('the Measured map on a phone held sideways (844×390)', () => {
+  test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+
+  // The Seen toggle sat over the β number.
+  test('the Seen label is clear of the instruments, the map and the tour card', async ({ page }) => {
+    await openWorld(page, 'slow-light', '&on=measured');
+    await expect(page.locator('.seen-tag')).toBeVisible();
+    const seen = await box(page, '.seen-tag');
+    for (const other of ['.hud', '.measured', '.tour', '.top-right', '.world-name']) expect(overlap(seen, await box(page, other)), `Seen over ${other}`).toBe(false);
+    await expect(page.locator('.sym').first()).toBeInViewport({ ratio: 1 });
+  });
+});
+
 test.describe('the tour card on a phone held sideways (844×390)', () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
 

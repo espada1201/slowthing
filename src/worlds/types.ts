@@ -20,8 +20,14 @@ export interface Toggle {
 export interface Readout {
   label: string;
   value: string;
-  /** A few plain words after the label for shorthand a visitor may not read (β, γ), shown small beside it. */
+  /** A few plain words after the label for shorthand a visitor may not read (β, γ), shown small beside it (on a tall screen). */
   gloss?: string;
+  /**
+   * The label's leading Greek letter and what it means in a sentence. The letter becomes a button that shows the sentence
+   * on hover, focus or tap, whatever the screen's size, and names the button for screen readers.
+   */
+  symbol?: string;
+  define?: string;
   /** 0..1 fill for an analogue bar, if meaningful. */
   gauge?: number;
 }
@@ -124,6 +130,8 @@ export interface Lesson<S = unknown> {
   readonly start: Pose;
   /** Controls this world has beyond walking, looking and its actions. */
   readonly help?: HelpLine[];
+  /** What the shorthand the instruments use means, a sentence each, for the controls help. */
+  readonly glossary?: readonly string[];
 }
 
 declare const authored: unique symbol;

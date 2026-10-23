@@ -63,8 +63,8 @@ export interface Chrome {
   showQuality(q: Quality | null): void;
   /** Show the level reticle while the view warps, unless the visitor switched it off. */
   showReticle(warping: boolean): void;
-  /** Hide the controls help, as Esc does. */
-  closeHelp(): void;
+  /** What Esc does first: put away one thing, a definition before the controls help before the open Dials panel. Whether any was up. */
+  dismiss(): boolean;
   /** Show or hide the controls help, as its ? button and the ? key do. */
   toggleHelp(): void;
   /** Say on the tour card that the dials have been turned since the stop set them, so it may not look as described. */
@@ -181,7 +181,46 @@ export function worldChrome(
   );
   const readoutList = h('dl', { class: 'readouts' });
   const statusLine = h('p', { class: 'status' });
-  const hud = h('section', { class: 'hud', 'aria-label': 'Instruments', 'aria-live': 'off' }, readoutList, statusLine);
+  // What a Greek letter in the instruments means, shown under them. The button's own name carries the same words for screen readers.
+  const defTip = h('p', { class: 'sym-tip', hidden: true, 'aria-hidden': 'true' });
+  const hud = h('section', { class: 'hud', 'aria-label': 'Instruments', 'aria-live': 'off' }, readoutList, statusLine, defTip);
+  /** The letter whose definition is showing, and whether a click or tap (not just hover or focus) is holding it up. */
+  let defShown: HTMLElement | null = null;
+  let defHeld = false;
+  const showDef = (btn: HTMLElement) => {
+    defShown = btn;
+    defTip.textContent = btn.getAttribute('aria-label');
+    defTip.hidden = false;
+  };
+  const hideDef = () => {
+    defShown = null;
+    defHeld = false;
+    defTip.hidden = true;
+  };
+  const symbolButton = (symbol: string, define: string) => {
+    const btn = h('button', { class: 'sym', type: 'button', 'aria-label': define }, symbol);
+    btn.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && showDef(btn));
+    btn.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && !defHeld && document.activeElement !== btn && hideDef());
+    btn.addEventListener('focus', () => showDef(btn));
+    btn.addEventListener('blur', () => !defHeld && hideDef());
+    // A tap or click holds it up (a finger has no hover, and Safari gives a tapped button no focus); Enter and Space have focus to do it.
+    btn.addEventListener('click', (e) => {
+      if (e.detail === 0) return;
+      if (defShown === btn && defHeld) hideDef();
+      else {
+        showDef(btn);
+        defHeld = true;
+      }
+    });
+    return btn;
+  };
+  // Anywhere else that takes focus or a press puts the definition away.
+  const away = (e: Event) => {
+    if (!hud.isConnected) return document.removeEventListener(e.type, away, true);
+    if (defShown && !(e.target instanceof Node && defShown.contains(e.target))) hideDef();
+  };
+  document.addEventListener('pointerdown', away, true);
+  document.addEventListener('focusin', away, true);
 
   const tourNo = h('span', { class: 'tour-no' });
   const tourTitle = h('h3', { class: 'tour-title' });
@@ -243,6 +282,8 @@ export function worldChrome(
     ruler ? h('p', {}, h('kbd', {}, 'R'), ' ruler: click two points to measure the angle between them, or move with the arrows and mark with Enter.') : null,
     h('p', {}, h('kbd', {}, 'N'), ' next tour stop, ', h('kbd', {}, 'B'), ' previous.'),
     h('p', {}, h('kbd', {}, '?'), ' shows or hides this list.'),
+    h('p', {}, h('kbd', {}, 'Esc'), ' closes what is open, and leaves the world when nothing is.'),
+    ...(world.glossary ?? []).map((g) => h('p', { class: 'help-def' }, g)),
     h('p', {}, 'On a phone: drag the left side to walk, the right side to look.'),
   );
   helpBtn.addEventListener('click', () => {
@@ -266,7 +307,8 @@ export function worldChrome(
     { class: 'topbar' },
     h('button', { class: 'btn ghost', 'data-back': true, onclick: opts.onBack }, '←', h('span', { class: 'wide-only' }, ' Worlds')),
     h('div', { class: 'world-name' }, h('span', { class: 'plate-no' }, card.plate), h('span', {}, world.title)),
-    h('div', { class: 'top-right' }, panelToggle, ...views.map((v) => v.top), soundBtn, selects[0], helpBtn),
+    // Dials comes last, ahead of the panel in the page, so that Shift+Tab from the first dial lands on it and not on the ? button.
+    h('div', { class: 'top-right' }, ...views.map((v) => v.top), soundBtn, selects[0], helpBtn, panelToggle),
   );
   // The ruler goes first so that it lies under the panels: they stay usable while it is on.
   const root = h('div', { class: 'chrome', 'data-world': world.id }, ruler?.root ?? null, reticle, hint, top, help, panel, hud, tour, toast, notice, world.overlay ?? null);
@@ -278,16 +320,36 @@ export function worldChrome(
   });
 
   let toastTimer = 0;
+  let rowKey = '';
+  let rowValues: { value: Text; gauge: HTMLElement | null }[] = [];
   return {
     root,
     setReadouts(rs, status) {
-      readoutList.replaceChildren(
-        ...rs.filter((r) => !given || given.includes(r.label)).flatMap((r) => {
-          const dd = h('dd', {}, r.value);
-          if (r.gauge !== undefined) dd.append(h('span', { class: 'gauge', style: `--g:${Math.max(0, Math.min(1, r.gauge))}` }));
-          return [h('dt', {}, r.label, r.gloss ? h('span', { class: 'gloss' }, r.gloss) : null), dd];
-        }),
-      );
+      const shown = rs.filter((r) => !given || given.includes(r.label));
+      // The instruments refresh ten times a second: keep the same elements while the same ones are listed, so a focused
+      // letter keeps its focus, and only the values change.
+      const key = shown.map((r) => [r.label, r.gloss, r.define, r.gauge !== undefined].join('|')).join('\n');
+      if (key !== rowKey) {
+        rowKey = key;
+        rowValues = [];
+        readoutList.replaceChildren(
+          ...shown.flatMap((r) => {
+            const value = document.createTextNode('');
+            const dd = h('dd', {}, value);
+            const gauge = r.gauge === undefined ? null : h('span', { class: 'gauge' });
+            if (gauge) dd.append(gauge);
+            rowValues.push({ value, gauge });
+            const name = r.symbol && r.define && r.label.startsWith(r.symbol) ? [symbolButton(r.symbol, r.define), r.label.slice(r.symbol.length)] : [r.label];
+            return [h('dt', {}, ...name, r.gloss ? h('span', { class: 'gloss' }, r.gloss) : null), dd];
+          }),
+        );
+        if (defShown && !defShown.isConnected) hideDef();
+      }
+      shown.forEach((r, i) => {
+        const row = rowValues[i];
+        if (row.value.data !== r.value) row.value.data = r.value;
+        row.gauge?.style.setProperty('--g', String(Math.max(0, Math.min(1, r.gauge ?? 0))));
+      });
       statusLine.textContent = given ? '' : status;
     },
     syncDials(c) {
@@ -416,9 +478,14 @@ export function worldChrome(
       hint.hidden = true;
       remember(MOVED);
     },
-    closeHelp() {
-      help.hidden = true;
-      helpBtn.setAttribute('aria-expanded', 'false');
+    dismiss() {
+      if (!defTip.hidden) hideDef();
+      else if (!help.hidden) {
+        help.hidden = true;
+        helpBtn.setAttribute('aria-expanded', 'false');
+      } else if (panel.classList.contains('open')) panelToggle.click();
+      else return false;
+      return true;
     },
     toggleHelp() {
       helpBtn.click();
