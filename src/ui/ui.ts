@@ -279,7 +279,9 @@ export function worldChrome(
     setTour(i, waiting = false) {
       // A keyboard user who stepped here with Next or Back goes straight to a question's answers.
       const fromKeys = [next, prev].some((b) => b.matches(':focus-visible'));
-      const keptNext = fromKeys && document.activeElement === next;
+      const had = document.activeElement;
+      /** Where focus goes if the button it is on greys out and this stop has a question to answer. */
+      let firstAnswer: HTMLElement | null = null;
       current = i;
       const last = i === world.tour.length - 1;
       start.hidden = !waiting;
@@ -327,6 +329,7 @@ export function worldChrome(
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
         predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, optional, reveal);
+        firstAnswer = buttons[0];
         if (fromKeys) buttons[0].focus();
       }
       if (m) {
@@ -357,13 +360,17 @@ export function worldChrome(
           for (const [k, el] of inputs.entries()) el.setCustomValidity(mine[k] === null ? 'Type a number, such as 4.1 or 9×10^4' : '');
           if ((e.target as HTMLFormElement).reportValidity()) commit(mine as number[]);
         };
+        firstAnswer = inputs[0];
         const form = h('form', { class: 'row answers', novalidate: true, onsubmit }, ...m.asks.map((a, k) => h('label', { class: 'answer' }, a.symbol, inputs[k], a.unit)), check);
         predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Measure'), m.question), h('ol', { class: 'steps' }, ...m.steps.map((t) => h('li', {}, t))), form, skip, optional, reveal);
       }
       prev.disabled = i === 0;
       next.disabled = last;
-      // Next, which had the keyboard's focus, has just greyed out: a disabled button drops focus to the page, so keep it in the card.
-      if (keptNext && !tourEnd.hidden) tourEnd.focus();
+      // A disabled button cannot keep focus, and focus would fall to the page, where Space and the arrows move the
+      // world. So a keyboard user on the one that just greyed out goes to what is left in the card: Back at the first
+      // stop to Next; Next at the last to the first answer, or else the closing line.
+      const stranded = [prev, next].find((b) => b.disabled && had === b);
+      if (stranded && fromKeys) (stranded === prev ? next : firstAnswer ?? tourEnd).focus();
     },
     showQuality(q) {
       for (const s of selects) s.options[0].textContent = q ? `Auto (${q})` : 'Auto';

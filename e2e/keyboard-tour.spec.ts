@@ -86,3 +86,53 @@ for (const world of ['slow-light', 'big-hbar', 'big-g']) {
     await expect(page.locator('.tour-end')).toBeHidden();
   });
 }
+
+// A disabled button cannot hold focus. Wherever the tour disables the one a keyboard user is on, focus goes somewhere
+// in the card instead of falling to the page, where Space and the arrows would act on the world.
+const inCard = (page: Page) => page.evaluate(() => !!document.activeElement?.closest('.tour') && document.activeElement !== document.body);
+const onKeys = async (page: Page, world: string) => {
+  await page.goto(`./?world=${world}&quality=low&e2e`);
+  await page.waitForFunction(() => (window as any).slowlight?.frames > 2, null, { timeout: 90_000 });
+};
+
+test('Back at stop 2, pressed from the keyboard, lands on stop 1 with focus still in the card, on Next', async ({ page }) => {
+  await onKeys(page, 'slow-light');
+  await page.getByRole('button', { name: 'Next tour stop' }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.tour-no')).toHaveText(/^2 \//);
+  await page.getByRole('button', { name: 'Previous tour stop' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.tour-no')).toHaveText(/^1 \//);
+  await expect(page.getByRole('button', { name: 'Previous tour stop' })).toBeDisabled();
+  expect(await focused(page)).toMatchObject({ next: true });
+  await page.keyboard.press('Space');
+  await expect(page.locator('.tour-no')).toHaveText(/^2 \//);
+});
+
+test('a last stop with a measurement, reached with Next from the keyboard, puts focus on its first answer', async ({ page }) => {
+  await onKeys(page, 'big-g');
+  await page.evaluate(() => (window as any).slowlight.cutTour(5));
+  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-no')).toHaveText('4 / 5');
+  await page.getByRole('button', { name: 'Next tour stop' }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.tour-no')).toHaveText('5 / 5');
+  await expect(page.locator('[data-ask]').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next tour stop' })).toBeDisabled();
+  expect(await inCard(page), 'focus is in the card, not on the page').toBe(true);
+  await expect(page.locator('[data-ask]').first()).toBeFocused();
+});
+
+test('a last stop with nothing to answer, reached with Next from the keyboard, puts focus on the closing line', async ({ page }) => {
+  await onKeys(page, 'slow-light');
+  await page.getByRole('button', { name: 'Next tour stop' }).focus();
+  for (let i = 1; i < 12; i++) await page.keyboard.press('KeyN');
+  await expect(page.locator('.tour-no')).toHaveText('12 / 12');
+  await page.getByRole('button', { name: 'Previous tour stop' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.tour-no')).toHaveText('11 / 12');
+  await page.getByRole('button', { name: 'Next tour stop' }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.tour-no')).toHaveText('12 / 12');
+  expect(await focused(page)).toMatchObject({ end: true });
+});

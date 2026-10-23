@@ -335,7 +335,7 @@ if (isWorldId(initial) && !startupError) void enter(initial);
 else if (params.has('proofs')) showProofs();
 else showTitle();
 
-// Probe for the end-to-end tests: read-only, apart from freezing and stepping time.
+// Probe for the end-to-end tests: read-only, apart from freezing and stepping time, and cutting the tour short.
 (window as unknown as { slowlight: object }).slowlight = {
   pause(on: boolean) {
     paused = on;
@@ -355,6 +355,12 @@ else showTitle();
   },
   get tour() {
     return tourIndex;
+  },
+  /** For tests that need a tour to end on a particular kind of stop: drops the stops after the first n. */
+  cutTour(n: number) {
+    if (!world) return;
+    world.tour.length = Math.max(1, Math.min(n, world.tour.length));
+    goTour(Math.min(tourIndex, world.tour.length - 1));
   },
   readouts: () => (world ? world.readouts(ctx()) : []),
   status: () => (world ? world.status(ctx()) : ''),
