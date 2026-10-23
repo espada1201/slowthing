@@ -304,9 +304,23 @@ export function worldChrome(
         e.preventDefault();
         next.focus();
       };
+      // The tail both kinds of question share. Showing the answer ends the question: its skip link and its note go,
+      // the instruments come back, and focus moves to the answer so it is read out.
+      const optionalNote = () => h('span', { class: 'predict-opt' }, 'Optional: Next goes on without an answer.');
+      const answerBox = () => h('p', { class: 'predict-reveal', hidden: true, tabindex: -1, onkeydown: toNext });
+      const revealAnswer = (box: HTMLElement, text: string, ...done: HTMLElement[]) => {
+        box.textContent = text;
+        box.hidden = false;
+        tourText.hidden = false;
+        tourEnd.hidden = !last;
+        root.classList.remove('predicting');
+        given = null;
+        for (const el of done) el.hidden = true;
+        box.focus();
+      };
       if (p) {
         // Answering disables the button that had focus, so focus moves on to the answer.
-        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1, onkeydown: toNext });
+        const reveal = answerBox();
         const choose = (k: number | null) => {
           for (const [j, b] of buttons.entries()) {
             b.disabled = true;
@@ -316,16 +330,9 @@ export function worldChrome(
             // The marks are only drawn, so screen readers get them in the name.
             b.setAttribute('aria-label', `${p.options[j]} (${j === p.answer ? 'right answer' : 'your answer, wrong'})`);
           }
-          reveal.textContent = (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal;
-          reveal.hidden = false;
-          tourText.hidden = false;
-          tourEnd.hidden = !last;
-          root.classList.remove('predicting');
-          skip.hidden = true;
-          optional.hidden = true;
-          reveal.focus();
+          revealAnswer(reveal, (k === null ? '' : k === p.answer ? 'Right. ' : 'Not quite. ') + p.reveal, skip, optional);
         };
-        const optional = h('span', { class: 'predict-opt' }, 'Optional: Next goes on without an answer.');
+        const optional = optionalNote();
         const buttons = p.options.map((o, k) => h('button', { class: 'choice', 'data-choice': k, onclick: () => choose(k) }, o));
         const skip = h('button', { class: 'linkish', onclick: () => choose(null) }, 'Just show me');
         predictBox.replaceChildren(h('p', { class: 'predict-q' }, h('span', { class: 'predict-tag' }, 'Predict'), p.question), h('div', { class: 'choices' }, ...buttons), skip, optional, reveal);
@@ -335,25 +342,18 @@ export function worldChrome(
       if (m) {
         const inputs = m.asks.map((a) => h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-label': `${a.symbol} in ${a.unit}`, 'data-ask': a.symbol, oninput: (e: Event) => (e.target as HTMLInputElement).setCustomValidity('') }));
         const check = h('button', { class: 'btn', 'data-check': true }, 'Check');
-        const reveal = h('p', { class: 'predict-reveal', hidden: true, tabindex: -1, onkeydown: toNext });
+        const reveal = answerBox();
         const commit = (mine: number[] | null) => {
           const { values, reveal: text } = m.answer(world.measureState?.());
           const yours = mine?.map((v, k) => {
             const off = (100 * (v - values[k])) / values[k];
             return `${m.asks[k].symbol} = ${formatSI(v)} ${m.asks[k].unit} (${Math.abs(off).toFixed(1)}% ${off < 0 ? 'low' : 'high'})`;
           });
-          reveal.textContent = (yours ? `Yours: ${yours.join(', ')}. ` : '') + text;
           for (const el of [...inputs, check]) el.disabled = true;
-          reveal.hidden = false;
-          tourText.hidden = false;
-          tourEnd.hidden = !last;
-          skip.hidden = true;
-          optional.hidden = true;
-          given = null;
-          reveal.focus();
+          revealAnswer(reveal, (yours ? `Yours: ${yours.join(', ')}. ` : '') + text, skip, optional);
         };
         const skip = h('button', { class: 'linkish', onclick: () => commit(null) }, 'Just show me');
-        const optional = h('span', { class: 'predict-opt' }, 'Optional: Next goes on without an answer.');
+        const optional = optionalNote();
         const onsubmit = (e: Event) => {
           e.preventDefault();
           const mine = inputs.map((el) => parseNumber(el.value));
