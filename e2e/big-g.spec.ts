@@ -332,3 +332,28 @@ test.describe('on a phone held sideways', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test('one ArrowRight on the G dial makes a visible step, and Page Up a larger one that stops short of the maximum', async ({ page }) => {
+  // A keyboard tester started at 960 of 1000: an arrow changed G by 5% (nothing to see), and Page Up jumped to the maximum.
+  await openWorld(page, 'big-g');
+  const dial = page.locator('[data-dial="G"]');
+  const value = async () => Number(await dial.inputValue());
+  const rs = async () => parseFloat(await readout(page, 'Schwarzschild radius'));
+  expect(await value()).toBe(960);
+  await dial.focus();
+  await page.keyboard.press('ArrowRight');
+  const arrow = await value();
+  expect(arrow).toBeGreaterThan(960);
+  expect(arrow).toBeLessThan(975);
+  await frames(page, 2);
+  expect(await rs(), 'one arrow changes the radius by a quarter or more').toBeGreaterThan(5.5);
+  await page.keyboard.press('PageDown');
+  await page.keyboard.press('PageUp');
+  expect(await value()).toBe(arrow);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('PageUp');
+  expect(await value()).toBeGreaterThan(arrow);
+  expect(await value(), 'Page Up is not the maximum').toBeLessThan(1000);
+  await page.keyboard.press('End');
+  expect(await value()).toBe(1000);
+});

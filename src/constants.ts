@@ -17,12 +17,17 @@ export interface Dial {
   unit: string;
   min: number;
   max: number;
+  /**
+   * Slider steps an arrow key and a Page key move it, where the browser's own (1 and 100) do not suit it. G's range runs
+   * over 54 powers of e and everything a visitor can see happens in its top 7%, so one native step is a 5% change.
+   */
+  keys?: { arrow: number; page: number };
 }
 
 export const DIALS: Record<ConstantKey, Dial> = {
   c: { symbol: 'c', name: 'Speed of light', unit: 'm/s', min: 4, max: REAL.c },
   hbar: { symbol: 'ħ', name: "Planck's constant", unit: 'J·s', min: REAL.hbar, max: 1.5 },
-  G: { symbol: 'G', name: 'Gravitational constant', unit: 'm³/kg·s²', min: REAL.G, max: 2e13 },
+  G: { symbol: 'G', name: 'Gravitational constant', unit: 'm³/kg·s²', min: REAL.G, max: 2e13, keys: { arrow: 5, page: 15 } },
 };
 
 export const SLIDER_STEPS = 1000;
@@ -34,6 +39,18 @@ export function toSlider(dial: Dial, value: number): number {
 
 export function fromSlider(dial: Dial, step: number): number {
   return dial.min * Math.pow(dial.max / dial.min, step / SLIDER_STEPS);
+}
+
+/**
+ * Where a key moves a slider from `step`, for a dial with its own key steps: an arrow by its step (by 1 with Shift), a
+ * Page key by the larger one, clamped to the slider. Null for any other key or dial, which keep the browser's behaviour.
+ */
+export function keyedSlider(dial: Dial, key: string, shift: boolean, step: number): number | null {
+  if (!dial.keys) return null;
+  const by = /^Arrow(Right|Up)$/.test(key) || key === 'PageUp' ? 1 : /^Arrow(Left|Down)$/.test(key) || key === 'PageDown' ? -1 : 0;
+  if (!by) return null;
+  const size = key.startsWith('Page') ? dial.keys.page : shift ? 1 : dial.keys.arrow;
+  return Math.max(0, Math.min(SLIDER_STEPS, step + by * size));
 }
 
 const SUPERSCRIPT = '⁰¹²³⁴⁵⁶⁷⁸⁹';

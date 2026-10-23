@@ -1,7 +1,7 @@
 // DOM for the title screen and the in-world instruments. Plain elements, no framework.
 
 import { setSound, soundOn } from '../audio';
-import { type ConstantKey, type Constants, DIALS, REAL, SLIDER_STEPS, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../constants';
+import { type ConstantKey, type Constants, DIALS, REAL, SLIDER_STEPS, formatSI, fromSlider, keyedSlider, parseNumber, ratioLabel, toSlider } from '../constants';
 import type { Quality, QualitySetting, Readout, Toggle, World } from '../worlds/types';
 import { WORLD_CARDS, type WorldCard, h } from './dom';
 import type { Ruler } from './ruler';
@@ -104,6 +104,13 @@ export function worldChrome(
     const val = h('output', { class: 'dial-value' });
     const ratio = h('span', { class: 'dial-ratio' });
     input.addEventListener('input', () => opts.onDial(k, fromSlider(d, Number(input.value))));
+    input.addEventListener('keydown', (e) => {
+      const to = e.ctrlKey || e.altKey || e.metaKey ? null : keyedSlider(d, e.key, e.shiftKey, Number(input.value));
+      if (to === null) return;
+      e.preventDefault();
+      input.value = String(to);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     return { k, input, val, ratio, el: h('div', { class: 'dial' }, h('div', { class: 'dial-head' }, h('span', { class: 'dial-sym' }, d.symbol), h('span', { class: 'dial-name' }, d.name), ratio), input, val) };
   });
   const switchFor = (t: Toggle) => {

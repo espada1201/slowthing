@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIALS, REAL, formatSI, fromSlider, parseNumber, ratioLabel, toSlider } from '../src/constants';
+import { DIALS, REAL, SLIDER_STEPS, formatSI, fromSlider, keyedSlider, parseNumber, ratioLabel, toSlider } from '../src/constants';
 
 describe('dial labels', () => {
   it('give the factor from reality with its mantissa, not a rounded power of ten', () => {
@@ -42,5 +42,36 @@ describe('numbers typed as answers', () => {
 
   it('refuse anything else', () => {
     for (const text of ['', 'four', '4.1 m', '4..1', '9e', '1,2,3', '×10^4', '1e999']) expect(parseNumber(text), text).toBeNull();
+  });
+});
+
+describe('the G dial from the keyboard', () => {
+  // The boulder's hole sits at step 960 of 1000, where a native step of 1 is a 5% change, one Page key jumps to the maximum,
+  // and a tester who pressed ArrowRight saw nothing change.
+  const rsAt = (step: number) => (fromSlider(DIALS.G, step) * 9.0e4 * 2) / REAL.c ** 2;
+
+  it('moves a visible step with an arrow and a larger one with Page Up, from the world preset', () => {
+    const arrow = keyedSlider(DIALS.G, 'ArrowRight', false, 960)!;
+    const page = keyedSlider(DIALS.G, 'PageUp', false, 960)!;
+    expect(rsAt(arrow) / rsAt(960)).toBeGreaterThan(1.2);
+    expect(rsAt(arrow) / rsAt(960)).toBeLessThan(1.5);
+    expect(page).toBeGreaterThan(arrow);
+    expect(page).toBeLessThan(SLIDER_STEPS);
+    expect(rsAt(page) / rsAt(960)).toBeGreaterThan(1.8);
+  });
+
+  it('goes both ways, clamps at the ends, and keeps a fine step on Shift', () => {
+    expect(keyedSlider(DIALS.G, 'ArrowLeft', false, 960)).toBeLessThan(960);
+    expect(keyedSlider(DIALS.G, 'ArrowUp', false, 960)).toBe(keyedSlider(DIALS.G, 'ArrowRight', false, 960));
+    expect(keyedSlider(DIALS.G, 'PageDown', false, 960)).toBeLessThan(keyedSlider(DIALS.G, 'ArrowLeft', false, 960)!);
+    expect(keyedSlider(DIALS.G, 'ArrowRight', false, 998)).toBe(SLIDER_STEPS);
+    expect(keyedSlider(DIALS.G, 'PageDown', false, 3)).toBe(0);
+    expect(keyedSlider(DIALS.G, 'ArrowRight', true, 960)).toBe(961);
+  });
+
+  it('leaves Home, End and the other dials to the browser', () => {
+    expect(keyedSlider(DIALS.G, 'End', false, 960)).toBeNull();
+    expect(keyedSlider(DIALS.G, 'a', false, 960)).toBeNull();
+    expect(keyedSlider(DIALS.c, 'ArrowRight', false, 500)).toBeNull();
   });
 });
