@@ -17,15 +17,13 @@ export function restoreSound() {
     /* storage blocked: start muted */
   }
   // Browsers only let audio start inside a user gesture; if sound was left on last visit, start on the first one.
-  // Safari does not count a pointerdown or a touchstart as one, only the click or touchend that ends it, or a key press:
-  // so keep trying until the context is actually running.
-  const events = ['pointerdown', 'touchend', 'click', 'keydown'];
-  const unlock = () => {
-    if (enabled) ensure();
-    if (enabled && ctx?.state !== 'running') return;
-    for (const type of events) window.removeEventListener(type, unlock);
+  // Safari does not count a pointerdown or a touchstart as one, only the click or touchend that ends it, or a key press.
+  // The listeners stay for good: Safari also 'interrupts' a running context (a call, a switch to another app), and the
+  // next gesture is the only thing that can bring it back.
+  const wake = () => {
+    if (enabled && ctx?.state !== 'running') ensure();
   };
-  for (const type of events) window.addEventListener(type, unlock);
+  for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(type, wake);
 }
 
 export function soundOn() {
@@ -53,6 +51,11 @@ function ensure() {
     master.gain.value = enabled ? 0.5 : 0;
     const comp = ctx.createDynamicsCompressor();
     master.connect(comp).connect(ctx.destination);
+    // An interruption that ends by itself (a call hung up) needs no gesture; one that does not is retried by the listeners.
+    const made = ctx;
+    made.onstatechange = () => {
+      if (enabled && made.state !== 'running') made.resume().catch(() => {});
+    };
   }
   // 'interrupted' is Safari's, after a call or a switch to another app.
   if (ctx.state !== 'running') ctx.resume().catch(() => {});
